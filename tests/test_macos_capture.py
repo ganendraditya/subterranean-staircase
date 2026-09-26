@@ -1,5 +1,6 @@
 """Unit tests for macOS Quartz Window Capture."""
 
+import sys
 from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
@@ -10,39 +11,40 @@ from core.contracts import Rect
 
 @pytest.fixture
 def mock_quartz():
-    with patch("core.capture.platform.macos.Quartz") as mock_q:
-        mock_q.kCGWindowListOptionOnScreenOnly = 1
-        mock_q.kCGWindowListExcludeDesktopElements = 2
-        mock_q.kCGNullWindowID = 0
-        mock_q.kCGWindowLayer = "kCGWindowLayer"
-        mock_q.kCGWindowBounds = "kCGWindowBounds"
-        mock_q.kCGWindowOwnerName = "kCGWindowOwnerName"
-        mock_q.kCGWindowName = "kCGWindowName"
-        mock_q.kCGWindowNumber = "kCGWindowNumber"
+    mock_q = MagicMock()
+    mock_q.kCGWindowListOptionOnScreenOnly = 1
+    mock_q.kCGWindowListExcludeDesktopElements = 2
+    mock_q.kCGNullWindowID = 0
+    mock_q.kCGWindowLayer = "kCGWindowLayer"
+    mock_q.kCGWindowBounds = "kCGWindowBounds"
+    mock_q.kCGWindowOwnerName = "kCGWindowOwnerName"
+    mock_q.kCGWindowName = "kCGWindowName"
+    mock_q.kCGWindowNumber = "kCGWindowNumber"
 
-        # Mock window list
-        mock_win_info = {
-            "kCGWindowLayer": 0,
-            "kCGWindowNumber": 1234,
-            "kCGWindowOwnerName": "VLC",
-            "kCGWindowName": "Big Buck Bunny",
-            "kCGWindowBounds": {"X": 50, "Y": 60, "Width": 1280, "Height": 720},
-        }
-        mock_q.CGWindowListCopyWindowInfo.side_effect = lambda opt, win_id: [
-            mock_win_info
-        ] if win_id == 1234 or win_id == 0 else []
+    mock_win_info = {
+        "kCGWindowLayer": 0,
+        "kCGWindowNumber": 1234,
+        "kCGWindowOwnerName": "VLC",
+        "kCGWindowName": "Big Buck Bunny",
+        "kCGWindowBounds": {"X": 50, "Y": 60, "Width": 1280, "Height": 720},
+    }
+    mock_q.CGWindowListCopyWindowInfo.side_effect = lambda opt, win_id: [
+        mock_win_info
+    ] if win_id == 1234 or win_id == 0 else []
 
-        # Mock Image capture
-        mock_img = MagicMock()
-        mock_q.CGWindowListCreateImage.return_value = mock_img
-        mock_q.CGImageGetWidth.return_value = 1280
-        mock_q.CGImageGetHeight.return_value = 720
-        mock_q.CGImageGetBytesPerRow.return_value = 1280 * 4
+    mock_img = MagicMock()
+    mock_q.CGWindowListCreateImage.return_value = mock_img
+    mock_q.CGImageGetWidth.return_value = 1280
+    mock_q.CGImageGetHeight.return_value = 720
+    mock_q.CGImageGetBytesPerRow.return_value = 1280 * 4
 
-        # Mock Data Provider (1280 * 720 * 4 bytes)
-        raw_bytes = np.zeros((720, 1280, 4), dtype=np.uint8).tobytes()
-        mock_q.CGDataProviderCopyData.return_value = raw_bytes
+    raw_bytes = np.zeros((720, 1280, 4), dtype=np.uint8).tobytes()
+    mock_q.CGDataProviderCopyData.return_value = raw_bytes
 
+    # Use patch.dict to provide Quartz even on non-macOS test runners
+    with patch.dict(sys.modules, {"Quartz": mock_q}), \
+         patch("core.capture.platform.macos.HAS_QUARTZ", True), \
+         patch("core.capture.platform.macos.Quartz", mock_q, create=True):
         yield mock_q
 
 
