@@ -44,11 +44,33 @@ class MSSScreenCapture(BaseCapture):
         bounds = self.get_monitor_bounds(monitor_index)
 
         if crop_rect is not None:
-            # Clamp target crop strictly within monitor bounds
-            target_left = min(max(bounds.left, crop_rect.left), bounds.right - 1)
-            target_top = min(max(bounds.top, crop_rect.top), bounds.bottom - 1)
-            target_right = max(target_left + 1, min(bounds.right, crop_rect.right))
-            target_bottom = max(target_top + 1, min(bounds.bottom, crop_rect.bottom))
+            # Check if crop_rect coordinates are monitor-local (within monitor dimensions)
+            # and need translation into global monitor coordinate space
+            is_local = (
+                0 <= crop_rect.left < bounds.width
+                and 0 <= crop_rect.top < bounds.height
+                and not (
+                    bounds.left <= crop_rect.left < bounds.right
+                    and bounds.top <= crop_rect.top < bounds.bottom
+                    and (bounds.left != 0 or bounds.top != 0)
+                )
+            )
+
+            if is_local:
+                offset_left = bounds.left + crop_rect.left
+                offset_top = bounds.top + crop_rect.top
+            else:
+                offset_left = crop_rect.left
+                offset_top = crop_rect.top
+
+            # Clean geometric intersection between crop_rect and monitor bounds
+            target_left = max(bounds.left, offset_left)
+            target_top = max(bounds.top, offset_top)
+            target_right = min(bounds.right, offset_left + max(1, crop_rect.width))
+            target_bottom = min(bounds.bottom, offset_top + max(1, crop_rect.height))
+
+            if target_right <= target_left or target_bottom <= target_top:
+                raise ValueError("crop_rect does not intersect with the monitor area")
 
             width = target_right - target_left
             height = target_bottom - target_top

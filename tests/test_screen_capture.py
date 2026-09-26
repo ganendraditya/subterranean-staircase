@@ -74,14 +74,22 @@ def test_mss_grab_screen_out_of_bounds_clamping(mock_mss) -> None:
     # Crop is far beyond monitor bounds [0..1920, 0..1080]
     out_of_bounds = Rect(left=5000, top=5000, width=500, height=300)
 
-    # Mock grab return for 1x1 clamped area
-    mock_mss.grab.return_value = np.zeros((1, 1, 4), dtype=np.uint8)
+    # Disjoint crop rect should raise ValueError
+    with pytest.raises(ValueError, match="does not intersect"):
+        grabber.grab_screen(monitor_index=1, crop_rect=out_of_bounds)
 
-    frame = grabber.grab_screen(monitor_index=1, crop_rect=out_of_bounds)
-    assert frame.source_rect.right <= 1920
-    assert frame.source_rect.bottom <= 1080
-    assert frame.source_rect.width >= 1
-    assert frame.source_rect.height >= 1
+
+def test_monitor_relative_coordinate_offsetting(mock_mss) -> None:
+    grabber = MSSScreenCapture()
+    # Secondary monitor with left offset 1920
+    crop_local = Rect(left=50, top=60, width=400, height=200)
+
+    frame = grabber.grab_screen(monitor_index=2, crop_rect=crop_local)
+    # The target should be translated to monitor 2's space: 1920 + 50 = 1970
+    assert frame.source_rect.left == 1970
+    assert frame.source_rect.top == 60
+    assert frame.source_rect.width == 400
+    assert frame.source_rect.height == 200
 
 
 def test_mss_grab_window_raises_not_implemented() -> None:

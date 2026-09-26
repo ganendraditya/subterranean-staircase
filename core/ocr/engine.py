@@ -1,0 +1,95 @@
+"""Abstract Base OCR engine interface and RapidOCR ONNX implementation.
+
+Decouples text recognition from video capture and downstream subtitle filtering.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+import time
+from typing import Any, List, Optional
+import numpy as np
+
+from core.contracts import Frame, SubtitleBox, SubtitleDetection
+
+try:
+    from rapidocr_onnxruntime import RapidOCR
+    HAS_RAPIDOCR = True
+except ImportError:
+    HAS_RAPIDOCR = False
+
+
+class BaseOCR(ABC):
+    """Abstract interface for Optical Character Recognition engines."""
+
+    @abstractmethod
+    def detect(self, frame_or_image: Frame | np.ndarray) -> List[SubtitleDetection]:
+        """Extract text boxes and confidence scores from an image or Frame contract."""
+        pass
+
+
+class RapidOCREngine(BaseOCR):
+    """Production-grade OCR engine powered by RapidOCR and ONNX Runtime.
+
+    Replaces monolithic PaddleOCR, executing PP-OCRv4 natively without CUDA lock-in.
+    """
+
+    def __init__(self, rapidocr_instance: Optional[Any] = None) -> None:
+        if rapidocr_instance is not None:
+            self._engine = rapidocr_instance
+        else:
+            if not HAS_RAPIDOCR:
+                raise RuntimeError("rapidocr-onnxruntime is not installed")
+            # RapidOCR automatically resolves execution providers (CoreML / DirectML / CPU)
+            self._engine = RapidOCR()
+
+    def detect(self, frame_or_image: Frame | np.ndarray) -> List[SubtitleDetection]:
+        """Detect and recognize text lines within the provided frame.
+
+        Returns a list of strictly-typed SubtitleDetection domain models.
+        """
+        if isinstance(frame_or_image, Frame):
+            image = frame_or_image.image
+            frame_timestamp = frame_or_image.timestamp
+        else:
+            image = frame_or_image
+            frame_timestamp = time.time()
+
+        if image is None or image.size == 0:
+            return []
+
+        # RapidOCR returns (results, elapse_list)
+        # Each item in results: [dt_boxes, rec_res, score]
+        # dt_boxes: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+        # rec_res: recognized text string
+        # score: float confidence [0.0..1.0]
+        results, _ = self._engine(image)
+        if not results:
+            return []
+
+        detections: List[SubtitleDetection] = []
+        for item in results:
+            if not item or len(item) < 3:
+                continue
+
+            dt_boxes, text, score = item[0], str(item[1]).strip(), float(item[2])
+            if not text:
+                continue
+
+            try:
+                # dt_boxes can be numpy array or list
+                box_points = [list(map(float, pt)) for pt in dt_boxes]
+                box = SubtitleBox.from_list(box_points)
+                detections.append(
+                    SubtitleDetection(
+                        text=text,
+                        confidence=score,
+                        box=box,
+                        timestamp=frame_timestamp,
+                    )
+                )
+            except (ValueError, TypeError, IndexError):
+                # Skip malformed box geometry safely
+                continue
+
+        return detections

@@ -6,6 +6,7 @@ Persists user settings to ~/.config/subtitle-translator/config.json with safe de
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -66,13 +67,21 @@ class AppConfig:
         hotkeys_data = data.get("hotkeys", {})
         overlay_data = data.get("overlay", {})
 
+        raw_roi = data.get("custom_roi")
+        validated_roi: Optional[Tuple[int, int, int, int]] = None
+        if raw_roi and len(raw_roi) == 4:
+            try:
+                validated_roi = tuple(int(x) for x in raw_roi)  # type: ignore[assignment]
+            except (ValueError, TypeError):
+                validated_roi = None
+
         return cls(
             version=data.get("version", "1.0.0"),
             source_language=data.get("source_language", "en"),
             target_language=data.get("target_language", "id"),
             capture_mode=data.get("capture_mode", CaptureMode.FULL_SCREEN.value),
             target_window_title=data.get("target_window_title"),
-            custom_roi=tuple(data["custom_roi"]) if data.get("custom_roi") else None,
+            custom_roi=validated_roi,
             fps_limit=data.get("fps_limit", 10),
             frame_diff_threshold=data.get("frame_diff_threshold", 0.015),
             hotkeys=HotkeyConfig(**hotkeys_data) if hotkeys_data else HotkeyConfig(),
@@ -96,8 +105,12 @@ class ConfigManager:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return AppConfig.from_dict(data)
-        except Exception:
-            # Safe fallback on corrupted JSON
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Failed to load config from %s, falling back to defaults: %s",
+                self.config_path,
+                exc,
+            )
             return AppConfig()
 
     def save(self) -> None:
