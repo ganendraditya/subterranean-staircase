@@ -38,13 +38,15 @@ class FrameDiffDetector:
         # Slice down directly on uint8 before color conversion
         sampled = image[::step_y, ::step_x][:target_h, :target_w]
 
-        if sampled.ndim == 3 and sampled.shape[2] == 3:
+        if sampled.ndim == 3 and sampled.shape[2] >= 3:
             # Integer approximation of luminance: (B*29 + G*150 + R*77) >> 8
             gray = (
                 sampled[:, :, 0].astype(np.int32) * 29
                 + sampled[:, :, 1].astype(np.int32) * 150
                 + sampled[:, :, 2].astype(np.int32) * 77
             ) >> 8
+        elif sampled.ndim == 3 and sampled.shape[2] == 1:
+            gray = sampled[:, :, 0]
         else:
             gray = sampled
 

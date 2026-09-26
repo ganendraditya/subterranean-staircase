@@ -21,23 +21,16 @@ def mock_quartz():
         mock_q.kCGWindowNumber = "kCGWindowNumber"
 
         # Mock window list
-        mock_q.CGWindowListCopyWindowInfo.return_value = [
-            {
-                "kCGWindowLayer": 0,
-                "kCGWindowNumber": 1234,
-                "kCGWindowOwnerName": "VLC",
-                "kCGWindowName": "Big Buck Bunny",
-                "kCGWindowBounds": {"X": 50, "Y": 60, "Width": 1280, "Height": 720},
-            },
-            {
-                # Hidden/system layer - should be ignored
-                "kCGWindowLayer": 25,
-                "kCGWindowNumber": 9999,
-                "kCGWindowOwnerName": "Dock",
-                "kCGWindowName": "",
-                "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 50},
-            },
-        ]
+        mock_win_info = {
+            "kCGWindowLayer": 0,
+            "kCGWindowNumber": 1234,
+            "kCGWindowOwnerName": "VLC",
+            "kCGWindowName": "Big Buck Bunny",
+            "kCGWindowBounds": {"X": 50, "Y": 60, "Width": 1280, "Height": 720},
+        }
+        mock_q.CGWindowListCopyWindowInfo.side_effect = lambda opt, win_id: [
+            mock_win_info
+        ] if win_id == 1234 or win_id == 0 else []
 
         # Mock Image capture
         mock_img = MagicMock()
@@ -54,6 +47,25 @@ def mock_quartz():
 
 
 def test_macos_list_windows(mock_quartz) -> None:
+    # Set explicit return value for list_windows call
+    mock_quartz.CGWindowListCopyWindowInfo.side_effect = None
+    mock_quartz.CGWindowListCopyWindowInfo.return_value = [
+        {
+            "kCGWindowLayer": 0,
+            "kCGWindowNumber": 1234,
+            "kCGWindowOwnerName": "VLC",
+            "kCGWindowName": "Big Buck Bunny",
+            "kCGWindowBounds": {"X": 50, "Y": 60, "Width": 1280, "Height": 720},
+        },
+        {
+            "kCGWindowLayer": 25,
+            "kCGWindowNumber": 9999,
+            "kCGWindowOwnerName": "Dock",
+            "kCGWindowName": "",
+            "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 50},
+        },
+    ]
+
     capturer = MacOSWindowCapture()
     windows = capturer.list_windows()
 

@@ -32,6 +32,28 @@ if HAS_WIN32:
     _dwmapi = ctypes.windll.dwmapi
     _gdi32 = ctypes.windll.gdi32
     DWMWA_EXTENDED_FRAME_BOUNDS = 9
+
+    # Explicitly configure 64-bit safe restype/argtypes for GDI and User32 handles
+    _user32.GetWindowDC.restype = wintypes.HDC
+    _user32.GetWindowDC.argtypes = [wintypes.HWND]
+
+    _user32.ReleaseDC.restype = ctypes.c_int
+    _user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+
+    _gdi32.CreateCompatibleDC.restype = wintypes.HDC
+    _gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+
+    _gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
+    _gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
+
+    _gdi32.SelectObject.restype = wintypes.HGDIOBJ
+    _gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+
+    _gdi32.DeleteObject.restype = wintypes.BOOL
+    _gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+
+    _gdi32.DeleteDC.restype = wintypes.BOOL
+    _gdi32.DeleteDC.argtypes = [wintypes.HDC]
 else:
     _RECT = None
     _user32 = None
@@ -107,11 +129,14 @@ class WindowsWindowCapture(BaseCapture):
 
             is_iconic = bool(_user32.IsIconic(hwnd))
 
+            parts = title.split(" - ")
+            owner_name = parts[-1].strip() if len(parts) > 1 else title
+
             windows.append(
                 WindowInfo(
                     window_id=int(hwnd),
                     title=title,
-                    owner_name=title.split(" - ")[-1],
+                    owner_name=owner_name,
                     rect=rect,
                     is_minimized=is_iconic,
                 )
@@ -147,15 +172,16 @@ class WindowsWindowCapture(BaseCapture):
         if width <= 0 or height <= 0:
             raise ValueError(f"Window {window_id} has invalid dimensions ({width}x{height})")
 
-        hwnd_dc = _user32.GetWindowDC(hwnd)
-        if not hwnd_dc:
-            raise RuntimeError(f"Failed to get device context for window {window_id}")
-
+        hwnd_dc = None
         mem_dc = None
         bitmap = None
         prev_bmp = None
 
         try:
+            hwnd_dc = _user32.GetWindowDC(hwnd)
+            if not hwnd_dc:
+                raise RuntimeError(f"Failed to get device context for window {window_id}")
+
             mem_dc = _gdi32.CreateCompatibleDC(hwnd_dc)
             if not mem_dc:
                 raise RuntimeError("Failed to create compatible DC")
@@ -185,7 +211,7 @@ class WindowsWindowCapture(BaseCapture):
             buffer_size = width * height * 4
             buf = ctypes.create_string_buffer(buffer_size)
 
-            _gdi32.GetDIBits(
+            lines_copied = _gdi32.GetDIBits(
                 mem_dc,
                 bitmap,
                 0,
@@ -194,16 +220,24 @@ class WindowsWindowCapture(BaseCapture):
                 bmp_info,
                 0,  # DIB_RGB_COLORS
             )
+            if not lines_copied:
+                raise RuntimeError(f"Failed to copy bitmap data for window {window_id}")
 
             img_np = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 4))
             img_bgr = img_np[:, :, :3].copy()
 
             actual_rect = rect
             if crop_rect is not None:
-                target_left = min(max(0, crop_rect.left), width - 1)
-                target_top = min(max(0, crop_rect.top), height - 1)
-                target_right = max(target_left + 1, min(crop_rect.right, width))
-                target_bottom = max(target_top + 1, min(crop_rect.bottom, height))
+                if crop_rect.width <= 0 or crop_rect.height <= 0:
+                    raise ValueError("crop_rect width and height must be positive")
+
+                target_left = max(0, min(crop_rect.left, width))
+                target_top = max(0, min(crop_rect.top, height))
+                target_right = max(target_left, min(crop_rect.right, width))
+                target_bottom = max(target_top, min(crop_rect.bottom, height))
+
+                if target_right == target_left or target_bottom == target_top:
+                    raise ValueError("crop_rect does not intersect with the window area")
 
                 img_bgr = img_bgr[target_top:target_bottom, target_left:target_right]
                 actual_rect = Rect(

@@ -86,15 +86,22 @@ class MacOSWindowCapture(BaseCapture):
             raise RuntimeError("Quartz framework not available on this platform")
 
         win_id = int(window_id)
-        # Find window geometry
-        window_rect: Optional[Rect] = None
-        for w in self.list_windows():
-            if w.window_id == win_id:
-                window_rect = w.rect
-                break
-
-        if window_rect is None:
+        # Query only the target window info directly instead of enumerating all desktop windows
+        info_list = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionIncludingWindow,
+            win_id,
+        )
+        if not info_list:
             raise ValueError(f"Window with ID {window_id} not found or no longer visible")
+
+        win = info_list[0]
+        bounds = win.get(Quartz.kCGWindowBounds, {})
+        window_rect = Rect(
+            left=int(bounds.get("X", 0)),
+            top=int(bounds.get("Y", 0)),
+            width=int(bounds.get("Width", 0)),
+            height=int(bounds.get("Height", 0)),
+        )
 
         # Capture the window image directly from WindowServer
         image_ref = Quartz.CGWindowListCreateImage(
@@ -129,11 +136,17 @@ class MacOSWindowCapture(BaseCapture):
 
         actual_rect = window_rect
         if crop_rect is not None:
-            # Local cropping relative to window
-            target_left = max(0, min(crop_rect.left, width - 1))
-            target_top = max(0, min(crop_rect.top, height - 1))
-            target_right = max(target_left + 1, min(crop_rect.right, width))
-            target_bottom = max(target_top + 1, min(crop_rect.bottom, height))
+            if crop_rect.width <= 0 or crop_rect.height <= 0:
+                raise ValueError("crop_rect width and height must be positive")
+
+            # Local cropping relative to window bounds
+            target_left = max(0, min(crop_rect.left, width))
+            target_top = max(0, min(crop_rect.top, height))
+            target_right = max(target_left, min(crop_rect.right, width))
+            target_bottom = max(target_top, min(crop_rect.bottom, height))
+
+            if target_right == target_left or target_bottom == target_top:
+                raise ValueError("crop_rect does not intersect with the window area")
 
             img_bgr = img_bgr[target_top:target_bottom, target_left:target_right]
             actual_rect = Rect(
