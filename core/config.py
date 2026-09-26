@@ -1,0 +1,114 @@
+"""Centralized configuration schema and persistence manager.
+
+Persists user settings to ~/.config/subtitle-translator/config.json with safe defaults.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+from core.contracts import CaptureMode
+
+
+def get_default_config_path() -> Path:
+    """Return default user config path: ~/.config/subtitle-translator/config.json"""
+    base_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base_dir / "subtitle-translator" / "config.json"
+
+
+@dataclass
+class HotkeyConfig:
+    """Configured global hotkeys."""
+    toggle_translation: str = "Ctrl+Shift+S"
+    select_roi: str = "Ctrl+Shift+R"
+    toggle_overlay: str = "Ctrl+Shift+H"
+
+
+@dataclass
+class OverlayStyleConfig:
+    """Visual style settings for the transparent subtitle overlay."""
+    font_family: str = "Arial"
+    font_size: int = 24
+    font_bold: bool = True
+    text_color: str = "#FFFFFF"        # White text
+    stroke_color: str = "#000000"      # Black outline for WCAG AA contrast
+    stroke_width: int = 3
+    background_color: str = "#000000"  # Subtle pill background
+    background_opacity: float = 0.4
+    fade_out_seconds: float = 3.5      # Auto fade-out on speech pause
+
+
+@dataclass
+class AppConfig:
+    """Root application configuration schema."""
+    version: str = "1.0.0"
+    source_language: str = "en"
+    target_language: str = "id"
+    capture_mode: str = CaptureMode.FULL_SCREEN.value
+    target_window_title: Optional[str] = None
+    custom_roi: Optional[Tuple[int, int, int, int]] = None  # (left, top, width, height)
+    fps_limit: int = 10
+    frame_diff_threshold: float = 0.015  # 1.5% pixel variance threshold to trigger OCR
+    hotkeys: HotkeyConfig = field(default_factory=HotkeyConfig)
+    overlay: OverlayStyleConfig = field(default_factory=OverlayStyleConfig)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config dataclass to dictionary."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> AppConfig:
+        """Create AppConfig from dictionary with nested dataclass handling."""
+        hotkeys_data = data.get("hotkeys", {})
+        overlay_data = data.get("overlay", {})
+
+        return cls(
+            version=data.get("version", "1.0.0"),
+            source_language=data.get("source_language", "en"),
+            target_language=data.get("target_language", "id"),
+            capture_mode=data.get("capture_mode", CaptureMode.FULL_SCREEN.value),
+            target_window_title=data.get("target_window_title"),
+            custom_roi=tuple(data["custom_roi"]) if data.get("custom_roi") else None,
+            fps_limit=data.get("fps_limit", 10),
+            frame_diff_threshold=data.get("frame_diff_threshold", 0.015),
+            hotkeys=HotkeyConfig(**hotkeys_data) if hotkeys_data else HotkeyConfig(),
+            overlay=OverlayStyleConfig(**overlay_data) if overlay_data else OverlayStyleConfig(),
+        )
+
+
+class ConfigManager:
+    """Manages loading, modifying, and saving application configuration."""
+
+    def __init__(self, config_path: Optional[Path] = None) -> None:
+        self.config_path = config_path or get_default_config_path()
+        self.config: AppConfig = self.load()
+
+    def load(self) -> AppConfig:
+        """Load config from disk; fallback to default if missing or invalid."""
+        if not self.config_path.exists():
+            return AppConfig()
+
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return AppConfig.from_dict(data)
+        except Exception:
+            # Safe fallback on corrupted JSON
+            return AppConfig()
+
+    def save(self) -> None:
+        """Persist current config to disk, creating parent directories if needed."""
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.config_path, "w", encoding="utf-8") as f:
+            json.dump(self.config.to_dict(), f, indent=2)
+
+    def update(self, **kwargs: Any) -> None:
+        """Update top-level configuration values and auto-save."""
+        for key, value in kwargs.items():
+            if hasattr(self.config, key):
+                setattr(self.config, key, value)
+        self.save()
