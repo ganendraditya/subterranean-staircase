@@ -9,6 +9,9 @@ sentencepiece>=0.2.0
 PyQt6>=6.6.0
 pydantic>=2.6.0
 
+# macOS Native Capture Support
+pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'
+
 # Development & Testing
 pytest>=8.0.0
 pytest-cov>=4.1.0
