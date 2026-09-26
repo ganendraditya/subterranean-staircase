@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
-"""Entry point for the subtitle translator app."""
+"""Entrypoint for Subtitle Translator V1 launcher."""
 
 import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from main import main
+def main() -> int:
+    print("Subtitle Translator V1 (Modular Architecture Initialized)")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
