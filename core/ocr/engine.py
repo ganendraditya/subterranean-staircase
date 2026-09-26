@@ -69,11 +69,13 @@ class RapidOCREngine(BaseOCR):
             if not item or len(item) < 3:
                 continue
 
-            dt_boxes, text, score = item[0], str(item[1]).strip(), float(item[2])
+            dt_boxes = item[0]
+            text = str(item[1]).strip()
             if not text:
                 continue
 
             try:
+                score = float(item[2])
                 # dt_boxes can be numpy array or list
                 box_points = [list(map(float, pt)) for pt in dt_boxes]
                 box = SubtitleBox.from_list(box_points)
@@ -86,7 +88,7 @@ class RapidOCREngine(BaseOCR):
                     )
                 )
             except (ValueError, TypeError, IndexError):
-                # Skip malformed box geometry safely
+                # Skip malformed box geometry or non-numeric score safely
                 continue
 
         return detections

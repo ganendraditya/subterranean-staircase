@@ -37,6 +37,7 @@ def detect_script(text: str) -> str:
     ja_kana_count = len(_HIRAGANA.findall(text)) + len(_KATAKANA.findall(text))
     ko_count = len(_HANGUL.findall(text))
     cjk_count = len(_CJK.findall(text))
+    latin_count = len(re.findall(r"[a-zA-Z\u00c0-\u024f]", text))
 
     # If Kana is present, CJK characters in the same sentence are part of Japanese text
     ja_count = ja_kana_count + (cjk_count if ja_kana_count > 0 else 0)
@@ -47,6 +48,7 @@ def detect_script(text: str) -> str:
         "ko": ko_count,
         "ja": ja_count,
         "zh": zh_count,
+        "latin": latin_count,
     }
     top_script, max_count = max(counts.items(), key=lambda item: item[1])
     if max_count > 0:

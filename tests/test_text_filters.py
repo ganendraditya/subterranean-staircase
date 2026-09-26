@@ -22,6 +22,7 @@ def test_detect_script() -> None:
     assert detect_script("안녕하세요") == "ko"            # Hangul
     assert detect_script("你好，世界") == "zh"            # CJK
     assert detect_script("مرحبا بكم") == "ar"             # Arabic
+    assert detect_script("Hello world with minor glyph: あ") == "latin"
 
 
 def test_clean_subtitle_text() -> None:
