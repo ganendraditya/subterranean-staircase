@@ -13,20 +13,20 @@ from typing import Dict, List, Optional
 
 from core.contracts import SubtitleBox, SubtitleDetection
 
-_WORD_PATTERN = re.compile(r"\w+")
+_TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]|\w+")
 
 
 def text_similarity(a: str, b: str) -> float:
-    """Calculate word-level Jaccard similarity between two text strings."""
+    """Calculate token-level Jaccard similarity between two text strings."""
     if not a or not b:
         return 0.0
-    words_a = set(_WORD_PATTERN.findall(a.lower()))
-    words_b = set(_WORD_PATTERN.findall(b.lower()))
-    if not words_a or not words_b:
+    tokens_a = set(_TOKEN_PATTERN.findall(a.lower()))
+    tokens_b = set(_TOKEN_PATTERN.findall(b.lower()))
+    if not tokens_a or not tokens_b:
         return 0.0
 
-    intersection = len(words_a & words_b)
-    union = len(words_a | words_b)
+    intersection = len(tokens_a & tokens_b)
+    union = len(tokens_a | tokens_b)
     return float(intersection / union) if union > 0 else 0.0
 
 
@@ -40,15 +40,15 @@ def should_replace_best_text(
     if not current_best:
         return True
 
-    words_current = len(current_best.split())
-    words_new = len(new_text.split())
+    tokens_current = len(_TOKEN_PATTERN.findall(current_best.lower()))
+    tokens_new = len(_TOKEN_PATTERN.findall(new_text.lower()))
 
     # 1. Significantly longer complete sentence with reasonable confidence
-    if words_new > words_current and new_conf >= (current_conf - 0.15):
+    if tokens_new > tokens_current and new_conf >= (current_conf - 0.15):
         return True
 
     # 2. Similar length but noticeably higher OCR confidence
-    if words_new >= words_current and new_conf > (current_conf + 0.05):
+    if tokens_new >= tokens_current and new_conf > (current_conf + 0.05):
         return True
 
     return False
@@ -72,12 +72,17 @@ class SubtitleTrack:
         confidence: float,
         timestamp: float,
         new_text: str = "",
+        max_history: int = 50,
     ) -> None:
-        """Update tracker with newly observed frame detection."""
+        """Update tracker with newly observed frame detection with bounded memory buffer."""
         self.last_seen = timestamp
         self.count += 1
         self.boxes.append(box)
         self.confidences.append(confidence)
+
+        if len(self.boxes) > max_history:
+            self.boxes = self.boxes[-max_history:]
+            self.confidences = self.confidences[-max_history:]
 
         candidate = new_text or self.text
         if should_replace_best_text(self.best_text, self.best_conf, candidate, confidence):
@@ -139,8 +144,14 @@ class SubtitleHistoryTracker:
                 track = self._tracks[best_match_key]
                 track.update(det.box, det.confidence, current_time, new_text=text)
             else:
-                # Spawn new track
-                new_key = f"{text}_{current_time:.3f}"
+                # Spawn new track with collision-safe key
+                base_key = f"{text}_{current_time:.3f}"
+                new_key = base_key
+                idx = 0
+                while new_key in self._tracks:
+                    idx += 1
+                    new_key = f"{base_key}_{idx}"
+
                 self._tracks[new_key] = SubtitleTrack(
                     text=text,
                     best_text=text,

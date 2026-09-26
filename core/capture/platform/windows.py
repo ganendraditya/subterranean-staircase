@@ -75,6 +75,14 @@ if HAS_WIN32:
         ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM),
         wintypes.LPARAM,
     ]
+
+    _dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long  # HRESULT
+    _dwmapi.DwmGetWindowAttribute.argtypes = [
+        wintypes.HWND,
+        wintypes.DWORD,
+        wintypes.LPCVOID,
+        wintypes.DWORD,
+    ]
 else:
     _RECT = None
     _user32 = None

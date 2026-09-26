@@ -52,7 +52,7 @@ class MSSScreenCapture(BaseCapture):
                 and bounds.top <= crop_rect.top < bounds.bottom
             )
 
-            if not is_already_global and 0 <= crop_rect.left < bounds.width and 0 <= crop_rect.top < bounds.height:
+            if not is_already_global and (bounds.left != 0 or bounds.top != 0) and 0 <= crop_rect.left < bounds.width and 0 <= crop_rect.top < bounds.height:
                 offset_left = bounds.left + crop_rect.left
                 offset_top = bounds.top + crop_rect.top
             else:

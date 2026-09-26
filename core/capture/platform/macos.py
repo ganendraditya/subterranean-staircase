@@ -139,21 +139,34 @@ class MacOSWindowCapture(BaseCapture):
             if crop_rect.width <= 0 or crop_rect.height <= 0:
                 raise ValueError("crop_rect width and height must be positive")
 
+            # Handle Retina / HiDPI physical vs logical scaling
+            scale_x = width / window_rect.width if window_rect.width > 0 else 1.0
+            scale_y = height / window_rect.height if window_rect.height > 0 else 1.0
+
+            crop_scaled_left = int(round(crop_rect.left * scale_x))
+            crop_scaled_top = int(round(crop_rect.top * scale_y))
+            crop_scaled_right = int(round(crop_rect.right * scale_x))
+            crop_scaled_bottom = int(round(crop_rect.bottom * scale_y))
+
             # Local cropping relative to window bounds
-            target_left = max(0, min(crop_rect.left, width))
-            target_top = max(0, min(crop_rect.top, height))
-            target_right = max(target_left, min(crop_rect.right, width))
-            target_bottom = max(target_top, min(crop_rect.bottom, height))
+            target_left = max(0, min(crop_scaled_left, width))
+            target_top = max(0, min(crop_scaled_top, height))
+            target_right = max(target_left, min(crop_scaled_right, width))
+            target_bottom = max(target_top, min(crop_scaled_bottom, height))
 
             if target_right == target_left or target_bottom == target_top:
                 raise ValueError("crop_rect does not intersect with the window area")
 
             img_bgr = img_bgr[target_top:target_bottom, target_left:target_right]
+            actual_left = window_rect.left + int(round(target_left / scale_x))
+            actual_top = window_rect.top + int(round(target_top / scale_y))
+            actual_width = int(round((target_right - target_left) / scale_x))
+            actual_height = int(round((target_bottom - target_top) / scale_y))
             actual_rect = Rect(
-                left=window_rect.left + target_left,
-                top=window_rect.top + target_top,
-                width=target_right - target_left,
-                height=target_bottom - target_top,
+                left=actual_left,
+                top=actual_top,
+                width=actual_width,
+                height=actual_height,
             )
 
         return Frame(

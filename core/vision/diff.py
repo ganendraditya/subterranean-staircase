@@ -25,8 +25,10 @@ class FrameDiffDetector:
 
     def _to_grayscale_thumbnail(self, image: np.ndarray) -> np.ndarray:
         """Convert BGR image to small float32 grayscale thumbnail array normalized to [0, 1]."""
-        # Slicing with strides (step downsampling) is 10x faster than full float conversion
         target_w, target_h = self.downsample_size
+        if image is None or image.ndim < 2:
+            return np.zeros((target_h, target_w), dtype=np.float32)
+
         src_h, src_w = image.shape[:2]
 
         if src_h <= 0 or src_w <= 0:
@@ -53,7 +55,7 @@ class FrameDiffDetector:
         # Pad if sampled size was slightly smaller than target
         if gray.shape[0] < target_h or gray.shape[1] < target_w:
             padded = np.zeros((target_h, target_w), dtype=np.float32)
-            padded[:gray.shape[0], :gray.shape[1]] = gray / 255.0
+            padded[:gray.shape[0], :gray.shape[1]] = (gray / 255.0).astype(np.float32)
             return padded
 
         return (gray / 255.0).astype(np.float32)
