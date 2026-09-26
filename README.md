@@ -2,7 +2,7 @@
 
 Real-time screen subtitle translator for Windows. It helps when you find a video, stream, or other media with subtitles in a language you do not understand: the app captures the screen or a selected window, detects subtitle regions, runs OCR, translates the text, and displays a click-through PyQt overlay.
 
-> Status: active development, pre-alpha.
+> **Status:** `v0.1.0-prealpha` (Legacy / Monolithic prototype — currently being redesigned for cross-platform V1).
 
 ## Stack
 
