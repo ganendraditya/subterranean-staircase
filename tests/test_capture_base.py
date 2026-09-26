@@ -87,6 +87,31 @@ def test_roi_helper_bottom_and_top_bands() -> None:
     assert top_band.top == 0
     assert top_band.bottom == 216
 
+def test_roi_helper_invalid_ratio() -> None:
+    video_rect = Rect(left=0, top=0, width=1920, height=1080)
+    with pytest.raises(ValueError, match="Band ratio must be between 0.0 and 1.0"):
+        ROIHelper.get_bottom_band(video_rect, ratio=1.5)
+    
+    with pytest.raises(ValueError, match="Band ratio must be between 0.0 and 1.0"):
+        ROIHelper.get_top_band(video_rect, ratio=-0.5)
+    video_rect = Rect(left=0, top=0, width=1920, height=1080)
+
+    # Bottom 25% (1080 * 0.25 = 270 px)
+    bottom_band = ROIHelper.get_bottom_band(video_rect, ratio=0.25)
+    assert bottom_band.left == 0
+    assert bottom_band.width == 1920
+    assert bottom_band.height == 270
+    assert bottom_band.top == 1080 - 270
+    assert bottom_band.bottom == 1080
+
+    # Top 20% (1080 * 0.20 = 216 px)
+    top_band = ROIHelper.get_top_band(video_rect, ratio=0.20)
+    assert top_band.left == 0
+    assert top_band.width == 1920
+    assert top_band.height == 216
+    assert top_band.top == 0
+    assert top_band.bottom == 216
+
 
 def test_roi_helper_clamp_to_bounds() -> None:
     out_of_screen = Rect(left=1900, top=1000, width=500, height=500)
