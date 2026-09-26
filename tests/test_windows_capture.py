@@ -28,14 +28,17 @@ def test_capture_factory_fallback_linux() -> None:
 
 
 def test_windows_capture_on_non_windows_raises_or_empty() -> None:
-    # On macOS or Linux where HAS_WIN32 is False
-    capturer = WindowsWindowCapture()
-    assert capturer.list_windows() == []
+    # Explicitly mock HAS_WIN32 as False to test fallback behavior on Linux/unsupported OS
+    with patch("core.capture.platform.windows.HAS_WIN32", False), \
+         patch("core.capture.platform.windows._user32", None), \
+         patch("core.capture.platform.windows._dwmapi", None):
+        capturer = WindowsWindowCapture()
+        assert capturer.list_windows() == []
 
-    with pytest.raises(RuntimeError, match="only available on Windows"):
-        capturer.grab_window(1234)
+        with pytest.raises(RuntimeError, match="only available on Windows"):
+            capturer.grab_window(1234)
 
-    assert _get_window_rect(1234) is None
+        assert _get_window_rect(1234) is None
 
 
 def test_windows_grab_window_mocked() -> None:
