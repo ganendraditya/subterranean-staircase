@@ -1,0 +1,230 @@
+"""Windows Native Window Enumerator and Window Grabber using ctypes / Win32 API.
+
+Strictly isolated under core/capture/platform/windows.py so it never pollutes
+non-Windows environments (macOS/Linux).
+"""
+
+from __future__ import annotations
+
+import ctypes
+from ctypes import wintypes
+import sys
+import time
+from typing import List, Optional
+import numpy as np
+
+from core.capture.base import BaseCapture
+from core.capture.screen import MSSScreenCapture
+from core.contracts import Frame, Rect, WindowInfo
+
+HAS_WIN32 = sys.platform == "win32"
+
+if HAS_WIN32:
+    class _RECT(ctypes.Structure):
+        _fields_ = [
+            ("left", wintypes.LONG),
+            ("top", wintypes.LONG),
+            ("right", wintypes.LONG),
+            ("bottom", wintypes.LONG),
+        ]
+
+    _user32 = ctypes.windll.user32
+    _dwmapi = ctypes.windll.dwmapi
+    _gdi32 = ctypes.windll.gdi32
+    DWMWA_EXTENDED_FRAME_BOUNDS = 9
+else:
+    _RECT = None
+    _user32 = None
+    _dwmapi = None
+    _gdi32 = None
+    DWMWA_EXTENDED_FRAME_BOUNDS = 9
+
+
+def _get_window_rect(hwnd: int) -> Optional[Rect]:
+    """Retrieve window geometry using DWM extended frame bounds (excluding drop shadows)."""
+    if not HAS_WIN32 or _dwmapi is None:
+        return None
+
+    rect = _RECT()
+    hr = _dwmapi.DwmGetWindowAttribute(
+        hwnd,
+        DWMWA_EXTENDED_FRAME_BOUNDS,
+        ctypes.byref(rect),
+        ctypes.sizeof(rect),
+    )
+    if hr == 0:
+        return Rect(
+            left=rect.left,
+            top=rect.top,
+            width=rect.right - rect.left,
+            height=rect.bottom - rect.top,
+        )
+
+    # Fallback to standard User32 GetWindowRect
+    if _user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return Rect(
+            left=rect.left,
+            top=rect.top,
+            width=rect.right - rect.left,
+            height=rect.bottom - rect.top,
+        )
+    return None
+
+
+class WindowsWindowCapture(BaseCapture):
+    """Windows-specific window grabber and enumerator via Win32 / GDI / DWM APIs."""
+
+    def __init__(self, fallback_screen_capture: Optional[BaseCapture] = None) -> None:
+        self._screen_capture = fallback_screen_capture or MSSScreenCapture()
+
+    def list_windows(self) -> List[WindowInfo]:
+        """Enumerate visible desktop application windows on Windows."""
+        if not HAS_WIN32 or _user32 is None:
+            return []
+
+        windows: List[WindowInfo] = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _enum_proc(hwnd, _lparam):
+            if not _user32.IsWindowVisible(hwnd):
+                return True
+
+            length = _user32.GetWindowTextLengthW(hwnd)
+            if length == 0:
+                return True
+
+            buf = ctypes.create_unicode_buffer(length + 1)
+            _user32.GetWindowTextW(hwnd, buf, length + 1)
+            title = buf.value
+
+            # Skip common shell noise windows
+            if not title or title in ("Program Manager", "Windows Input Experience", "Settings"):
+                return True
+
+            rect = _get_window_rect(hwnd)
+            if rect is None or rect.width < 100 or rect.height < 100:
+                return True
+
+            is_iconic = bool(_user32.IsIconic(hwnd))
+
+            windows.append(
+                WindowInfo(
+                    window_id=int(hwnd),
+                    title=title,
+                    owner_name=title.split(" - ")[-1],
+                    rect=rect,
+                    is_minimized=is_iconic,
+                )
+            )
+            return True
+
+        _user32.EnumWindows(_enum_proc, 0)
+        return windows
+
+    def get_monitor_bounds(self, monitor_index: int = 1) -> Rect:
+        """Delegate monitor boundaries calculation to the screen capture driver."""
+        return self._screen_capture.get_monitor_bounds(monitor_index)
+
+    def grab_screen(self, monitor_index: int = 1, crop_rect: Optional[Rect] = None) -> Frame:
+        """Capture monitor screen via the underlying screen capture driver."""
+        return self._screen_capture.grab_screen(monitor_index, crop_rect)
+
+    def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
+        """Capture a targeted Windows application window using PrintWindow / GDI."""
+        if not HAS_WIN32:
+            raise RuntimeError("Windows capture driver is only available on Windows OS")
+
+        hwnd = int(window_id)
+        if not _user32.IsWindow(hwnd):
+            raise ValueError(f"Window handle {window_id} is invalid or no longer exists")
+
+        rect = _get_window_rect(hwnd)
+        if rect is None:
+            raise RuntimeError(f"Failed to query bounds for window {window_id}")
+
+        width = rect.width
+        height = rect.height
+        if width <= 0 or height <= 0:
+            raise ValueError(f"Window {window_id} has invalid dimensions ({width}x{height})")
+
+        hwnd_dc = _user32.GetWindowDC(hwnd)
+        if not hwnd_dc:
+            raise RuntimeError(f"Failed to get device context for window {window_id}")
+
+        mem_dc = None
+        bitmap = None
+        prev_bmp = None
+
+        try:
+            mem_dc = _gdi32.CreateCompatibleDC(hwnd_dc)
+            if not mem_dc:
+                raise RuntimeError("Failed to create compatible DC")
+
+            bitmap = _gdi32.CreateCompatibleBitmap(hwnd_dc, width, height)
+            if not bitmap:
+                raise RuntimeError("Failed to create compatible bitmap")
+
+            prev_bmp = _gdi32.SelectObject(mem_dc, bitmap)
+
+            # PW_RENDERFULLCONTENT = 2
+            rendered = _user32.PrintWindow(hwnd, mem_dc, 2)
+            if not rendered:
+                # Fallback to standard PrintWindow = 0
+                _user32.PrintWindow(hwnd, mem_dc, 0)
+
+            # Extract bitmap bits via GetDIBits
+            bmp_info = ctypes.create_string_buffer(40)
+            # Fill BITMAPINFOHEADER struct
+            ctypes.c_uint32.from_buffer(bmp_info, 0).value = 40
+            ctypes.c_int32.from_buffer(bmp_info, 4).value = width
+            ctypes.c_int32.from_buffer(bmp_info, 8).value = -height  # top-down DIB
+            ctypes.c_uint16.from_buffer(bmp_info, 12).value = 1
+            ctypes.c_uint16.from_buffer(bmp_info, 14).value = 32  # 32 bpp
+            ctypes.c_uint32.from_buffer(bmp_info, 16).value = 0   # BI_RGB
+
+            buffer_size = width * height * 4
+            buf = ctypes.create_string_buffer(buffer_size)
+
+            _gdi32.GetDIBits(
+                mem_dc,
+                bitmap,
+                0,
+                height,
+                buf,
+                bmp_info,
+                0,  # DIB_RGB_COLORS
+            )
+
+            img_np = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 4))
+            img_bgr = img_np[:, :, :3].copy()
+
+            actual_rect = rect
+            if crop_rect is not None:
+                target_left = min(max(0, crop_rect.left), width - 1)
+                target_top = min(max(0, crop_rect.top), height - 1)
+                target_right = max(target_left + 1, min(crop_rect.right, width))
+                target_bottom = max(target_top + 1, min(crop_rect.bottom, height))
+
+                img_bgr = img_bgr[target_top:target_bottom, target_left:target_right]
+                actual_rect = Rect(
+                    left=rect.left + target_left,
+                    top=rect.top + target_top,
+                    width=target_right - target_left,
+                    height=target_bottom - target_top,
+                )
+
+            return Frame(
+                image=img_bgr,
+                timestamp=time.time(),
+                source_rect=actual_rect,
+                window_id=hwnd,
+            )
+        finally:
+            if mem_dc and prev_bmp:
+                _gdi32.SelectObject(mem_dc, prev_bmp)
+            if bitmap:
+                _gdi32.DeleteObject(bitmap)
+            if mem_dc:
+                _gdi32.DeleteDC(mem_dc)
+            if hwnd_dc:
+                _user32.ReleaseDC(hwnd, hwnd_dc)
