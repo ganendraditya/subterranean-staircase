@@ -1,1 +1,5 @@
-"""Vision utilities, frame difference hashing, and preprocessing."""
+"""Vision module public exports."""
+
+from core.vision.diff import FrameDiffDetector
+
+__all__ = ["FrameDiffDetector"]
