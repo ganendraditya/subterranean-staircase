@@ -36,7 +36,6 @@ mobileclip*.ts
 
 # Local tool settings
 .ultralytics/
-AGENTS.md
 .agents/
 skills-lock.json
 docs/
