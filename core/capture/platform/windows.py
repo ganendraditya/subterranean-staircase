@@ -32,6 +32,7 @@ if HAS_WIN32:
     _dwmapi = ctypes.windll.dwmapi
     _gdi32 = ctypes.windll.gdi32
     DWMWA_EXTENDED_FRAME_BOUNDS = 9
+    DWMWA_CLOAKED = 14
 
     # Explicitly configure 64-bit safe restype/argtypes for GDI and User32 handles
     _user32.GetWindowDC.restype = wintypes.HDC
@@ -54,6 +55,26 @@ if HAS_WIN32:
 
     _gdi32.DeleteDC.restype = wintypes.BOOL
     _gdi32.DeleteDC.argtypes = [wintypes.HDC]
+
+    _user32.PrintWindow.restype = wintypes.BOOL
+    _user32.PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, wintypes.UINT]
+
+    _gdi32.GetDIBits.restype = ctypes.c_int
+    _gdi32.GetDIBits.argtypes = [
+        wintypes.HDC,
+        wintypes.HBITMAP,
+        wintypes.UINT,
+        wintypes.UINT,
+        wintypes.LPVOID,
+        ctypes.c_void_p,
+        wintypes.UINT,
+    ]
+
+    _user32.EnumWindows.restype = wintypes.BOOL
+    _user32.EnumWindows.argtypes = [
+        ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM),
+        wintypes.LPARAM,
+    ]
 else:
     _RECT = None
     _user32 = None
@@ -110,6 +131,17 @@ class WindowsWindowCapture(BaseCapture):
         def _enum_proc(hwnd, _lparam):
             if not _user32.IsWindowVisible(hwnd):
                 return True
+
+            cloaked = wintypes.DWORD(0)
+            if _dwmapi is not None:
+                hr = _dwmapi.DwmGetWindowAttribute(
+                    hwnd,
+                    DWMWA_CLOAKED,
+                    ctypes.byref(cloaked),
+                    ctypes.sizeof(cloaked),
+                )
+                if hr == 0 and cloaked.value != 0:
+                    return True  # Skip hidden/cloaked background UWP and virtual desktop windows
 
             length = _user32.GetWindowTextLengthW(hwnd)
             if length == 0:

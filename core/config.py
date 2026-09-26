@@ -64,8 +64,19 @@ class AppConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> AppConfig:
         """Create AppConfig from dictionary with nested dataclass handling."""
-        hotkeys_data = data.get("hotkeys", {})
-        overlay_data = data.get("overlay", {})
+        hotkeys_data = data.get("hotkeys")
+        if isinstance(hotkeys_data, dict):
+            valid_keys = HotkeyConfig.__dataclass_fields__
+            hotkeys = HotkeyConfig(**{k: v for k, v in hotkeys_data.items() if k in valid_keys})
+        else:
+            hotkeys = HotkeyConfig()
+
+        overlay_data = data.get("overlay")
+        if isinstance(overlay_data, dict):
+            valid_keys = OverlayStyleConfig.__dataclass_fields__
+            overlay = OverlayStyleConfig(**{k: v for k, v in overlay_data.items() if k in valid_keys})
+        else:
+            overlay = OverlayStyleConfig()
 
         raw_roi = data.get("custom_roi")
         validated_roi: Optional[Tuple[int, int, int, int]] = None
@@ -84,8 +95,8 @@ class AppConfig:
             custom_roi=validated_roi,
             fps_limit=data.get("fps_limit", 10),
             frame_diff_threshold=data.get("frame_diff_threshold", 0.015),
-            hotkeys=HotkeyConfig(**hotkeys_data) if hotkeys_data else HotkeyConfig(),
-            overlay=OverlayStyleConfig(**overlay_data) if overlay_data else OverlayStyleConfig(),
+            hotkeys=hotkeys,
+            overlay=overlay,
         )
 
 
@@ -114,10 +125,17 @@ class ConfigManager:
             return AppConfig()
 
     def save(self) -> None:
-        """Persist current config to disk, creating parent directories if needed."""
+        """Persist current config atomically to disk to prevent file corruption."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, "w", encoding="utf-8") as f:
-            json.dump(self.config.to_dict(), f, indent=2)
+        temp_file = self.config_path.with_suffix(".tmp")
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(self.config.to_dict(), f, indent=2)
+            os.replace(temp_file, self.config_path)
+        except Exception:
+            if temp_file.exists():
+                temp_file.unlink(missing_ok=True)
+            raise
 
     def update(self, **kwargs: Any) -> None:
         """Update top-level configuration values and auto-save, safely merging nested configs."""
@@ -127,7 +145,9 @@ class ConfigManager:
                 if isinstance(value, dict) and hasattr(current_attr, "__dataclass_fields__"):
                     merged_dict = asdict(current_attr)
                     merged_dict.update(value)
-                    setattr(self.config, key, type(current_attr)(**merged_dict))
+                    valid_keys = current_attr.__dataclass_fields__
+                    filtered = {k: v for k, v in merged_dict.items() if k in valid_keys}
+                    setattr(self.config, key, type(current_attr)(**filtered))
                 else:
                     setattr(self.config, key, value)
         self.save()

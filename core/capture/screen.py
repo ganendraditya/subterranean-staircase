@@ -44,19 +44,15 @@ class MSSScreenCapture(BaseCapture):
         bounds = self.get_monitor_bounds(monitor_index)
 
         if crop_rect is not None:
-            # Check if crop_rect coordinates are monitor-local (within monitor dimensions)
-            # and need translation into global monitor coordinate space
-            is_local = (
-                0 <= crop_rect.left < bounds.width
-                and 0 <= crop_rect.top < bounds.height
-                and not (
-                    bounds.left <= crop_rect.left < bounds.right
-                    and bounds.top <= crop_rect.top < bounds.bottom
-                    and (bounds.left != 0 or bounds.top != 0)
-                )
+            # Differentiate monitor-local coordinates [0..width) from global desktop coordinates
+            # A coordinate is local if it fits strictly inside monitor dimensions
+            # and is outside the global monitor bounds (when bounds.left != 0 or bounds.top != 0)
+            is_already_global = (
+                bounds.left <= crop_rect.left < bounds.right
+                and bounds.top <= crop_rect.top < bounds.bottom
             )
 
-            if is_local:
+            if not is_already_global and 0 <= crop_rect.left < bounds.width and 0 <= crop_rect.top < bounds.height:
                 offset_left = bounds.left + crop_rect.left
                 offset_top = bounds.top + crop_rect.top
             else:
@@ -92,8 +88,9 @@ class MSSScreenCapture(BaseCapture):
             actual_rect = bounds
 
         sct_img = self._sct.grab(capture_bbox)
-        # Convert raw BGRA bytes into BGR numpy array
-        img_np = np.array(sct_img, dtype=np.uint8)[:, :, :3]
+        # Convert raw BGRA bytes into BGR numpy array without sequence conversion overhead
+        raw_bytes = sct_img.raw if hasattr(sct_img, "raw") else bytes(sct_img)
+        img_np = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((sct_img.height, sct_img.width, 4))[:, :, :3]
 
         return Frame(
             image=img_np,

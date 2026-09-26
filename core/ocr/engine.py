@@ -58,14 +58,11 @@ class RapidOCREngine(BaseOCR):
         if image is None or image.size == 0:
             return []
 
-        # RapidOCR returns (results, elapse_list)
-        # Each item in results: [dt_boxes, rec_res, score]
-        # dt_boxes: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
-        # rec_res: recognized text string
-        # score: float confidence [0.0..1.0]
-        results, _ = self._engine(image)
-        if not results:
+        ocr_res = self._engine(image)
+        if not ocr_res or not isinstance(ocr_res, (tuple, list)) or not ocr_res[0]:
             return []
+
+        results = ocr_res[0]
 
         detections: List[SubtitleDetection] = []
         for item in results:
