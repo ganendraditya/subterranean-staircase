@@ -107,8 +107,14 @@ class ConfigManager:
             json.dump(self.config.to_dict(), f, indent=2)
 
     def update(self, **kwargs: Any) -> None:
-        """Update top-level configuration values and auto-save."""
+        """Update top-level configuration values and auto-save, safely merging nested configs."""
         for key, value in kwargs.items():
             if hasattr(self.config, key):
-                setattr(self.config, key, value)
+                current_attr = getattr(self.config, key)
+                if isinstance(value, dict) and hasattr(current_attr, "__dataclass_fields__"):
+                    merged_dict = asdict(current_attr)
+                    merged_dict.update(value)
+                    setattr(self.config, key, type(current_attr)(**merged_dict))
+                else:
+                    setattr(self.config, key, value)
         self.save()

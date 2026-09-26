@@ -41,6 +41,10 @@ def test_subtitle_box_and_detection() -> None:
     assert box.max_y == 40.0
     assert box.center_y == 30.0
 
+    # Verify invalid point count raises ValueError
+    with pytest.raises(ValueError, match="Bounding polygon must have exactly 4 points"):
+        SubtitleBox.from_list([[0.0, 0.0], [1.0, 1.0]])
+
     det = SubtitleDetection(
         text="Hello World",
         confidence=0.98,

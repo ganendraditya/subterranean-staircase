@@ -38,8 +38,12 @@ def test_config_manager_load_save(tmp_path: Path) -> None:
     # Initially file does not exist, defaults are loaded
     assert manager.config.target_language == "id"
 
-    # Update and verify auto-save
-    manager.update(target_language="en", source_language="ko")
+    # Update top-level and nested configs, and verify auto-save
+    manager.update(
+        target_language="en",
+        source_language="ko",
+        overlay={"font_size": 32, "text_color": "#FFCC00"},
+    )
     assert config_file.exists()
 
     # Re-read from disk to confirm persistence
@@ -47,11 +51,17 @@ def test_config_manager_load_save(tmp_path: Path) -> None:
         saved_data = json.load(f)
     assert saved_data["target_language"] == "en"
     assert saved_data["source_language"] == "ko"
+    assert saved_data["overlay"]["font_size"] == 32
+    assert saved_data["overlay"]["text_color"] == "#FFCC00"
+    assert saved_data["overlay"]["stroke_color"] == "#000000"  # unmentioned fields preserved
 
     # Load with another manager instance
     new_manager = ConfigManager(config_path=config_file)
     assert new_manager.config.target_language == "en"
     assert new_manager.config.source_language == "ko"
+    assert new_manager.config.overlay.font_size == 32
+    assert new_manager.config.overlay.text_color == "#FFCC00"
+    assert isinstance(new_manager.config.overlay, OverlayStyleConfig)
 
 
 def test_config_manager_corrupted_json_fallback(tmp_path: Path) -> None:

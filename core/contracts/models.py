@@ -82,7 +82,8 @@ class SubtitleBox:
 
     @classmethod
     def from_list(cls, pts: List[List[float]]) -> SubtitleBox:
-        assert len(pts) == 4, "Bounding polygon must have exactly 4 points"
+        if len(pts) != 4:
+            raise ValueError(f"Bounding polygon must have exactly 4 points, got {len(pts)}")
         return cls(
             points=(
                 (float(pts[0][0]), float(pts[0][1])),
