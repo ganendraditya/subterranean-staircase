@@ -73,3 +73,24 @@ def test_config_manager_corrupted_json_fallback(tmp_path: Path) -> None:
     manager = ConfigManager(config_path=config_file)
     assert manager.config.source_language == "en"
     assert manager.config.target_language == "id"
+
+
+def test_config_backward_compatibility_with_extra_fields() -> None:
+    raw_data = {
+        "source_language": "fr",
+        "target_language": "id",
+        "unknown_root_key": "some_value",
+        "hotkeys": {
+            "toggle_translation": "Ctrl+Shift+T",
+            "deprecated_hotkey": "Ctrl+Alt+D",
+        },
+        "overlay": {
+            "font_size": 28,
+            "experimental_feature": True,
+        },
+    }
+    config = AppConfig.from_dict(raw_data)
+    assert config.source_language == "fr"
+    assert config.hotkeys.toggle_translation == "Ctrl+Shift+T"
+    assert config.overlay.font_size == 28
+    # Extra fields ignored gracefully without raising TypeError
