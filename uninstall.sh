@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Subtitle Translator V1 — Clean Uninstaller (macOS & Linux)
+set -euo pipefail
+
+if [ -z "${HOME:-}" ]; then
+    echo "Error: HOME environment variable is not set." >&2
+    exit 1
+fi
+
+APP_NAME="subtrans"
+INSTALL_DIR="${HOME}/.local/share/subtitle-translator"
+BIN_DIR="${HOME}/.local/bin"
+LAUNCHER_PATH="${BIN_DIR}/${APP_NAME}"
+CONFIG_BASE="${XDG_CONFIG_HOME:-${HOME}/.config}"
+CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
+CONFIG_DIR="${CONFIG_BASE}/subtitle-translator"
+CACHE_DIR="${CACHE_BASE}/subtitle-translator"
+
+echo "=================================================="
+echo "  Subtitle Translator V1 — Uninstaller"
+echo "=================================================="
+
+# Check for non-interactive flags (-y, -f, --yes, --force, --purge)
+AUTO_CONFIRM=false
+PURGE_DATA=false
+
+for arg in "$@"; do
+    case "${arg}" in
+        -y|--yes|-f|--force) AUTO_CONFIRM=true ;;
+        --purge|--all)
+            PURGE_DATA=true
+            AUTO_CONFIRM=true
+            ;;
+        *)
+            echo "Warning: Unrecognized option '${arg}'" >&2
+            ;;
+    esac
+done
+
+if [ "${AUTO_CONFIRM}" != "true" ]; then
+    if [ ! -t 0 ]; then
+        echo "Error: Non-interactive shell detected without -y/--force flag. Aborting." >&2
+        exit 1
+    fi
+    read -r -p "Are you sure you want to uninstall Subtitle Translator? [y/N] " CONFIRM || CONFIRM="n"
+    case "${CONFIRM}" in
+        [yY][eE][sS]|[yY]) ;;
+        *)
+            echo "Uninstall cancelled."
+            exit 0
+            ;;
+    esac
+fi
+
+# 1. Remove binary launcher
+if [ -f "${LAUNCHER_PATH}" ]; then
+    echo "Removing launcher: ${LAUNCHER_PATH}..."
+    rm -f "${LAUNCHER_PATH}" 2>/dev/null || true
+fi
+
+# 2. Optional Config & Cache Clean
+REMOVE_DATA="n"
+if [ "${PURGE_DATA}" = "true" ]; then
+    REMOVE_DATA="y"
+elif [ "${AUTO_CONFIRM}" != "true" ]; then
+    read -r -p "Do you also want to remove translation caches and configs? [y/N] " REMOVE_DATA || REMOVE_DATA="n"
+fi
+
+case "${REMOVE_DATA}" in
+    [yY][eE][sS]|[yY])
+        if [ -d "${CONFIG_DIR}" ]; then
+            echo "Removing configuration: ${CONFIG_DIR}..."
+            rm -rf "${CONFIG_DIR}"
+        fi
+        if [ -d "${CACHE_DIR}" ]; then
+            echo "Removing cached models and database: ${CACHE_DIR}..."
+            rm -rf "${CACHE_DIR}"
+        fi
+        ;;
+    *)
+        echo "Preserved user configs and caches (use --purge to remove)."
+        ;;
+esac
+
+# 3. Remove installation directory (final step)
+if [ -d "${INSTALL_DIR}" ]; then
+    echo "Removing application files: ${INSTALL_DIR}..."
+    cd "${HOME}" || true
+    rm -rf "${INSTALL_DIR}"
+fi
+
+echo ""
+echo "=================================================="
+echo "✔ Subtitle Translator was cleanly uninstalled."
+echo "=================================================="
