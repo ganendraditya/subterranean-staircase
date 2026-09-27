@@ -27,7 +27,7 @@ $ConfigDir = if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) { Join
 $CacheDir = if (-not [string]::IsNullOrWhiteSpace($env:XDG_CACHE_HOME)) { Join-Path $env:XDG_CACHE_HOME "subtitle-translator" } else { Join-Path (Join-Path $UserHome ".cache") "subtitle-translator" }
 
 Write-Host "==================================================" -ForegroundColor Yellow
-Write-Host "  Subtitle Translator V1 — Windows Uninstaller" -ForegroundColor Yellow
+Write-Host "  Subterranean Staircase / Subtitle Translator" -ForegroundColor Yellow
 Write-Host "==================================================" -ForegroundColor Yellow
 
 if (-not $Force) {

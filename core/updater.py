@@ -18,7 +18,7 @@ from typing import Callable, Optional, Tuple
 
 logger = logging.getLogger("subtitle_translator.updater")
 
-GITHUB_API_COMMITS_URL = "https://api.github.com/repos/ganendraditya/subtitle-translator/commits/main"
+GITHUB_API_COMMITS_URL = "https://api.github.com/repos/ganendraditya/subterranean-staircase/commits/main"
 
 
 @dataclass

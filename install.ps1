@@ -5,10 +5,10 @@ $AppName = "subtrans"
 $LocalAppData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData) }
 $InstallDir = Join-Path $LocalAppData "SubtitleTranslator"
 $BinDir = Join-Path (Join-Path $LocalAppData "Programs") "SubtitleTranslator"
-$RepoUrl = "https://github.com/ganendraditya/subtitle-translator.git"
+$RepoUrl = "https://github.com/ganendraditya/subterranean-staircase.git"
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "  Subtitle Translator V1 — Windows Installer" -ForegroundColor Cyan
+Write-Host "  Subterranean Staircase / Subtitle Translator" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # 1. Check Python

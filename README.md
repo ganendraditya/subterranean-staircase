@@ -1,11 +1,11 @@
-# Subtitle Translator (V1)
+# Subterranean Staircase
 
-Real-time, cross-platform screen subtitle translator for macOS and Windows.
+Real-time, on-device screen subtitle translator for macOS and Windows.
 
-The app captures video or selected application windows (e.g. VLC, Browser), extracts subtitle text via fast on-device OCR, translates it into your target language, and renders a crisp, click-through overlay in real-time.
+The app runs quietly in your background menu bar / system tray, captures video playback or selected application windows (e.g. VLC, Browser), extracts subtitle text via fast on-device OCR, translates it into your target language, and renders a crisp, click-through overlay in real-time.
 
 > **Status:** Active rewrite (V1 Architecture).  
-> The legacy monolithic Windows prototype is archived in the [`legacy/v0-windows-prealpha`](https://github.com/ganendraditya/subtitle-translator/tree/legacy/v0-windows-prealpha) branch and [`v0.1.0-prealpha`](https://github.com/ganendraditya/subtitle-translator/releases/tag/v0.1.0-prealpha) release.
+> The legacy monolithic Windows prototype is archived in the [`legacy/v0-windows-prealpha`](https://github.com/ganendraditya/subterranean-staircase/tree/legacy/v0-windows-prealpha) branch and [`v0.1.0-prealpha`](https://github.com/ganendraditya/subterranean-staircase/releases/tag/v0.1.0-prealpha) release.
 
 ---
 
@@ -14,7 +14,7 @@ The app captures video or selected application windows (e.g. VLC, Browser), extr
 ### macOS / Linux
 Run in your terminal:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ganendraditya/subtitle-translator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/install.sh | bash
 ```
 
 Installs to `~/.local/share/subtitle-translator` and creates a launcher at `~/.local/bin/subtrans`.  
@@ -23,7 +23,7 @@ On macOS, the installer will optionally configure a **LaunchAgent** (`~/Library/
 ### Windows (PowerShell)
 Run in PowerShell:
 ```powershell
-irm https://raw.githubusercontent.com/ganendraditya/subtitle-translator/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/install.ps1 | iex
 ```
 
 Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
@@ -98,8 +98,8 @@ subtitle-translator/
 
 ```bash
 # Clone the repository
-git clone https://github.com/ganendraditya/subtitle-translator.git
-cd subtitle-translator
+git clone https://github.com/ganendraditya/subterranean-staircase.git
+cd subterranean-staircase
 
 # Setup Python 3.10+ virtual environment
 python3 -m venv .venv

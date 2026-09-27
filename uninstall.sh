@@ -17,7 +17,7 @@ CONFIG_DIR="${CONFIG_BASE}/subtitle-translator"
 CACHE_DIR="${CACHE_BASE}/subtitle-translator"
 
 echo "=================================================="
-echo "  Subtitle Translator V1 — Uninstaller"
+echo "  Subterranean Staircase / Subtitle Translator"
 echo "=================================================="
 
 # Check for non-interactive flags (-y, -f, --yes, --force, --purge)

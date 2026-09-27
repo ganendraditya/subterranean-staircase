@@ -5,10 +5,10 @@ set -euo pipefail
 APP_NAME="subtrans"
 INSTALL_DIR="${HOME}/.local/share/subtitle-translator"
 BIN_DIR="${HOME}/.local/bin"
-REPO_URL="https://github.com/ganendraditya/subtitle-translator.git"
+REPO_URL="https://github.com/ganendraditya/subterranean-staircase.git"
 
 echo "=================================================="
-echo "  Subtitle Translator V1 — Installer"
+echo "  Subterranean Staircase / Subtitle Translator"
 echo "=================================================="
 
 # 1. Check Python version
