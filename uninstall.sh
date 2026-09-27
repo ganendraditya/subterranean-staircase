@@ -69,7 +69,7 @@ if [ "$(uname)" = "Darwin" ]; then
     fi
 fi
 
-# 2. Optional Config & Cache Clean
+# 3. Optional Config & Cache Clean
 REMOVE_DATA="n"
 if [ "${PURGE_DATA}" = "true" ]; then
     REMOVE_DATA="y"
@@ -93,7 +93,7 @@ case "${REMOVE_DATA}" in
         ;;
 esac
 
-# 3. Remove installation directory (final step)
+# 4. Remove installation directory (final step)
 if [ -d "${INSTALL_DIR}" ]; then
     echo "Removing application files: ${INSTALL_DIR}..."
     cd "${HOME}" || true

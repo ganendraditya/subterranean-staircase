@@ -72,6 +72,12 @@ def test_install_ps1_adds_to_path() -> None:
     assert "SetValue" in content or "NewUserPath" in content
 
 
+def test_install_ps1_launcher_stages_uninstaller_to_temp() -> None:
+    content = (_root() / "install.ps1").read_text(encoding="utf-8")
+    assert "TMP_UNINSTALL" in content
+    assert "%TEMP%" in content
+
+
 def test_uninstall_ps1_accepts_action_positional_param() -> None:
     content = (_root() / "uninstall.ps1").read_text(encoding="utf-8")
     assert "$Action" in content

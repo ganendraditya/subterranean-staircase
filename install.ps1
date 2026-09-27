@@ -114,12 +114,18 @@ $LauncherContent = @"
 @echo off
 setlocal DisableDelayedExpansion
 set "INSTALL_DIR=$EscapedInstallDir"
-if /I "%~1"=="uninstall" (
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_DIR%\uninstall.ps1" %*
-    exit /b %ERRORLEVEL%
-)
+if /I "%~1"=="uninstall" goto :do_uninstall
+
 "%INSTALL_DIR%\.venv\Scripts\python.exe" "%INSTALL_DIR%\run.py" %*
 exit /b %ERRORLEVEL%
+
+:do_uninstall
+set "TMP_UNINSTALL=%TEMP%\subtrans_uninstall_%RANDOM%.ps1"
+copy /Y "%INSTALL_DIR%\uninstall.ps1" "%TMP_UNINSTALL%" >nul 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%TMP_UNINSTALL%" %*
+set "EXIT_CODE=%ERRORLEVEL%"
+del /f /q "%TMP_UNINSTALL%" >nul 2>&1
+exit /b %EXIT_CODE%
 "@
 $LauncherContent = $LauncherContent -replace "(?<!\r)\n", "`r`n"
 
