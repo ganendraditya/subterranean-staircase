@@ -58,6 +58,9 @@ if [ -f "${LAUNCHER_PATH}" ]; then
     echo "Removing launcher: ${LAUNCHER_PATH}..."
     rm -f "${LAUNCHER_PATH}" 2>/dev/null || true
 fi
+if [ -L "/usr/local/bin/${APP_NAME}" ]; then
+    rm -f "/usr/local/bin/${APP_NAME}" 2>/dev/null || true
+fi
 
 # 2. Remove LaunchAgent (macOS only)
 if [ "$(uname)" = "Darwin" ]; then

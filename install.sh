@@ -211,6 +211,11 @@ case ":${PATH}:" in
         ;;
 esac
 
+# 9. Create standard symlink in /usr/local/bin if writable (instantly available without reloading shell)
+if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+    ln -sf "${LAUNCHER_PATH}" "/usr/local/bin/${APP_NAME}" 2>/dev/null || true
+fi
+
 echo ""
 echo "=================================================="
 echo "✔ Installation completed successfully!"
