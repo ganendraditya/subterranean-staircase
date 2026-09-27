@@ -97,8 +97,20 @@ fi
 echo ""
 echo "📦 Installing AI & GUI dependencies (RapidOCR, CTranslate2, PyQt6)..."
 echo "--------------------------------------------------"
-"${VENV_DIR}/bin/pip" install --upgrade pip
-"${VENV_DIR}/bin/pip" install --progress-bar on -r "${INSTALL_DIR}/requirements.txt"
+
+PIP_MIRROR_ARGS=()
+# If in Asia/Pacific region or experiencing PyPI throttling, use high-speed mirror
+if curl -s --connect-timeout 2 -I https://mirrors.aliyun.com/pypi/simple/ >/dev/null 2>&1; then
+    echo "✔ Using high-speed Regional PyPI CDN mirror"
+    PIP_MIRROR_ARGS=(-i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com)
+fi
+
+"${VENV_DIR}/bin/pip" install "${PIP_MIRROR_ARGS[@]}" --upgrade pip >/dev/null 2>&1 || true
+
+# Filter out verbose Collecting noise while preserving clean real-time status
+"${VENV_DIR}/bin/pip" install "${PIP_MIRROR_ARGS[@]}" -r "${INSTALL_DIR}/requirements.txt" 2>&1 | \
+    grep -E --line-buffered "(Downloading|Installing collected packages|Successfully installed|ERROR|Requirement already)" || true
+
 echo "--------------------------------------------------"
 
 # 5. Create launcher wrapper script in ~/.local/bin/subtrans

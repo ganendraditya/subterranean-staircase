@@ -99,16 +99,20 @@ if (-not (Test-Path $VenvPython) -or ($VenvPyVer -ne $PyVersion)) {
 Write-Host ""
 Write-Host "📦 Installing AI & GUI dependencies (RapidOCR, CTranslate2, PyQt6)..." -ForegroundColor Cyan
 Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
-& $VenvPython -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to upgrade pip."
-    exit 1
-}
-& $VenvPython -m pip install --progress-bar on -r (Join-Path $InstallDir "requirements.txt")
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to install dependencies from requirements.txt."
-    exit 1
-}
+
+$MirrorArgs = @()
+try {
+    $resp = Invoke-WebRequest -Uri "https://mirrors.aliyun.com/pypi/simple/" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
+    if ($resp.StatusCode -eq 200) {
+        Write-Host "✔ Using high-speed Regional PyPI CDN mirror" -ForegroundColor Green
+        $MirrorArgs = @("-i", "https://mirrors.aliyun.com/pypi/simple/", "--trusted-host", "mirrors.aliyun.com")
+    }
+} catch {}
+
+& $VenvPython -m pip install @MirrorArgs --upgrade pip --quiet
+& $VenvPython -m pip install @MirrorArgs -r (Join-Path $InstallDir "requirements.txt") |
+    Where-Object { $_ -match "^(Downloading|Installing collected packages|Successfully installed|ERROR)" }
+
 Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
 
 # 5. Create launcher batch script in bin directory
