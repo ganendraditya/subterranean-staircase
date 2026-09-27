@@ -107,9 +107,8 @@ fi
 
 "${VENV_DIR}/bin/pip" install "${PIP_MIRROR_ARGS[@]}" --upgrade pip >/dev/null 2>&1 || true
 
-# Filter out verbose Collecting noise while preserving clean real-time status
-"${VENV_DIR}/bin/pip" install "${PIP_MIRROR_ARGS[@]}" -r "${INSTALL_DIR}/requirements.txt" 2>&1 | \
-    grep -E --line-buffered "(Downloading|Installing collected packages|Successfully installed|ERROR|Requirement already)" || true
+# Install dependencies with full native pip progress bar
+"${VENV_DIR}/bin/pip" install "${PIP_MIRROR_ARGS[@]}" -r "${INSTALL_DIR}/requirements.txt"
 
 echo "--------------------------------------------------"
 
