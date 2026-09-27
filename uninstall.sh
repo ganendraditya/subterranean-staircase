@@ -59,6 +59,16 @@ if [ -f "${LAUNCHER_PATH}" ]; then
     rm -f "${LAUNCHER_PATH}" 2>/dev/null || true
 fi
 
+# 2. Remove LaunchAgent (macOS only)
+if [ "$(uname)" = "Darwin" ]; then
+    LAUNCH_AGENT_PLIST="${HOME}/Library/LaunchAgents/com.subtitle-translator.subtrans.plist"
+    if [ -f "${LAUNCH_AGENT_PLIST}" ]; then
+        echo "Unloading and removing LaunchAgent..."
+        launchctl unload "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
+        rm -f "${LAUNCH_AGENT_PLIST}"
+    fi
+fi
+
 # 2. Optional Config & Cache Clean
 REMOVE_DATA="n"
 if [ "${PURGE_DATA}" = "true" ]; then

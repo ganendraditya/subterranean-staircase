@@ -123,7 +123,57 @@ EOF
 chmod +x "${LAUNCHER_PATH}"
 echo "✔ Created launcher: ${LAUNCHER_PATH}"
 
-# 6. Check PATH
+# 6. Optional LaunchAgent (macOS only — auto-start subtrans at login)
+LAUNCH_AGENT_PLIST=""
+if [ "$(uname)" = "Darwin" ]; then
+    LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
+    LAUNCH_AGENT_PLIST="${LAUNCH_AGENTS_DIR}/com.subtitle-translator.subtrans.plist"
+    INSTALL_AGENT=false
+
+    if [ -f "${LAUNCH_AGENT_PLIST}" ]; then
+        echo "✔ LaunchAgent already installed: ${LAUNCH_AGENT_PLIST}"
+        launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
+        INSTALL_AGENT=false
+    elif [ -t 0 ]; then
+        echo ""
+        read -r -p "Install LaunchAgent to auto-start subtrans at login? [y/N] " _LA_CONFIRM || _LA_CONFIRM="n"
+        case "${_LA_CONFIRM}" in
+            [yY][eE][sS]|[yY]) INSTALL_AGENT=true ;;
+            *) INSTALL_AGENT=false ;;
+        esac
+    fi
+
+    if [ "${INSTALL_AGENT}" = "true" ]; then
+        mkdir -p "${LAUNCH_AGENTS_DIR}"
+        cat > "${LAUNCH_AGENT_PLIST}" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.subtitle-translator.subtrans</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${LAUNCHER_PATH}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>${HOME}/Library/Logs/subtrans.log</string>
+    <key>StandardErrorPath</key>
+    <string>${HOME}/Library/Logs/subtrans.log</string>
+</dict>
+</plist>
+PLIST
+        launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
+        echo "✔ LaunchAgent installed — subtrans will auto-start at login."
+        echo "  To disable: launchctl unload \"${LAUNCH_AGENT_PLIST}\""
+    fi
+fi
+
+# 8. Check PATH
 if command -v "${APP_NAME}" >/dev/null 2>&1; then
     :
 else
