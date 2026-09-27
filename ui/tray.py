@@ -10,10 +10,12 @@ from typing import Optional
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
-from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+from PyQt6.QtWidgets import QMenu, QMessageBox, QSystemTrayIcon
 
 from core.capture.base import BaseCapture
 from core.config import ConfigManager
+from core.updater import UpdateInfo, UpdateManager
+from ui.updater_dialog import UpdateCheckWorker, UpdateProgressDialog
 
 
 def create_default_tray_icon() -> QIcon:
@@ -63,8 +65,15 @@ class TrayController(QObject):
         self._tray_icon.setToolTip("Subtitle Translator V1")
         self._menu = QMenu()
 
+        self.update_manager = UpdateManager()
+        self._update_action: Optional[QAction] = None
+        self._update_worker: Optional[UpdateCheckWorker] = None
+
         self._setup_menu()
         self._tray_icon.setContextMenu(self._menu)
+
+        if self.config_manager.config.check_updates:
+            self.check_for_updates_background()
 
     def show(self) -> None:
         """Display the system tray icon."""
@@ -73,6 +82,12 @@ class TrayController(QObject):
     def hide(self) -> None:
         """Hide the system tray icon."""
         self._tray_icon.hide()
+
+    def close(self) -> None:
+        """Clean teardown for workers and tray icon."""
+        if self._update_worker is not None and self._update_worker.isRunning():
+            self._update_worker.wait(1000)
+        self.hide()
 
     def _setup_menu(self) -> None:
         """Construct the tray menu items."""
@@ -111,6 +126,62 @@ class TrayController(QObject):
         self._is_active = not self._is_active
         self.toggle_action.setText("Pause Translation" if self._is_active else "Start Translation")
         self.translation_toggled.emit(self._is_active)
+
+    def check_for_updates_background(self) -> None:
+        """Initiate non-blocking background update check."""
+        self._update_worker = UpdateCheckWorker(self.update_manager, self)
+        self._update_worker.check_finished.connect(self._on_background_update_checked)
+        self._update_worker.start()
+
+    def _on_background_update_checked(self, info: UpdateInfo) -> None:
+        """Callback when background update check finishes."""
+        if not info.has_update:
+            return
+
+        if self.config_manager.config.auto_install_updates:
+            # Auto-install silently / automatically
+            self._trigger_update_flow(info, prompt=False)
+        else:
+            self._show_update_action(info)
+
+    def _show_update_action(self, info: UpdateInfo) -> None:
+        """Display 'Update Available' banner action at the top of the menu."""
+        if self._update_action is None:
+            self._update_action = QAction(f"✨ Update Available ({info.latest_commit})", self._menu)
+            self._update_action.triggered.connect(lambda: self._trigger_update_flow(info, prompt=True))
+            # Insert before first action
+            first_action = self._menu.actions()[0] if self._menu.actions() else None
+            if first_action:
+                self._menu.insertAction(first_action, self._update_action)
+                self._menu.insertSeparator(first_action)
+            else:
+                self._menu.addAction(self._update_action)
+
+            # Show desktop notification via TrayIcon if supported
+            if QSystemTrayIcon.supportsMessages():
+                self._tray_icon.showMessage(
+                    "Subtitle Translator",
+                    f"New version available ({info.latest_commit})!\nClick tray menu to install.",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    5000,
+                )
+
+    def _trigger_update_flow(self, info: UpdateInfo, prompt: bool = True) -> None:
+        """Execute update confirmation and progress dialog."""
+        if prompt:
+            confirm = QMessageBox.question(
+                None,
+                "Update Subtitle Translator",
+                f"A new version is available ({info.current_commit} → {info.latest_commit}).\n\n"
+                "Would you like to install the update and restart the application now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+
+        dialog = UpdateProgressDialog(self.update_manager)
+        dialog.start_update()
 
     def _populate_windows_menu(self) -> None:
         """Dynamically populate list of active desktop application windows."""

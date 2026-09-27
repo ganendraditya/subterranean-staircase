@@ -34,6 +34,10 @@ Once installed, simply run:
 subtrans
 ```
 
+### Updates
+- **In-App (1-Click):** When an update is available, a notification and tray banner `✨ Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
+- **Settings Dialog:** You can also toggle automatic checks or manually click **"Check for Updates Now"** under Settings.
+
 ### Uninstalling
 Remove the app cleanly (keeps your configs and cached models):
 ```bash

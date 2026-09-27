@@ -10,11 +10,14 @@ from typing import Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -22,6 +25,8 @@ from PyQt6.QtWidgets import (
 )
 
 from core.config import ConfigManager
+from core.updater import UpdateInfo, UpdateManager
+from ui.updater_dialog import UpdateCheckWorker, UpdateProgressDialog
 
 
 class SettingsDialog(QDialog):
@@ -98,6 +103,24 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form_layout)
 
+        # 5. Updates Group
+        update_group = QGroupBox("Application Updates", self)
+        update_layout = QVBoxLayout(update_group)
+        update_layout.setSpacing(8)
+
+        self.check_updates_cb = QCheckBox("Check for updates on launch", self)
+        self.check_updates_cb.setChecked(self.config_manager.config.check_updates)
+        update_layout.addWidget(self.check_updates_cb)
+
+        check_row = QHBoxLayout()
+        self.check_now_btn = QPushButton("Check for Updates Now", self)
+        self.check_now_btn.clicked.connect(self._check_for_updates_now)
+        check_row.addWidget(self.check_now_btn)
+        check_row.addStretch()
+        update_layout.addLayout(check_row)
+
+        layout.addWidget(update_group)
+
         # Buttons
         button_layout = QHBoxLayout()
         button_layout.addStretch()
@@ -113,16 +136,50 @@ class SettingsDialog(QDialog):
         button_layout.addWidget(self.save_btn)
         layout.addLayout(button_layout)
 
+    def _check_for_updates_now(self) -> None:
+        """Trigger immediate manual update check."""
+        self.check_now_btn.setEnabled(False)
+        self.check_now_btn.setText("Checking...")
+        self._update_manager = UpdateManager()
+        self._check_worker = UpdateCheckWorker(self._update_manager, self)
+        self._check_worker.check_finished.connect(self._on_manual_check_finished)
+        self._check_worker.start()
+
+    def _on_manual_check_finished(self, info: UpdateInfo) -> None:
+        """Handle results of manual update check."""
+        self.check_now_btn.setEnabled(True)
+        self.check_now_btn.setText("Check for Updates Now")
+
+        if info.has_update:
+            confirm = QMessageBox.question(
+                self,
+                "Update Available",
+                f"{info.message}\n\nWould you like to install the update and restart now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if confirm == QMessageBox.StandardButton.Yes:
+                dialog = UpdateProgressDialog(self._update_manager, self)
+                dialog.start_update()
+        else:
+            QMessageBox.information(
+                self,
+                "Subtitle Translator Updates",
+                info.message,
+            )
+
     def _save_and_close(self) -> None:
         """Update and persist configuration."""
         selected_src = str(self.source_combo.currentData())
         selected_tgt = str(self.target_combo.currentData())
         font_size = self.font_size_spin.value()
         fade_out = float(self.fade_out_spin.value())
+        check_updates = self.check_updates_cb.isChecked()
 
         self.config_manager.update(
             source_language=selected_src,
             target_language=selected_tgt,
+            check_updates=check_updates,
             overlay={
                 "font_size": font_size,
                 "fade_out_seconds": fade_out,
