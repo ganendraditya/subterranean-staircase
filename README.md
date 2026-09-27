@@ -9,6 +9,49 @@ The app captures video or selected application windows (e.g. VLC, Browser), extr
 
 ---
 
+## Quick Install (Terminal)
+
+### macOS / Linux
+Run in your terminal:
+```bash
+curl -fsSL https://raw.githubusercontent.com/ganendraditya/subtitle-translator/main/install.sh | bash
+```
+
+Installs to `~/.local/share/subtitle-translator` and creates a launcher at `~/.local/bin/subtrans`.  
+On macOS, the installer will optionally configure a **LaunchAgent** (`~/Library/LaunchAgents/com.subtitle-translator.subtrans.plist`) to auto-start subtrans at login.
+
+### Windows (PowerShell)
+Run in PowerShell:
+```powershell
+irm https://raw.githubusercontent.com/ganendraditya/subtitle-translator/main/install.ps1 | iex
+```
+
+Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
+
+### Running
+Once installed, simply run:
+```bash
+subtrans
+```
+
+### Uninstalling
+Remove the app cleanly (keeps your configs and cached models):
+```bash
+subtrans uninstall
+```
+
+To also remove all translation caches and config files:
+```bash
+subtrans uninstall --purge
+```
+
+On Windows (PowerShell):
+```powershell
+subtrans uninstall -RemoveAllData
+```
+
+---
+
 ## Architecture & Stack (V1)
 
 - **Screen & Window Capture:** Modular backend supporting macOS (ScreenCaptureKit / Quartz) and Windows (DirectX / Win32) with universal fallback via `mss`.
@@ -32,17 +75,22 @@ subtitle-translator/
 │   ├── subtitle/           # Temporal stabilization and spatial filters
 │   ├── translate/          # CTranslate2 engine & language routing
 │   ├── storage/            # SQLite WAL cache & history storage
+│   ├── pipeline.py         # Event-driven background orchestrator
 │   └── config.py           # Configuration schema and manager
-├── ui/                     # PyQt6 overlay, ROI selector, and tray menu
+├── ui/                     # PyQt6 overlay, ROI selector, tray, and settings
 ├── tests/                  # Unit and integration test suite
+├── install.sh              # Single-line installer (macOS/Linux)
+├── uninstall.sh            # Clean uninstaller (macOS/Linux)
+├── install.ps1             # Single-line installer (Windows)
+├── uninstall.ps1           # Clean uninstaller (Windows)
 ├── AGENTS.md               # Karpathy engineering rules & Anti-Slop guidelines
 ├── requirements.txt        # Cross-platform dependencies
-└── run.py                  # Application entrypoint
+└── run.py                  # Application launcher
 ```
 
 ---
 
-## Development Setup
+## Manual Development Setup
 
 ```bash
 # Clone the repository
@@ -59,6 +107,9 @@ pip install -r requirements.txt
 
 # Run test suite
 pytest tests/
+
+# Launch desktop app
+python run.py
 ```
 
 ---

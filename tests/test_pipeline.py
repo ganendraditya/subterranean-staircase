@@ -129,9 +129,14 @@ def test_pipeline_stop_and_thread_lifecycle(qapp, tmp_path) -> None:
     config_mgr = ConfigManager(config_path=tmp_path / "config.json")
     signals = PipelineSignals()
 
+    # Fast mock capture to ensure test cycle completes without waiting on real displays
+    mock_capture = MagicMock(spec=BaseCapture)
+    mock_capture.grab_screen.return_value = None
+
     worker = TranslationPipelineWorker(
         config_manager=config_mgr,
         signals=signals,
+        capture_driver=mock_capture,
     )
     worker.start()
     assert worker.isRunning()
