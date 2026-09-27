@@ -11,13 +11,13 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "  Subterranean Staircase / Subtitle Translator" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
-# 1. Check Python
+# 1. Check Python (requires Python 3.10 - 3.12 for ONNX/PyTorch compatibility)
 $PyExe = $null
 $PyVersion = $null
-$candidates = Get-Command python.exe, py.exe -ErrorAction SilentlyContinue
+$candidates = Get-Command python3.12.exe, python3.11.exe, python3.10.exe, python.exe, py.exe -ErrorAction SilentlyContinue
 foreach ($cmd in $candidates) {
     $exe = if ($cmd.Path) { $cmd.Path } elseif ($cmd.Source) { $cmd.Source } else { $cmd.Definition }
-    $ver = if ($exe) { & $exe -c "import sys; sys.exit(1) if sys.version_info < (3, 10) else print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
+    $ver = if ($exe) { & $exe -c "import sys; sys.exit(1) if not (3, 10) <= sys.version_info < (3, 13) else print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
     if ($ver) {
         $PyExe = $exe
         $PyVersion = $ver
@@ -26,7 +26,7 @@ foreach ($cmd in $candidates) {
 }
 
 if (-not $PyVersion) {
-    Write-Error "Python 3.10 or higher is required but was not found or is non-functional (e.g. Windows Store app execution alias). Please install Python 3.10+ from python.org"
+    Write-Error "Python 3.10, 3.11, or 3.12 is required (ONNX runtime and CTranslate2 do not yet support Python 3.13+). Please install Python 3.11 or 3.12."
     exit 1
 }
 

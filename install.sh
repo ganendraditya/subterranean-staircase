@@ -11,12 +11,12 @@ echo "=================================================="
 echo "  Subterranean Staircase / Subtitle Translator"
 echo "=================================================="
 
-# 1. Check Python version
+# 1. Check Python version (requires Python 3.10 - 3.12 for ONNX/PyTorch compatibility)
 PYTHON_CMD=""
 PY_VERSION=""
-for cmd in python3 python; do
+for cmd in python3.12 python3.11 python3.10 python3 python; do
     if command -v "${cmd}" >/dev/null 2>&1; then
-        ver=$("${cmd}" -c 'import sys; sys.exit(1) if sys.version_info < (3, 10) else print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
+        ver=$("${cmd}" -c 'import sys; sys.exit(1) if not (3, 10) <= sys.version_info < (3, 13) else print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
         if [ -n "${ver}" ]; then
             PYTHON_CMD="${cmd}"
             PY_VERSION="${ver}"
@@ -26,7 +26,7 @@ for cmd in python3 python; do
 done
 
 if [ -z "${PYTHON_CMD}" ]; then
-    echo "Error: Python 3.10 or higher is required but not found in PATH." >&2
+    echo "Error: Python 3.10, 3.11, or 3.12 is required (ONNX runtime and CTranslate2 do not yet support Python 3.13+)." >&2
     exit 1
 fi
 echo "✔ Found compatible Python ${PY_VERSION}"
