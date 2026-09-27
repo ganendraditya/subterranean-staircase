@@ -123,7 +123,9 @@ if (Test-Path $InstallDir) {
 $ShouldRemoveData = $RemoveAllData
 if (-not $ShouldRemoveData) {
     if (-not $Force) {
-        $PromptData = Read-Host "Do you also want to remove translation caches and configs? [y/N]"
+        Write-Host ""
+        Write-Host "💡 By default, your settings and cached translation database are preserved." -ForegroundColor Cyan
+        $PromptData = Read-Host "Do you want to completely PURGE all translation caches and user configs? [y/N]"
         if ($PromptData -match "^[yY]") {
             $ShouldRemoveData = $true
         }

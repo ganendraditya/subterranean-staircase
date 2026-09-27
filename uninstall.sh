@@ -39,11 +39,12 @@ for arg in "$@"; do
 done
 
 if [ "${AUTO_CONFIRM}" != "true" ]; then
-    if [ ! -t 0 ]; then
+    if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
         echo "Error: Non-interactive shell detected without -y/--force flag. Aborting." >&2
         exit 1
     fi
-    read -r -p "Are you sure you want to uninstall Subtitle Translator? [y/N] " CONFIRM || CONFIRM="n"
+    echo ""
+    read -r -p "Are you sure you want to uninstall Subterranean Staircase? [y/N] " CONFIRM </dev/tty || CONFIRM="n"
     case "${CONFIRM}" in
         [yY][eE][sS]|[yY]) ;;
         *)
@@ -77,7 +78,9 @@ REMOVE_DATA="n"
 if [ "${PURGE_DATA}" = "true" ]; then
     REMOVE_DATA="y"
 elif [ "${AUTO_CONFIRM}" != "true" ]; then
-    read -r -p "Do you also want to remove translation caches and configs? [y/N] " REMOVE_DATA || REMOVE_DATA="n"
+    echo ""
+    echo "💡 By default, your settings and cached translation database are preserved."
+    read -r -p "Do you want to completely PURGE all translation caches and user configs? [y/N] " REMOVE_DATA </dev/tty || REMOVE_DATA="n"
 fi
 
 case "${REMOVE_DATA}" in
@@ -105,7 +108,7 @@ fi
 
 echo ""
 echo "=================================================="
-echo "✔ Subtitle Translator was cleanly uninstalled."
+echo "✔ Subterranean Staircase was cleanly uninstalled."
 echo "=================================================="
 
 # If invoked from a temporary staging copy, clean up the temp file
