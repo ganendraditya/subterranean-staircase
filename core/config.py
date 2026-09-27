@@ -54,6 +54,8 @@ class AppConfig:
     custom_roi: Optional[Tuple[int, int, int, int]] = None  # (left, top, width, height)
     fps_limit: int = 10
     frame_diff_threshold: float = 0.015  # 1.5% pixel variance threshold to trigger OCR
+    check_updates: bool = True
+    auto_install_updates: bool = False
     hotkeys: HotkeyConfig = field(default_factory=HotkeyConfig)
     overlay: OverlayStyleConfig = field(default_factory=OverlayStyleConfig)
 
@@ -95,6 +97,8 @@ class AppConfig:
             custom_roi=validated_roi,
             fps_limit=data.get("fps_limit", 10),
             frame_diff_threshold=data.get("frame_diff_threshold", 0.015),
+            check_updates=bool(data.get("check_updates", True)),
+            auto_install_updates=bool(data.get("auto_install_updates", False)),
             hotkeys=hotkeys,
             overlay=overlay,
         )

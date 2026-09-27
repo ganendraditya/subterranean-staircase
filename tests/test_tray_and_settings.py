@@ -56,6 +56,7 @@ def test_settings_dialog_custom_language(qapp, tmp_path: Path) -> None:
 
 def test_tray_controller_signals_and_menu(qapp, tmp_path: Path) -> None:
     config_mgr = ConfigManager(config_path=tmp_path / "config.json")
+    config_mgr.update(check_updates=False)
     mock_capture = MagicMock(spec=BaseCapture)
     mock_capture.list_windows.return_value = [
         WindowInfo(window_id=123, title="VLC", owner_name="vlc", rect=Rect(0, 0, 800, 600))
@@ -102,4 +103,21 @@ def test_tray_controller_signals_and_menu(qapp, tmp_path: Path) -> None:
     tray._populate_windows_menu()
     tray._populate_windows_menu()
     assert len(tray.children()) == initial_child_count
+    tray.close()
+
+
+def test_tray_controller_shows_update_action(qapp, tmp_path: Path) -> None:
+    from core.updater import UpdateInfo
+    config_mgr = ConfigManager(config_path=tmp_path / "config.json")
+    config_mgr.update(check_updates=False)
+
+    tray = TrayController(config_manager=config_mgr)
+    update_info = UpdateInfo(has_update=True, current_commit="1111111", latest_commit="2222222", message="New version")
+
+    # Simulate background check completed
+    tray._on_background_update_checked(update_info)
+    assert tray._update_action is not None
+    assert "2222222" in tray._update_action.text()
+    tray.close()
+
 
