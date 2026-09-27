@@ -152,9 +152,9 @@ if [ "$(uname)" = "Darwin" ]; then
         echo "✔ LaunchAgent already installed: ${LAUNCH_AGENT_PLIST}"
         launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
         INSTALL_AGENT=false
-    elif [ -t 0 ]; then
+    elif [ -t 0 ] || [ -e /dev/tty ]; then
         echo ""
-        read -r -p "Install LaunchAgent to auto-start subtrans at login? [y/N] " _LA_CONFIRM || _LA_CONFIRM="n"
+        read -r -p "Install LaunchAgent to auto-start subtrans at login? [y/N] " _LA_CONFIRM </dev/tty || _LA_CONFIRM="n"
         case "${_LA_CONFIRM}" in
             [yY][eE][sS]|[yY]) INSTALL_AGENT=true ;;
             *) INSTALL_AGENT=false ;;
