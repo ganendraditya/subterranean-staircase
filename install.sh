@@ -80,8 +80,13 @@ fi
 
 # 4. Setup dedicated virtual environment
 VENV_DIR="${INSTALL_DIR}/.venv"
-if [ ! -f "${VENV_DIR}/bin/python" ]; then
-    echo "Creating virtual environment in ${VENV_DIR}..."
+VENV_PY_VER=""
+if [ -f "${VENV_DIR}/bin/python" ]; then
+    VENV_PY_VER=$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
+fi
+
+if [ ! -f "${VENV_DIR}/bin/python" ] || [ "${VENV_PY_VER}" != "${PY_VERSION}" ]; then
+    echo "Creating virtual environment with Python ${PY_VERSION} in ${VENV_DIR}..."
     rm -rf "${VENV_DIR}"
     if ! "${PYTHON_CMD}" -m venv "${VENV_DIR}"; then
         echo "Error: Failed to create virtual environment. If on Debian/Ubuntu, try installing 'python3-venv'." >&2

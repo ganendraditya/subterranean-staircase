@@ -84,9 +84,11 @@ if (Test-Path (Join-Path $InstallDir ".git")) {
 # 4. Setup Virtual Environment
 $VenvDir = Join-Path $InstallDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
+$VenvPyVer = if (Test-Path $VenvPython) { & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
 
-if (-not (Test-Path $VenvPython)) {
-    Write-Host "Creating virtual environment in $VenvDir..."
+if (-not (Test-Path $VenvPython) -or ($VenvPyVer -ne $PyVersion)) {
+    Write-Host "Creating virtual environment with Python $PyVersion in $VenvDir..."
+    if (Test-Path $VenvDir) { Remove-Item -Recurse -Force $VenvDir }
     & $PyExe -m venv $VenvDir
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to create virtual environment."
