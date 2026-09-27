@@ -96,3 +96,10 @@ def test_tray_controller_signals_and_menu(qapp, tmp_path: Path) -> None:
     actions[2].trigger()
     assert len(selected_wins) == 2
     assert selected_wins[1].window_id == 123
+
+    # 3. Test repopulating doesn't leak QAction objects on TrayController parent
+    initial_child_count = len(tray.children())
+    tray._populate_windows_menu()
+    tray._populate_windows_menu()
+    assert len(tray.children()) == initial_child_count
+

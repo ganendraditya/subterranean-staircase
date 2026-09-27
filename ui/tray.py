@@ -114,10 +114,12 @@ class TrayController(QObject):
 
     def _populate_windows_menu(self) -> None:
         """Dynamically populate list of active desktop application windows."""
+        for act in self.window_menu.actions():
+            act.deleteLater()
         self.window_menu.clear()
 
         # Default Full Screen option
-        full_screen_action = QAction("Entire Screen (Full Display)", self)
+        full_screen_action = QAction("Entire Screen (Full Display)", self.window_menu)
         full_screen_action.triggered.connect(lambda checked: self.window_selected.emit(None))
         self.window_menu.addAction(full_screen_action)
         self.window_menu.addSeparator()
@@ -129,6 +131,6 @@ class TrayController(QObject):
         for win in windows[:15]:  # Top 15 visible windows
             title = win.title.strip() or win.owner_name
             label = f"{win.owner_name}: {title[:35]}"
-            action = QAction(label, self)
+            action = QAction(label, self.window_menu)
             action.triggered.connect(lambda checked, w=win: self.window_selected.emit(w))
             self.window_menu.addAction(action)
