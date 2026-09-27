@@ -28,8 +28,9 @@ irm https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/
 
 Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
 
-### Running
-Once installed, simply run:
+### Running & Auto-Start
+- **Auto-Start on Boot:** If enabled during installation (or toggled anytime in **Settings → System & Autostart**), Subterranean Staircase runs silently in your background menu bar / system tray whenever your computer boots.
+- **Manual Launch:** You can also launch the app from terminal anytime:
 ```bash
 subtrans
 ```

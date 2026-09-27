@@ -96,6 +96,18 @@ def test_uninstall_ps1_removes_from_path() -> None:
     assert "CleanPaths" in content or "SetValue" in content
 
 
+def test_install_ps1_supports_startup_shortcut() -> None:
+    content = (_root() / "install.ps1").read_text(encoding="utf-8")
+    assert "Startup" in content
+    assert "subtrans.cmd" in content
+
+
+def test_uninstall_ps1_removes_startup_shortcut() -> None:
+    content = (_root() / "uninstall.ps1").read_text(encoding="utf-8")
+    assert "Startup" in content
+    assert "StartupShortcut" in content
+
+
 def test_uninstall_ps1_removes_config_and_cache() -> None:
     content = (_root() / "uninstall.ps1").read_text(encoding="utf-8")
     assert "ConfigDir" in content

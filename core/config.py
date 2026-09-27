@@ -56,6 +56,7 @@ class AppConfig:
     frame_diff_threshold: float = 0.015  # 1.5% pixel variance threshold to trigger OCR
     check_updates: bool = True
     auto_install_updates: bool = False
+    autostart_on_boot: bool = False
     hotkeys: HotkeyConfig = field(default_factory=HotkeyConfig)
     overlay: OverlayStyleConfig = field(default_factory=OverlayStyleConfig)
 
@@ -99,6 +100,7 @@ class AppConfig:
             frame_diff_threshold=data.get("frame_diff_threshold", 0.015),
             check_updates=bool(data.get("check_updates", True)),
             auto_install_updates=bool(data.get("auto_install_updates", False)),
+            autostart_on_boot=bool(data.get("autostart_on_boot", False)),
             hotkeys=hotkeys,
             overlay=overlay,
         )

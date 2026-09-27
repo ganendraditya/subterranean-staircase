@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.autostart import AutostartManager
 from core.config import ConfigManager
 from core.updater import UpdateInfo, UpdateManager
 from ui.updater_dialog import UpdateCheckWorker, UpdateProgressDialog
@@ -103,7 +104,19 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form_layout)
 
-        # 5. Updates Group
+        # 5. System Integration & Autostart
+        system_group = QGroupBox("System & Autostart", self)
+        system_layout = QVBoxLayout(system_group)
+        self.autostart_manager = AutostartManager()
+        self.autostart_cb = QCheckBox("Start Subterranean Staircase on system login", self)
+        # Reflect actual system status or saved configuration
+        self.autostart_cb.setChecked(
+            self.config_manager.config.autostart_on_boot or self.autostart_manager.is_enabled()
+        )
+        system_layout.addWidget(self.autostart_cb)
+        layout.addWidget(system_group)
+
+        # 6. Updates Group
         update_group = QGroupBox("Application Updates", self)
         update_layout = QVBoxLayout(update_group)
         update_layout.setSpacing(8)
@@ -175,11 +188,16 @@ class SettingsDialog(QDialog):
         font_size = self.font_size_spin.value()
         fade_out = float(self.fade_out_spin.value())
         check_updates = self.check_updates_cb.isChecked()
+        autostart = self.autostart_cb.isChecked()
+
+        # Apply system autostart hook
+        self.autostart_manager.set_enabled(autostart)
 
         self.config_manager.update(
             source_language=selected_src,
             target_language=selected_tgt,
             check_updates=check_updates,
+            autostart_on_boot=autostart,
             overlay={
                 "font_size": font_size,
                 "fade_out_seconds": fade_out,
