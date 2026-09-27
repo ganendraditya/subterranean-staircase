@@ -17,20 +17,37 @@ Run in your terminal:
 curl -fsSL https://raw.githubusercontent.com/ganendraditya/subtitle-translator/main/install.sh | bash
 ```
 
+Installs to `~/.local/share/subtitle-translator` and creates a launcher at `~/.local/bin/subtrans`.  
+On macOS, the installer will optionally configure a **LaunchAgent** (`~/Library/LaunchAgents/com.subtitle-translator.subtrans.plist`) to auto-start subtrans at login.
+
 ### Windows (PowerShell)
 Run in PowerShell:
 ```powershell
 irm https://raw.githubusercontent.com/ganendraditya/subtitle-translator/main/install.ps1 | iex
 ```
 
+Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
+
+### Running
 Once installed, simply run:
 ```bash
 subtrans
 ```
 
-To cleanly uninstall anytime:
+### Uninstalling
+Remove the app cleanly (keeps your configs and cached models):
 ```bash
 subtrans uninstall
+```
+
+To also remove all translation caches and config files:
+```bash
+subtrans uninstall --purge
+```
+
+On Windows (PowerShell):
+```powershell
+subtrans uninstall -RemoveAllData
 ```
 
 ---
