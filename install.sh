@@ -94,9 +94,12 @@ if [ ! -f "${VENV_DIR}/bin/python" ] || [ "${VENV_PY_VER}" != "${PY_VERSION}" ];
     fi
 fi
 
-echo "Installing/updating dependencies..."
-"${VENV_DIR}/bin/pip" install --quiet --upgrade pip
-"${VENV_DIR}/bin/pip" install --quiet -r "${INSTALL_DIR}/requirements.txt"
+echo ""
+echo "📦 Installing AI & GUI dependencies (RapidOCR, CTranslate2, PyQt6)..."
+echo "--------------------------------------------------"
+"${VENV_DIR}/bin/pip" install --upgrade pip
+"${VENV_DIR}/bin/pip" install --progress-bar on -r "${INSTALL_DIR}/requirements.txt"
+echo "--------------------------------------------------"
 
 # 5. Create launcher wrapper script in ~/.local/bin/subtrans
 mkdir -p "${BIN_DIR}"

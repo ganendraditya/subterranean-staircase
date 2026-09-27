@@ -96,17 +96,20 @@ if (-not (Test-Path $VenvPython) -or ($VenvPyVer -ne $PyVersion)) {
     }
 }
 
-Write-Host "Installing dependencies..."
-& $VenvPython -m pip install --quiet --upgrade pip
+Write-Host ""
+Write-Host "📦 Installing AI & GUI dependencies (RapidOCR, CTranslate2, PyQt6)..." -ForegroundColor Cyan
+Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
+& $VenvPython -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to upgrade pip."
     exit 1
 }
-& $VenvPython -m pip install --quiet -r (Join-Path $InstallDir "requirements.txt")
+& $VenvPython -m pip install --progress-bar on -r (Join-Path $InstallDir "requirements.txt")
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to install dependencies from requirements.txt."
     exit 1
 }
+Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
 
 # 5. Create launcher batch script in bin directory
 if (-not (Test-Path $BinDir)) {
