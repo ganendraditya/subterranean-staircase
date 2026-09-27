@@ -51,6 +51,16 @@ if (Test-Path $LauncherFile) {
     } catch {}
 }
 
+# Remove Windows Startup Shortcut if present
+$StartupDir = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::Startup)
+$StartupShortcut = Join-Path $StartupDir "subtrans.cmd"
+if (Test-Path $StartupShortcut) {
+    Write-Host "Removing Windows startup script..."
+    try {
+        Remove-Item -Force $StartupShortcut -ErrorAction SilentlyContinue
+    } catch {}
+}
+
 $regKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
 if ($regKey) {
     try {
