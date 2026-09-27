@@ -17,7 +17,7 @@ $PyVersion = $null
 $candidates = Get-Command python.exe, py.exe -ErrorAction SilentlyContinue
 foreach ($cmd in $candidates) {
     $exe = if ($cmd.Path) { $cmd.Path } elseif ($cmd.Source) { $cmd.Source } else { $cmd.Definition }
-    $ver = if ($exe) { & $exe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
+    $ver = if ($exe) { & $exe -c "import sys; sys.exit(1) if sys.version_info < (3, 10) else print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
     if ($ver) {
         $PyExe = $exe
         $PyVersion = $ver
@@ -26,13 +26,7 @@ foreach ($cmd in $candidates) {
 }
 
 if (-not $PyVersion) {
-    Write-Error "Python 3.10+ is required but was not found or is non-functional (e.g. Windows Store app execution alias). Please install Python from python.org"
-    exit 1
-}
-
-$PyMajor, $PyMinor = $PyVersion.Split('.') | ForEach-Object { [int]$_ }
-if ($PyMajor -lt 3 -or ($PyMajor -eq 3 -and $PyMinor -lt 10)) {
-    Write-Error "Python 3.10 or higher is required (found Python $PyVersion). Please update Python."
+    Write-Error "Python 3.10 or higher is required but was not found or is non-functional (e.g. Windows Store app execution alias). Please install Python 3.10+ from python.org"
     exit 1
 }
 
