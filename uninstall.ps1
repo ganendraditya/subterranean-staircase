@@ -10,9 +10,10 @@ param(
 )
 
 # Normalize double-dash flags commonly passed from CLI (e.g., --force, --purge, --all, --yes)
-if ($IgnoredArgs) {
-    if ($IgnoredArgs -contains '--force' -or $IgnoredArgs -contains '--yes') { $Force = [switch]::Present }
-    if ($IgnoredArgs -contains '--purge' -or $IgnoredArgs -contains '--all') { $RemoveAllData = [switch]::Present }
+$allArgs = @($Action) + @($IgnoredArgs)
+if ($allArgs) {
+    if ($allArgs -contains '--force' -or $allArgs -contains '--yes') { $Force = [switch]::Present }
+    if ($allArgs -contains '--purge' -or $allArgs -contains '--all') { $RemoveAllData = [switch]::Present }
 }
 
 $ErrorActionPreference = "Stop"

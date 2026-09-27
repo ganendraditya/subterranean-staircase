@@ -83,6 +83,13 @@ def test_uninstall_ps1_accepts_action_positional_param() -> None:
     assert "$Action" in content
 
 
+def test_uninstall_ps1_normalizes_double_dash_args() -> None:
+    content = (_root() / "uninstall.ps1").read_text(encoding="utf-8")
+    assert "$allArgs" in content
+    assert "--force" in content
+    assert "--purge" in content
+
+
 def test_uninstall_ps1_removes_from_path() -> None:
     content = (_root() / "uninstall.ps1").read_text(encoding="utf-8")
     assert "CleanPaths" in content or "SetValue" in content
