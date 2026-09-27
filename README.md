@@ -35,6 +35,11 @@ Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCA
 subtrans
 ```
 
+### Model Management
+Manage on-device offline translation models directly in **Settings → Offline Translation Models**:
+- Download language pairs (e.g. Japanese → English, Korean → English, English → Indonesian, Chinese → English) on-demand with progress tracking.
+- Delete unused models anytime to free up disk space.
+
 ### Updates
 - **In-App (1-Click):** When an update is available, a notification and tray banner `✨ Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
 - **Settings Dialog:** You can also toggle automatic checks or manually click **"Check for Updates Now"** under Settings.

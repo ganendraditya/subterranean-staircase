@@ -16,17 +16,22 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from core.autostart import AutostartManager
 from core.config import ConfigManager
+from core.translate.models import ModelManager
 from core.updater import UpdateInfo, UpdateManager
+from ui.model_dialog import ModelDownloadProgressDialog
 from ui.updater_dialog import UpdateCheckWorker, UpdateProgressDialog
 
 
@@ -53,6 +58,7 @@ class SettingsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.config_manager = config_manager
+        self.model_manager = ModelManager()
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -104,7 +110,31 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form_layout)
 
-        # 5. System Integration & Autostart
+        # 5. Offline Models Manager Group
+        models_group = QGroupBox("Offline Translation Models", self)
+        models_layout = QVBoxLayout(models_group)
+        models_layout.setSpacing(8)
+
+        models_hint = QLabel("Download models for offline on-device translation. Delete to free disk space.", self)
+        models_hint.setStyleSheet("color: #888888; font-size: 11px;")
+        models_layout.addWidget(models_hint)
+
+        self.models_table = QTableWidget(self)
+        self.models_table.setColumnCount(4)
+        self.models_table.setHorizontalHeaderLabels(["Language Pair", "Description", "Status / Size", "Action"])
+        self.models_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.models_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.models_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.models_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.models_table.verticalHeader().setVisible(False)
+        self.models_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.models_table.setFixedHeight(180)
+        models_layout.addWidget(self.models_table)
+
+        self._refresh_models_table()
+        layout.addWidget(models_group)
+
+        # 6. System Integration & Autostart
         system_group = QGroupBox("System & Autostart", self)
         system_layout = QVBoxLayout(system_group)
         self.autostart_manager = AutostartManager()
@@ -148,6 +178,61 @@ class SettingsDialog(QDialog):
         button_layout.addWidget(self.cancel_btn)
         button_layout.addWidget(self.save_btn)
         layout.addLayout(button_layout)
+
+    def _refresh_models_table(self) -> None:
+        """Populate the models table with current installation status and action buttons."""
+        models = self.model_manager.list_models_status()
+        self.models_table.setRowCount(len(models))
+
+        for row, item in enumerate(models):
+            pair_id = item["pair_id"]
+            name_item = QTableWidgetItem(item["name"])
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.models_table.setItem(row, 0, name_item)
+
+            desc_item = QTableWidgetItem(item["description"])
+            desc_item.setFlags(desc_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.models_table.setItem(row, 1, desc_item)
+
+            if item["installed"]:
+                status_text = f"✔ Installed ({item['installed_size_mb']} MB)"
+                status_item = QTableWidgetItem(status_text)
+                btn = QPushButton("Delete")
+                btn.setStyleSheet("color: #ff5555;")
+                btn.clicked.connect(lambda checked, pid=pair_id: self._delete_model_clicked(pid))
+            else:
+                status_text = f"Not Installed (~{item['approx_size_mb']} MB)"
+                status_item = QTableWidgetItem(status_text)
+                btn = QPushButton("Download")
+                btn.setStyleSheet("color: #00e5ff;")
+                btn.clicked.connect(lambda checked, pid=pair_id: self._download_model_clicked(pid))
+
+            status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.models_table.setItem(row, 2, status_item)
+            self.models_table.setCellWidget(row, 3, btn)
+
+    def _download_model_clicked(self, pair_id: str) -> None:
+        """Trigger interactive download dialog for a model."""
+        dialog = ModelDownloadProgressDialog(self.model_manager, pair_id, self)
+        dialog.start_download()
+        self._refresh_models_table()
+
+    def _delete_model_clicked(self, pair_id: str) -> None:
+        """Prompt confirmation and delete an installed model."""
+        confirm = QMessageBox.question(
+            self,
+            "Delete Model",
+            f"Are you sure you want to delete the offline model for '{pair_id}'?\n"
+            "This will free up disk space.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm == QMessageBox.StandardButton.Yes:
+            success, msg = self.model_manager.delete_model(pair_id)
+            if success:
+                self._refresh_models_table()
+            else:
+                QMessageBox.warning(self, "Delete Failed", msg)
 
     def _check_for_updates_now(self) -> None:
         """Trigger immediate manual update check."""
