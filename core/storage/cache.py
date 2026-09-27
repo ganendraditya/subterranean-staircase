@@ -192,11 +192,15 @@ class SQLiteTranslationCache:
             conn = self._get_connection()
             with conn:
                 conn.execute("DELETE FROM translations;")
+            prev_isolation = conn.isolation_level
             try:
+                conn.isolation_level = None
                 conn.execute("VACUUM;")
             except sqlite3.OperationalError:
                 # VACUUM requires an exclusive lock and can fail non-fatally under concurrent reader contention
                 pass
+            finally:
+                conn.isolation_level = prev_isolation
 
     def close(self) -> None:
         """Close thread-local connection if open."""

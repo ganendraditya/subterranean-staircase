@@ -83,6 +83,10 @@ def test_sqlite_cache_clear(tmp_path: Path) -> None:
     cache.set("banana", "en", "id", "pisang")
     assert cache.count() == 2
 
+    # Clear should successfully delete and vacuum without transaction error
     cache.clear()
     assert cache.count() == 0
     assert cache.get("apple", "en", "id") is None
+    # Connection should still be functional after isolation level restore
+    cache.set("cherry", "en", "id", "ceri")
+    assert cache.get("cherry", "en", "id") == "ceri"

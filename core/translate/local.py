@@ -73,6 +73,9 @@ class CTranslate2Engine(BaseTranslator):
         eff_src = "en" if src_base == "en" else src
         eff_tgt = "en" if tgt_base == "en" else tgt
 
+        if eff_src.lower() == eff_tgt.lower():
+            return []
+
         # Direct pair if source or target base language is English
         if src_base == "en" or tgt_base == "en":
             return [(eff_src, eff_tgt)]

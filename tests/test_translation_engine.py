@@ -27,6 +27,11 @@ def test_routing_logic() -> None:
     assert engine._route("en-US", "fr") == [("en", "fr")]
     assert engine._route("ja", "en_GB") == [("ja", "en")]
 
+    # Regional English to English variant returns empty route
+    assert engine._route("en-US", "en") == []
+    assert engine._route("en-US", "en-GB") == []
+    assert engine._route("en", "en-US") == []
+
     # Regional target tags (e.g. zh-CN) retain case-sensitivity for model directory lookup
     assert engine._route("ja", "zh-CN") == [("ja", "en"), ("en", "zh-CN")]
 
@@ -39,6 +44,9 @@ def test_translate_empty_or_same_language() -> None:
 
     res_same = engine.translate(TranslationRequest(source_text="Hello", source_lang="en", target_lang="en"))
     assert res_same.translated_text == "Hello"
+
+    res_variant = engine.translate(TranslationRequest(source_text="Hello", source_lang="en-US", target_lang="en"))
+    assert res_variant.translated_text == "Hello"
 
 
 def test_translate_with_cache_hit(tmp_path: Path) -> None:
