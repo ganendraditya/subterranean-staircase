@@ -212,3 +212,10 @@ Write-Host "✔ Installation completed successfully!" -ForegroundColor Green
 Write-Host "Run 'subtrans' to launch Subtitle Translator." -ForegroundColor Green
 Write-Host "Run 'subtrans uninstall' to remove it." -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
+
+# Auto-launch app into background immediately after install if not already running
+$runningApp = Get-Process python, pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*SubtitleTranslator*" }
+if (-not $runningApp) {
+    Write-Host "🚀 Starting Subterranean Staircase in your System Tray..." -ForegroundColor Cyan
+    Start-Process -FilePath $LauncherPath -WindowStyle Hidden
+}

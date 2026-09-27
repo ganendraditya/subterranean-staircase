@@ -191,20 +191,25 @@ PLIST
     fi
 fi
 
-# 8. Check PATH
-if command -v "${APP_NAME}" >/dev/null 2>&1; then
-    :
-else
-    case ":${PATH}:" in
-        *:"${BIN_DIR}":*|*:"~/.local/bin":*) ;;
-        *)
-            echo ""
-            echo "Note: ${BIN_DIR} is not in your current PATH."
-            echo "Add the following line to your shell profile (~/.zshrc or ~/.bashrc):"
-            echo "  export PATH=\"\${HOME}/.local/bin:\${PATH}\""
-            ;;
-    esac
-fi
+# 8. Configure PATH automatically in user shell profile if missing
+case ":${PATH}:" in
+    *:"${BIN_DIR}":*|*:"~/.local/bin":*) ;;
+    *)
+        SHELL_RC=""
+        if [ -n "${ZSH_VERSION:-}" ] || [ -f "${HOME}/.zshrc" ]; then
+            SHELL_RC="${HOME}/.zshrc"
+        elif [ -f "${HOME}/.bashrc" ]; then
+            SHELL_RC="${HOME}/.bashrc"
+        fi
+
+        if [ -n "${SHELL_RC}" ]; then
+            if ! grep -q 'export PATH=.*\.local/bin' "${SHELL_RC}" 2>/dev/null; then
+                printf '\n# Added by Subterranean Staircase (subtrans)\nexport PATH="%s:${PATH}"\n' "${BIN_DIR}" >> "${SHELL_RC}"
+                echo "✔ Automatically configured PATH in ${SHELL_RC}"
+            fi
+        fi
+        ;;
+esac
 
 echo ""
 echo "=================================================="
@@ -212,3 +217,9 @@ echo "✔ Installation completed successfully!"
 echo "Run 'subtrans' to launch Subtitle Translator."
 echo "Run 'subtrans uninstall' to remove it."
 echo "=================================================="
+
+# Auto-launch app into background immediately after install if not already running
+if ! pgrep -f "subtitle-translator/run.py" >/dev/null 2>&1; then
+    echo "🚀 Starting Subterranean Staircase in your Menu Bar / System Tray..."
+    nohup "${LAUNCHER_PATH}" >/dev/null 2>&1 &
+fi
