@@ -77,12 +77,16 @@ class TranslationPipelineWorker(QThread):
         with self._state_lock:
             self._target_window_id = window_id
             self.diff_detector.reset()
+            self.history_tracker.reset()
+            self._last_translated_sentence = ""
 
     def set_custom_roi(self, roi: Optional[Rect]) -> None:
         """Focus translation on a user-selected custom bounding rectangle."""
         with self._state_lock:
             self._target_roi = roi
             self.diff_detector.reset()
+            self.history_tracker.reset()
+            self._last_translated_sentence = ""
 
     def stop(self, timeout_ms: int = 3000) -> bool:
         """Signal thread to cleanly terminate loop and wait for completion."""

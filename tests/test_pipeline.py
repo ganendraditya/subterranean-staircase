@@ -143,3 +143,34 @@ def test_pipeline_stop_and_thread_lifecycle(qapp, tmp_path) -> None:
     time.sleep(0.05)
     worker.stop(5000)
     assert not worker.isRunning()
+
+
+def test_set_target_window_and_roi_resets_history_and_cache(qapp, tmp_path) -> None:
+    config_mgr = ConfigManager(config_path=tmp_path / "config.json")
+    signals = PipelineSignals()
+    worker = TranslationPipelineWorker(
+        config_manager=config_mgr,
+        signals=signals,
+        capture_driver=MagicMock(),
+        ocr_engine=MagicMock(),
+        translator_engine=MagicMock(),
+    )
+    box = SubtitleBox.from_list([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]])
+    det = SubtitleDetection(text="Test sentence", confidence=0.9, box=box, timestamp=1.0)
+    worker.history_tracker.update([det], 1.0)
+    worker._last_translated_sentence = "Test sentence"
+    assert len(worker.history_tracker._tracks) == 1
+
+    worker.set_target_window(12345)
+    assert len(worker.history_tracker._tracks) == 0
+    assert worker._last_translated_sentence == ""
+
+    det2 = SubtitleDetection(text="Test sentence 2", confidence=0.9, box=box, timestamp=2.0)
+    worker.history_tracker.update([det2], 2.0)
+    worker._last_translated_sentence = "Test sentence 2"
+    assert len(worker.history_tracker._tracks) == 1
+
+    worker.set_custom_roi(Rect(10, 10, 200, 100))
+    assert len(worker.history_tracker._tracks) == 0
+    assert worker._last_translated_sentence == ""
+
