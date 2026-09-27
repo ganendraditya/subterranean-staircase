@@ -104,3 +104,8 @@ echo ""
 echo "=================================================="
 echo "✔ Subtitle Translator was cleanly uninstalled."
 echo "=================================================="
+
+# If invoked from a temporary staging copy, clean up the temp file
+if [ "$0" != "${INSTALL_DIR}/uninstall.sh" ] && [ -f "$0" ]; then
+    rm -f "$0" 2>/dev/null || true
+fi

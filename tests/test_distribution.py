@@ -64,6 +64,7 @@ def test_install_ps1_targets_localappdata() -> None:
     content = (_root() / "install.ps1").read_text(encoding="utf-8")
     assert "LOCALAPPDATA" in content
     assert "subtrans.cmd" in content
+    assert "candidates" in content
 
 
 def test_install_ps1_adds_to_path() -> None:

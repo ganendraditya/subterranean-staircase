@@ -12,9 +12,18 @@ Write-Host "  Subtitle Translator V1 — Windows Installer" -ForegroundColor Cya
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # 1. Check Python
-$PythonCmd = Get-Command python.exe, py.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-$PyExe = if ($PythonCmd.Path) { $PythonCmd.Path } elseif ($PythonCmd.Source) { $PythonCmd.Source } else { $PythonCmd.Definition }
-$PyVersion = if ($PyExe) { & $PyExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
+$PyExe = $null
+$PyVersion = $null
+$candidates = Get-Command python.exe, py.exe -ErrorAction SilentlyContinue
+foreach ($cmd in $candidates) {
+    $exe = if ($cmd.Path) { $cmd.Path } elseif ($cmd.Source) { $cmd.Source } else { $cmd.Definition }
+    $ver = if ($exe) { & $exe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
+    if ($ver) {
+        $PyExe = $exe
+        $PyVersion = $ver
+        break
+    }
+}
 
 if (-not $PyVersion) {
     Write-Error "Python 3.10+ is required but was not found or is non-functional (e.g. Windows Store app execution alias). Please install Python from python.org"
