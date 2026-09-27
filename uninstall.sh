@@ -31,6 +31,7 @@ for arg in "$@"; do
             PURGE_DATA=true
             AUTO_CONFIRM=true
             ;;
+        uninstall) ;;
         *)
             echo "Warning: Unrecognized option '${arg}'" >&2
             ;;

@@ -111,7 +111,10 @@ if [ "${1:-}" = "uninstall" ]; then
     TMP_DIR="${TMPDIR:-/tmp}"
     TMP_UNINSTALL="$(umask 077 && mktemp "${TMP_DIR%/}/subtrans_uninstall.XXXXXX")" || exit 1
     cp "${INSTALL_DIR}/uninstall.sh" "${TMP_UNINSTALL}"
-    exec bash -c 'trap "rm -f \"\$0\"" EXIT INT TERM; bash "\$0" "\$@"' "${TMP_UNINSTALL}" "$@"
+    chmod +x "${TMP_UNINSTALL}"
+    trap 'rm -f "${TMP_UNINSTALL}"' EXIT INT TERM
+    "${TMP_UNINSTALL}" "$@"
+    exit $?
 fi
 
 exec "${INSTALL_DIR}/.venv/bin/python" "${INSTALL_DIR}/run.py" "$@"

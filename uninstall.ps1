@@ -3,6 +3,8 @@ param(
     [switch]$Force,
     [Alias('purge', 'all')]
     [switch]$RemoveAllData,
+    [Parameter(Position = 0)]
+    [string]$Action,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$IgnoredArgs
 )
