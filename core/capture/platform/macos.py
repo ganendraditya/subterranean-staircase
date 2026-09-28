@@ -80,6 +80,11 @@ class MacOSWindowCapture(BaseCapture):
         """Capture monitor screen via the underlying screen capture driver."""
         return self._screen_capture.grab_screen(monitor_index, crop_rect)
 
+    def close(self) -> None:
+        """Release screen capture resources and display connections."""
+        if hasattr(self._screen_capture, "close"):
+            self._screen_capture.close()
+
     def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
         """Capture a targeted macOS window using CGWindowListCreateImage."""
         if not HAS_QUARTZ:

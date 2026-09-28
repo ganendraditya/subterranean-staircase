@@ -25,8 +25,23 @@ class MSSScreenCapture(BaseCapture):
         """Listing specific OS windows requires OS-level APIs (handled by platform drivers)."""
         return []
 
+    def close(self) -> None:
+        """Release underlying MSS handle."""
+        if hasattr(self, "_sct") and self._sct is not None:
+            try:
+                self._sct.close()
+            except Exception:
+                pass
+            self._sct = None
+
+    def _ensure_sct(self) -> None:
+        """Lazily initialize or recreate MSS context if closed."""
+        if getattr(self, "_sct", None) is None:
+            self._sct = mss.MSS() if hasattr(mss, "MSS") else mss.mss()
+
     def get_monitor_bounds(self, monitor_index: int = 1) -> Rect:
         """Get bounds rectangle for a specific monitor index (1-based index)."""
+        self._ensure_sct()
         monitors = self._sct.monitors
         if not (1 <= monitor_index < len(monitors)):
             raise ValueError(f"Monitor index {monitor_index} out of range (1..{len(monitors) - 1})")
@@ -87,6 +102,7 @@ class MSSScreenCapture(BaseCapture):
             }
             actual_rect = bounds
 
+        self._ensure_sct()
         sct_img = self._sct.grab(capture_bbox)
         # Convert raw BGRA bytes into BGR numpy array without sequence conversion overhead
         raw_bytes = sct_img.raw if hasattr(sct_img, "raw") else bytes(sct_img)
