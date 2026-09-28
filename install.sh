@@ -207,9 +207,12 @@ if [ "$(uname)" = "Darwin" ]; then
 PLIST
 
     # Put app bundle executable that delegates to virtualenv python
-    cat > "${MAC_APP_DIR}/Contents/MacOS/subtrans" <<EOF
+    cat << 'EOF' > "${MAC_APP_DIR}/Contents/MacOS/subtrans"
 #!/usr/bin/env bash
-exec "${INSTALL_DIR}/.venv/bin/python" "${INSTALL_DIR}/run.py" "\$@"
+EOF
+    printf 'INSTALL_DIR=%q\n' "${INSTALL_DIR}" >> "${MAC_APP_DIR}/Contents/MacOS/subtrans"
+    cat << 'EOF' >> "${MAC_APP_DIR}/Contents/MacOS/subtrans"
+exec "${INSTALL_DIR}/.venv/bin/python" "${INSTALL_DIR}/run.py" "$@"
 EOF
     chmod +x "${MAC_APP_DIR}/Contents/MacOS/subtrans"
     echo "✔ Created native macOS App Bundle: ${MAC_APP_DIR}"
