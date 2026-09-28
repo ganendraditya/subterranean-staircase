@@ -214,6 +214,15 @@ class SubtitleTranslatorApp:
             overlay_h = 150
             self.overlay.setGeometry(bounds.left + 100, bounds.bottom - overlay_h - 50, bounds.width - 200, overlay_h)
 
+    def start(self) -> None:
+        """Display system tray and initialize geometry."""
+        self.tray.show()
+        # Default overlay position at bottom center of primary screen
+        bounds = self.capture_driver.get_monitor_bounds(1)
+        overlay_h = 140
+        self.overlay.setGeometry(bounds.left + 150, bounds.bottom - overlay_h - 60, bounds.width - 300, overlay_h)
+        logger.info("Subtitle Translator V1 initialized and ready in Menu Bar / System Tray.")
+
     def quit(self) -> None:
         """Clean teardown of worker and application."""
         logger.info("Shutting down Subtitle Translator V1...")
