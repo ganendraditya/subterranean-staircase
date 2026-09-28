@@ -54,13 +54,19 @@ if [ "${AUTO_CONFIRM}" != "true" ]; then
     esac
 fi
 
-# 1. Remove binary launcher
+# 1. Remove binary launcher and macOS App Bundle
 if [ -f "${LAUNCHER_PATH}" ]; then
     echo "Removing launcher: ${LAUNCHER_PATH}..."
     rm -f "${LAUNCHER_PATH}" 2>/dev/null || true
 fi
 if [ -L "/usr/local/bin/${APP_NAME}" ]; then
     rm -f "/usr/local/bin/${APP_NAME}" 2>/dev/null || true
+fi
+
+# Remove macOS App Bundle
+if [ -d "${HOME}/Applications/Subterranean Staircase.app" ]; then
+    echo "Removing App Bundle: ${HOME}/Applications/Subterranean Staircase.app..."
+    rm -rf "${HOME}/Applications/Subterranean Staircase.app"
 fi
 
 # 2. Remove LaunchAgent (macOS only)
