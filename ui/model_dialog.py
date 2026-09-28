@@ -50,7 +50,11 @@ class ModelDownloadProgressDialog(QDialog):
 
         self.setWindowTitle("Downloading Translation Model")
         self.setFixedSize(380, 150)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowCloseButtonHint)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowTitleHint
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)

@@ -106,12 +106,22 @@ class SubtitleTranslatorApp:
             self.overlay.setGeometry(bounds.left + 100, bounds.bottom - overlay_h - 50, bounds.width - 200, overlay_h)
 
     def _open_settings(self) -> None:
-        """Open settings configuration modal."""
+        """Open settings configuration window."""
+        if hasattr(self, "settings_dialog") and self.settings_dialog is not None and self.settings_dialog.isVisible():
+            self.settings_dialog.raise_()
+            self.settings_dialog.activateWindow()
+            return
+
         self.settings_dialog = SettingsDialog(config_manager=self.config_manager)
-        if self.settings_dialog.exec():
-            # Update overlay style after save
-            self.overlay.style_config = self.config_manager.config.overlay
-            self.overlay.update()
+        self.settings_dialog.finished.connect(self._on_settings_closed)
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
+
+    def _on_settings_closed(self, result: int) -> None:
+        """Update overlay style after settings dialog closes."""
+        self.overlay.style_config = self.config_manager.config.overlay
+        self.overlay.update()
 
     def start(self) -> None:
         """Display system tray and initialize geometry."""
