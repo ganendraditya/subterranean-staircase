@@ -132,7 +132,6 @@ QCheckBox::indicator:hover {
 QCheckBox::indicator:checked {
     background-color: #00E5FF;
     border-color: #00E5FF;
-    image: none;
 }
 
 /* Table Widget */
