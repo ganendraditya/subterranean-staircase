@@ -43,6 +43,18 @@ def test_install_sh_contains_launchagent_support() -> None:
     assert "launchctl load" in content
 
 
+def test_install_sh_creates_macos_app_bundle() -> None:
+    content = (_root() / "install.sh").read_text(encoding="utf-8")
+    assert "Subterranean Staircase.app" in content
+    assert "NSScreenCaptureUsageDescription" in content
+    assert "CFBundleIdentifier" in content
+
+
+def test_uninstall_sh_removes_macos_app_bundle() -> None:
+    content = (_root() / "uninstall.sh").read_text(encoding="utf-8")
+    assert "Subterranean Staircase.app" in content
+
+
 def test_uninstall_sh_removes_launchagent() -> None:
     content = (_root() / "uninstall.sh").read_text(encoding="utf-8")
     assert "com.subtitle-translator.subtrans.plist" in content

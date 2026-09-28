@@ -144,7 +144,7 @@ if [ "${PREBUILT_INSTALLED}" != "true" ]; then
     echo "--------------------------------------------------"
 fi
 
-# 5. Create launcher wrapper script in ~/.local/bin/subtrans
+# 5. Create launcher wrapper script and macOS App Bundle
 mkdir -p "${BIN_DIR}"
 LAUNCHER_PATH="${BIN_DIR}/${APP_NAME}"
 
@@ -173,11 +173,58 @@ EOF
 chmod +x "${LAUNCHER_PATH}"
 echo "✔ Created launcher: ${LAUNCHER_PATH}"
 
+# On macOS, register native .app bundle so Screen Recording permission is attributed to "Subterranean Staircase"
+if [ "$(uname)" = "Darwin" ]; then
+    MAC_APP_DIR="${HOME}/Applications/Subterranean Staircase.app"
+    mkdir -p "${MAC_APP_DIR}/Contents/MacOS"
+    mkdir -p "${MAC_APP_DIR}/Contents/Resources"
+
+    cat > "${MAC_APP_DIR}/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Subterranean Staircase</string>
+    <key>CFBundleDisplayName</key>
+    <string>Subterranean Staircase</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.subtitle-translator.subtrans</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>subtrans</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Subterranean Staircase needs Screen Recording access to detect and translate on-screen subtitles in real time.</string>
+</dict>
+</plist>
+PLIST
+
+    # Put app bundle executable that delegates to virtualenv python
+    cat > "${MAC_APP_DIR}/Contents/MacOS/subtrans" <<EOF
+#!/usr/bin/env bash
+exec "${INSTALL_DIR}/.venv/bin/python" "${INSTALL_DIR}/run.py" "\$@"
+EOF
+    chmod +x "${MAC_APP_DIR}/Contents/MacOS/subtrans"
+    echo "✔ Created native macOS App Bundle: ${MAC_APP_DIR}"
+fi
+
 # 6. Configure LaunchAgent (macOS auto-start on login)
 if [ "$(uname)" = "Darwin" ]; then
     LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
     LAUNCH_AGENT_PLIST="${LAUNCH_AGENTS_DIR}/com.subtitle-translator.subtrans.plist"
     mkdir -p "${LAUNCH_AGENTS_DIR}"
+
+    APP_BIN_TARGET="${LAUNCHER_PATH}"
+    if [ -f "${HOME}/Applications/Subterranean Staircase.app/Contents/MacOS/subtrans" ]; then
+        APP_BIN_TARGET="${HOME}/Applications/Subterranean Staircase.app/Contents/MacOS/subtrans"
+    fi
 
     cat > "${LAUNCH_AGENT_PLIST}" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -188,7 +235,7 @@ if [ "$(uname)" = "Darwin" ]; then
     <string>com.subtitle-translator.subtrans</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${LAUNCHER_PATH}</string>
+        <string>${APP_BIN_TARGET}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

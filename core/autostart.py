@@ -31,6 +31,11 @@ class AutostartManager:
         if sys.platform == "win32":
             local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
             return local_app_data / "Programs" / "SubtitleTranslator" / "subtrans.cmd"
+        elif sys.platform == "darwin":
+            mac_app_bin = Path.home() / "Applications" / "Subterranean Staircase.app" / "Contents" / "MacOS" / "subtrans"
+            if mac_app_bin.exists():
+                return mac_app_bin
+            return Path.home() / ".local" / "bin" / "subtrans"
         else:
             return Path.home() / ".local" / "bin" / "subtrans"
 
