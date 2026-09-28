@@ -71,6 +71,12 @@ class SubtitleTranslatorApp:
             self.overlay.hide()
             if self.worker.isRunning():
                 self.worker.stop()
+            # Explicitly release screen/display capture handles so macOS capture indicator dismisses immediately
+            if hasattr(self.capture_driver, "close"):
+                try:
+                    self.capture_driver.close()
+                except Exception as e:
+                    logger.debug("Failed to close capture driver: %s", e)
 
     def _open_roi_selector(self) -> None:
         """Open interactive screen region selector."""
