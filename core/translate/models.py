@@ -35,7 +35,7 @@ class ModelMetadata:
     files: List[str]         # Files needed for CTranslate2 + SentencePiece
 
 
-# Catalog of primary recommended models
+# Catalog of primary recommended models hosted on Hugging Face (Public CTranslate2 converted weights)
 RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
     "ja-en": ModelMetadata(
         pair_id="ja-en",
@@ -44,7 +44,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         name="Japanese → English",
         description="Anime, J-Dramas, and Japanese streams",
         approx_size_mb=155,
-        hf_repo="michaelfeil/ct2fast-opus-mt-ja-en",
+        hf_repo="gaudi/opus-mt-ja-en-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
     "ko-en": ModelMetadata(
@@ -54,7 +54,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         name="Korean → English",
         description="K-Dramas, variety shows, and streams",
         approx_size_mb=148,
-        hf_repo="michaelfeil/ct2fast-opus-mt-ko-en",
+        hf_repo="gaudi/opus-mt-ko-en-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
     "zh-en": ModelMetadata(
@@ -64,7 +64,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         name="Chinese → English",
         description="C-Dramas, Donghua, and Chinese videos",
         approx_size_mb=152,
-        hf_repo="michaelfeil/ct2fast-opus-mt-zh-en",
+        hf_repo="gaudi/opus-mt-zh-en-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
     "en-id": ModelMetadata(
@@ -73,8 +73,8 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         target_lang="id",
         name="English → Indonesian",
         description="Western movies, YouTube, and tech talks to Indonesian",
-        approx_size_mb=145,
-        hf_repo="michaelfeil/ct2fast-opus-mt-en-id",
+        approx_size_mb=75,
+        hf_repo="manancode/opus-mt-en-id-ctranslate2-android",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
     "es-en": ModelMetadata(
@@ -84,7 +84,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         name="Spanish → English",
         description="Latin American & Spanish films/shows",
         approx_size_mb=142,
-        hf_repo="michaelfeil/ct2fast-opus-mt-es-en",
+        hf_repo="gaudi/opus-mt-es-en-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
     "fr-en": ModelMetadata(
@@ -94,7 +94,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         name="French → English",
         description="French cinema and international media",
         approx_size_mb=144,
-        hf_repo="michaelfeil/ct2fast-opus-mt-fr-en",
+        hf_repo="gaudi/opus-mt-fr-en-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
     "de-en": ModelMetadata(
@@ -104,7 +104,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         name="German → English",
         description="German films and media",
         approx_size_mb=146,
-        hf_repo="michaelfeil/ct2fast-opus-mt-de-en",
+        hf_repo="gaudi/opus-mt-de-en-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
     ),
 }
