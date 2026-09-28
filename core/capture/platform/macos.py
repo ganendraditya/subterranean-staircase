@@ -73,7 +73,20 @@ class MacOSWindowCapture(BaseCapture):
         return results
 
     def get_monitor_bounds(self, monitor_index: int = 1) -> Rect:
-        """Delegate monitor boundaries calculation to the screen capture driver."""
+        """Get monitor bounds using Quartz native CGDisplayBounds with fallback to MSS."""
+        if HAS_QUARTZ:
+            try:
+                main_display = Quartz.CGMainDisplayID()
+                cg_bounds = Quartz.CGDisplayBounds(main_display)
+                return Rect(
+                    left=int(cg_bounds.origin.x),
+                    top=int(cg_bounds.origin.y),
+                    width=int(cg_bounds.size.width),
+                    height=int(cg_bounds.size.height),
+                )
+            except Exception as e:
+                logger.debug("Quartz CGDisplayBounds failed: %s, falling back to MSS", e)
+
         return self._screen_capture.get_monitor_bounds(monitor_index)
 
     def grab_screen(self, monitor_index: int = 1, crop_rect: Optional[Rect] = None) -> Frame:

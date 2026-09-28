@@ -43,6 +43,14 @@ class MSSScreenCapture(BaseCapture):
         """Get bounds rectangle for a specific monitor index (1-based index)."""
         self._ensure_sct()
         monitors = self._sct.monitors
+
+        if len(monitors) <= 1:
+            # Fallback if display server returns only virtual bounds or empty list
+            if len(monitors) == 1 and (monitors[0]["width"] > 0 and monitors[0]["height"] > 0):
+                mon = monitors[0]
+                return Rect(left=mon["left"], top=mon["top"], width=mon["width"], height=mon["height"])
+            return Rect(left=0, top=0, width=1920, height=1080)
+
         if not (1 <= monitor_index < len(monitors)):
             raise ValueError(f"Monitor index {monitor_index} out of range (1..{len(monitors) - 1})")
 
