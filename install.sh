@@ -42,33 +42,13 @@ if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
 fi
 
 if [ "${PREBUILT_INSTALLED}" != "true" ]; then
-    # 1. Check Python version (requires Python 3.10 - 3.12 for ONNX/PyTorch compatibility)
-    PYTHON_CMD=""
-    PY_VERSION=""
-    for cmd in python3.12 python3.11 python3.10 python3 python; do
-        if command -v "${cmd}" >/dev/null 2>&1; then
-            ver=$("${cmd}" -c 'import sys; sys.exit(1) if not (3, 10) <= sys.version_info < (3, 13) else print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
-            if [ -n "${ver}" ]; then
-                PYTHON_CMD="${cmd}"
-                PY_VERSION="${ver}"
-                break
-            fi
-        fi
-    done
-
-    if [ -z "${PYTHON_CMD}" ]; then
-        echo "Error: Python 3.10, 3.11, or 3.12 is required (ONNX runtime and CTranslate2 do not yet support Python 3.13+)." >&2
-        exit 1
-    fi
-    echo "✔ Found compatible Python ${PY_VERSION}"
-
-    # 2. Check Git
+    # 1. Check Git
     if ! command -v git >/dev/null 2>&1; then
         echo "Error: git is required but not found in PATH." >&2
         exit 1
     fi
 
-    # 3. Clone or update repository into INSTALL_DIR
+    # 2. Clone or update repository into INSTALL_DIR
     if [ -d "${INSTALL_DIR}/.git" ]; then
         echo "Updating existing installation in ${INSTALL_DIR}..."
         if ! git -C "${INSTALL_DIR}" pull --quiet 2>/dev/null; then
@@ -109,7 +89,66 @@ if [ "${PREBUILT_INSTALLED}" != "true" ]; then
         fi
     fi
 
-    # 4. Setup dedicated virtual environment
+    # 3. Setup Isolated Standalone Python 3.11 Runtime
+    # Completely independent from host desktop Python installations/modifications.
+    STANDALONE_PY_URL=""
+    case "${OS_NAME}-${ARCH}" in
+        darwin-arm64)
+            STANDALONE_PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-apple-darwin-install_only.tar.gz"
+            ;;
+        darwin-x86_64)
+            STANDALONE_PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-apple-darwin-install_only.tar.gz"
+            ;;
+        linux-x86_64)
+            STANDALONE_PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-gnu-install_only.tar.gz"
+            ;;
+        linux-arm64)
+            STANDALONE_PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-unknown-linux-gnu-install_only.tar.gz"
+            ;;
+    esac
+
+    ISOLATED_PY_DIR="${INSTALL_DIR}/.python"
+    PYTHON_CMD="${ISOLATED_PY_DIR}/bin/python3"
+
+    if [ ! -f "${PYTHON_CMD}" ]; then
+        if [ -n "${STANDALONE_PY_URL}" ] && command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+            echo "📦 Downloading isolated standalone Python 3.11 runtime (${OS_NAME}-${ARCH})..."
+            mkdir -p "${ISOLATED_PY_DIR}"
+            TMP_PY_TAR="$(mktemp "${TMPDIR:-/tmp}/subtrans_py.XXXXXX.tar.gz")"
+            if curl -f -L --progress-bar "${STANDALONE_PY_URL}" -o "${TMP_PY_TAR}"; then
+                echo "📦 Unpacking isolated Python runtime to ${ISOLATED_PY_DIR}..."
+                tar -xzf "${TMP_PY_TAR}" -C "${ISOLATED_PY_DIR}" --strip-components=1
+                rm -f "${TMP_PY_TAR}"
+            else
+                rm -f "${TMP_PY_TAR}"
+                rm -rf "${ISOLATED_PY_DIR}"
+            fi
+        fi
+    fi
+
+    # Fallback to host Python only if standalone download was completely blocked
+    if [ ! -f "${PYTHON_CMD}" ]; then
+        echo "Note: Standalone package unavailable, checking host system for Python 3.10-3.12..."
+        for cmd in python3.12 python3.11 python3.10 python3 python; do
+            if command -v "${cmd}" >/dev/null 2>&1; then
+                ver=$("${cmd}" -c 'import sys; sys.exit(1) if not (3, 10) <= sys.version_info < (3, 13) else print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
+                if [ -n "${ver}" ]; then
+                    PYTHON_CMD="${cmd}"
+                    break
+                fi
+            fi
+        done
+    fi
+
+    if [ ! -f "${PYTHON_CMD}" ] && ! command -v "${PYTHON_CMD}" >/dev/null 2>&1; then
+        echo "Error: Python 3.10 - 3.12 runtime could not be installed." >&2
+        exit 1
+    fi
+
+    PY_VERSION="$("${PYTHON_CMD}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+    echo "✔ Isolated runtime verified (Python ${PY_VERSION})"
+
+    # 4. Setup dedicated virtual environment inside INSTALL_DIR
     VENV_DIR="${INSTALL_DIR}/.venv"
     VENV_PY_VER=""
     if [ -f "${VENV_DIR}/bin/python" ]; then
@@ -117,10 +156,10 @@ if [ "${PREBUILT_INSTALLED}" != "true" ]; then
     fi
 
     if [ ! -f "${VENV_DIR}/bin/python" ] || [ "${VENV_PY_VER}" != "${PY_VERSION}" ]; then
-        echo "Creating virtual environment with Python ${PY_VERSION} in ${VENV_DIR}..."
+        echo "Configuring dedicated isolated environment in ${VENV_DIR}..."
         rm -rf "${VENV_DIR}"
         if ! "${PYTHON_CMD}" -m venv "${VENV_DIR}"; then
-            echo "Error: Failed to create virtual environment. If on Debian/Ubuntu, try installing 'python3-venv'." >&2
+            echo "Error: Failed to create virtual environment." >&2
             exit 1
         fi
     fi

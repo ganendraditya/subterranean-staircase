@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QApplication
 from core.capture.base import BaseCapture
 from core.config import ConfigManager
 from core.contracts import Rect, WindowInfo
+from ui.control_center import ControlCenterDialog
 from ui.settings_dialog import SettingsDialog
 from ui.tray import TrayController, create_default_tray_icon
 
@@ -57,14 +58,10 @@ def test_settings_dialog_custom_language(qapp, tmp_path: Path) -> None:
 def test_tray_controller_signals_and_menu(qapp, tmp_path: Path) -> None:
     config_mgr = ConfigManager(config_path=tmp_path / "config.json")
     config_mgr.update(check_updates=False)
-    mock_capture = MagicMock(spec=BaseCapture)
-    mock_capture.list_windows.return_value = [
-        WindowInfo(window_id=123, title="VLC", owner_name="vlc", rect=Rect(0, 0, 800, 600))
-    ]
 
-    tray = TrayController(config_manager=config_mgr, capture_driver=mock_capture)
+    tray = TrayController(config_manager=config_mgr)
 
-    # 1. Test Toggle Translation
+    # 1. Test Toggle Translation from minimal context menu
     toggled_states: list[bool] = []
     tray.translation_toggled.connect(toggled_states.append)
 
@@ -78,47 +75,63 @@ def test_tray_controller_signals_and_menu(qapp, tmp_path: Path) -> None:
     assert toggled_states[1] is False
     assert tray.toggle_action.text() == "Start Translation"
 
-    # 2. Test Populate Windows Submenu and Triggering Action
-    tray._populate_windows_menu()
-    actions = tray.window_menu.actions()
-    # Entire screen + separator + 1 window
-    assert len(actions) == 3
-    assert "Entire Screen" in actions[0].text()
-    assert "vlc: VLC" in actions[2].text()
+    # 2. Test click activation routes to control_center_requested
+    cc_requested: list[bool] = []
+    tray.control_center_requested.connect(lambda: cc_requested.append(True))
+    from PyQt6.QtWidgets import QSystemTrayIcon
+    tray._on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
+    assert len(cc_requested) == 1
 
-    # Triggering full screen action should not raise TypeError
-    selected_wins: list = []
-    tray.window_selected.connect(selected_wins.append)
-    actions[0].trigger()
-    assert len(selected_wins) == 1
-    assert selected_wins[0] is None
-
-    # Triggering specific window action
-    actions[2].trigger()
-    assert len(selected_wins) == 2
-    assert selected_wins[1].window_id == 123
-
-    # 3. Test repopulating doesn't leak QAction objects on TrayController parent
-    initial_child_count = len(tray.children())
-    tray._populate_windows_menu()
-    tray._populate_windows_menu()
-    assert len(tray.children()) == initial_child_count
     tray.close()
 
 
-def test_tray_controller_shows_update_action(qapp, tmp_path: Path) -> None:
-    from core.updater import UpdateInfo
+def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     config_mgr = ConfigManager(config_path=tmp_path / "config.json")
-    config_mgr.update(check_updates=False)
+    mock_capture = MagicMock(spec=BaseCapture)
+    mock_capture.list_windows.return_value = [
+        WindowInfo(window_id=123, title="VLC Player", owner_name="vlc", rect=Rect(0, 0, 800, 600))
+    ]
 
-    tray = TrayController(config_manager=config_mgr)
-    update_info = UpdateInfo(has_update=True, current_commit="1111111", latest_commit="2222222", message="New version")
+    cc = ControlCenterDialog(config_manager=config_mgr, capture_driver=mock_capture)
 
-    # Simulate background check completed
-    tray._on_background_update_checked(update_info)
-    assert tray._update_action is not None
-    assert "2222222" in tray._update_action.text()
-    tray.close()
+    # 1. Check window population
+    assert cc.window_combo.count() == 2
+    assert "Entire Screen" in cc.window_combo.itemText(0)
+    assert "vlc: VLC Player" in cc.window_combo.itemText(1)
+
+    # 2. Check window selection signal
+    selected_wins = []
+    cc.window_selected.connect(selected_wins.append)
+    cc.window_combo.setCurrentIndex(1)
+    assert len(selected_wins) == 1
+    assert selected_wins[0].window_id == 123
+
+    # 3. Check translation toggle button
+    toggled = []
+    cc.translation_toggled.connect(toggled.append)
+    cc.toggle_btn.click()
+    assert len(toggled) == 1
+    assert toggled[0] is True
+
+    cc.set_active(True)
+    assert cc.toggle_btn.text() == "Pause Translation"
+    assert "TRANSLATING" in cc.status_badge.text()
+
+    cc.set_active(False)
+    assert cc.toggle_btn.text() == "Start Translation"
+    assert "STANDBY" in cc.status_badge.text()
+
+    # 4. Check ROI signal
+    roi_req = []
+    cc.select_roi_requested.connect(lambda: roi_req.append(True))
+    cc.roi_btn.click()
+    assert len(roi_req) == 1
+
+    # 5. Check preferences save
+    cc.font_size_spin.setValue(32)
+    assert config_mgr.config.overlay.font_size == 32
+
+    cc.close()
 
 
 def test_tray_controller_set_active(qapp, tmp_path: Path) -> None:

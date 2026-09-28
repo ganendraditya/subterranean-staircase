@@ -227,6 +227,65 @@ QPushButton#TableDeleteButton:hover {
     border-color: #FF6B6B;
 }
 
+/* Control Center Specific Elements */
+QPushButton#StartButton {
+    background-color: #00E5FF;
+    color: #09090B;
+    border: 1px solid #00E5FF;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 8px 24px;
+    border-radius: 8px;
+}
+
+QPushButton#StartButton:hover {
+    background-color: #33EBFF;
+    border-color: #33EBFF;
+}
+
+QPushButton#PauseButton {
+    background-color: #27272A;
+    color: #F87171;
+    border: 1px solid #EF4444;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 8px 24px;
+    border-radius: 8px;
+}
+
+QPushButton#PauseButton:hover {
+    background-color: #3F3F46;
+    border-color: #F87171;
+}
+
+QPushButton#DangerButton {
+    background-color: transparent;
+    color: #EF4444;
+    border: 1px solid #7F1D1D;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+QPushButton#DangerButton:hover {
+    background-color: #450A0A;
+    border-color: #EF4444;
+}
+
+QLabel#StatusBadgeActive {
+    color: #4ADE80;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+QLabel#StatusBadgeStandby {
+    color: #9CA3AF;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
 /* Scrollbars */
 QScrollBar:vertical {
     border: none;

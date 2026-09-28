@@ -11,9 +11,9 @@ from core.capture.factory import create_capture_driver
 from core.config import ConfigManager
 from core.contracts import Rect, WindowInfo
 from core.pipeline import PipelineSignals, TranslationPipelineWorker
+from ui.control_center import ControlCenterDialog
 from ui.overlay import SubtitleOverlayWindow
 from ui.region_selector import RegionSelectorWidget
-from ui.settings_dialog import SettingsDialog
 from ui.tray import TrayController
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -34,8 +34,11 @@ class SubtitleTranslatorApp:
             config_manager=self.config_manager,
             capture_driver=self.capture_driver,
         )
+        self.control_center = ControlCenterDialog(
+            config_manager=self.config_manager,
+            capture_driver=self.capture_driver,
+        )
         self.region_selector: Optional[RegionSelectorWidget] = None
-        self.settings_dialog: Optional[SettingsDialog] = None
 
         # Background Worker
         self.worker = TranslationPipelineWorker(
@@ -52,16 +55,43 @@ class SubtitleTranslatorApp:
         self.signals.subtitle_ready.connect(self.overlay.update_text)
         self.signals.error_occurred.connect(self._on_pipeline_error)
 
-        # Tray -> Pipeline & UI
+        # Tray -> Control Center & Teardown
+        self.tray.control_center_requested.connect(self._toggle_control_center)
         self.tray.translation_toggled.connect(self._on_translation_toggled)
-        self.tray.select_roi_requested.connect(self._open_roi_selector)
-        self.tray.window_selected.connect(self._on_window_selected)
-        self.tray.settings_requested.connect(self._open_settings)
         self.tray.quit_requested.connect(self.quit)
+
+        # Control Center -> Actions & Teardown
+        self.control_center.translation_toggled.connect(self._on_translation_toggled)
+        self.control_center.select_roi_requested.connect(self._open_roi_selector)
+        self.control_center.window_selected.connect(self._on_window_selected)
+        self.control_center.settings_saved.connect(self._on_settings_saved)
+        self.control_center.quit_requested.connect(self.quit)
+        self.control_center.finished.connect(self._on_control_center_finished)
 
     def _on_pipeline_error(self, error: str) -> None:
         """Handle background pipeline errors."""
         logger.error("Pipeline background error: %s", error)
+
+    def _toggle_control_center(self) -> None:
+        """Toggle the unified Control Center window."""
+        if self.control_center.isVisible():
+            self.control_center.hide()
+            _set_macos_activation_policy(regular=False)
+        else:
+            _set_macos_activation_policy(regular=True)
+            self.control_center.refresh_state()
+            self.control_center.show()
+            self.control_center.raise_()
+            self.control_center.activateWindow()
+
+    def _on_control_center_finished(self, result: int) -> None:
+        """Return to accessory mode when Control Center is dismissed."""
+        _set_macos_activation_policy(regular=False)
+
+    def _on_settings_saved(self) -> None:
+        """Apply live visual updates when preferences are saved."""
+        self.overlay.style_config = self.config_manager.config.overlay
+        self.overlay.update()
 
     def _on_translation_toggled(self, active: bool) -> None:
         """Start or pause translation worker."""
@@ -77,7 +107,7 @@ class SubtitleTranslatorApp:
                 size_str = f" (~{meta.approx_size_mb} MB)" if meta else ""
                 name_str = meta.name if meta else pair_id
                 reply = QMessageBox.question(
-                    None,
+                    self.control_center if self.control_center.isVisible() else None,
                     "Translation Model Required",
                     f"The offline translation model for '{name_str}' is not downloaded yet{size_str}.\n\n"
                     "Would you like to download it now?",
@@ -86,24 +116,34 @@ class SubtitleTranslatorApp:
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     from ui.model_dialog import ModelDownloadProgressDialog
-                    dialog = ModelDownloadProgressDialog(mm, pair_id)
+                    dialog = ModelDownloadProgressDialog(
+                        mm, pair_id, parent=self.control_center if self.control_center.isVisible() else None
+                    )
                     dialog.start_download()
-                    _set_macos_activation_policy(regular=False)
+                    if not self.control_center.isVisible():
+                        _set_macos_activation_policy(regular=False)
                     if not mm.is_installed(pair_id):
                         self.tray.set_active(False)
+                        self.control_center.set_active(False)
                         return
                 else:
-                    _set_macos_activation_policy(regular=False)
+                    if not self.control_center.isVisible():
+                        _set_macos_activation_policy(regular=False)
                     self.tray.set_active(False)
+                    self.control_center.set_active(False)
                     return
 
             logger.info("Starting translation overlay...")
+            self.tray.set_active(True)
+            self.control_center.set_active(True)
             self.overlay.show()
             self.overlay.update_text("⚡ Subtitle Translator Active")
             if not self.worker.isRunning():
                 self.worker.start()
         else:
             logger.info("Pausing translation overlay...")
+            self.tray.set_active(False)
+            self.control_center.set_active(False)
             self.overlay.clear_text()
             self.overlay.hide()
             if self.worker.isRunning():
@@ -146,6 +186,7 @@ class SubtitleTranslatorApp:
         """Apply chosen custom ROI."""
         logger.info("Custom ROI selected: %s", roi.as_tuple())
         self.worker.set_custom_roi(roi)
+        self.control_center.set_roi_hint(f"Custom ROI: {roi.width}x{roi.height} at ({roi.left}, {roi.top})")
         # Position overlay directly near selected ROI
         bounds = self.capture_driver.get_monitor_bounds(1)
         overlay_h = 140
@@ -173,43 +214,12 @@ class SubtitleTranslatorApp:
             overlay_h = 150
             self.overlay.setGeometry(bounds.left + 100, bounds.bottom - overlay_h - 50, bounds.width - 200, overlay_h)
 
-    def _open_settings(self) -> None:
-        """Open settings configuration window and show icon in Dock while active."""
-        if hasattr(self, "settings_dialog") and self.settings_dialog is not None and self.settings_dialog.isVisible():
-            self.settings_dialog.raise_()
-            self.settings_dialog.activateWindow()
-            return
-
-        # Show icon in macOS Dock while settings window is open
-        _set_macos_activation_policy(regular=True)
-
-        self.settings_dialog = SettingsDialog(config_manager=self.config_manager)
-        self.settings_dialog.finished.connect(self._on_settings_closed)
-        self.settings_dialog.show()
-        self.settings_dialog.raise_()
-        self.settings_dialog.activateWindow()
-
-    def _on_settings_closed(self, result: int) -> None:
-        """Update overlay style and return to pure menu-bar background mode."""
-        self.overlay.style_config = self.config_manager.config.overlay
-        self.overlay.update()
-        # Hide icon from macOS Dock when settings window is closed
-        _set_macos_activation_policy(regular=False)
-
-    def start(self) -> None:
-        """Display system tray and initialize geometry."""
-        self.tray.show()
-        # Default overlay position at bottom center of primary screen
-        bounds = self.capture_driver.get_monitor_bounds(1)
-        overlay_h = 140
-        self.overlay.setGeometry(bounds.left + 150, bounds.bottom - overlay_h - 60, bounds.width - 300, overlay_h)
-        logger.info("Subtitle Translator V1 initialized and ready in Menu Bar / System Tray.")
-
     def quit(self) -> None:
         """Clean teardown of worker and application."""
         logger.info("Shutting down Subtitle Translator V1...")
         if self.worker.isRunning():
             self.worker.stop()
+        self.control_center.close()
         self.overlay.close()
         self.tray.hide()
         QApplication.quit()
