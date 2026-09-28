@@ -127,6 +127,11 @@ class TrayController(QObject):
         self.toggle_action.setText("Pause Translation" if self._is_active else "Start Translation")
         self.translation_toggled.emit(self._is_active)
 
+    def set_active(self, active: bool) -> None:
+        """Set active translation state and update toggle action text."""
+        self._is_active = active
+        self.toggle_action.setText("Pause Translation" if self._is_active else "Start Translation")
+
     def check_for_updates_background(self) -> None:
         """Initiate non-blocking background update check."""
         self._update_worker = UpdateCheckWorker(self.update_manager, self)

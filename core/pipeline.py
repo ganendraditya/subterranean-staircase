@@ -195,3 +195,4 @@ class TranslationPipelineWorker(QThread):
                 self.signals.subtitle_ready.emit(result.translated_text)
         except Exception as e:
             logger.warning("Translation failed: %s", e)
+            self.signals.error_occurred.emit(f"Translation failed: {e}")

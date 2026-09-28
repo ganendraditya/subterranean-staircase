@@ -30,6 +30,7 @@ def test_model_manager_is_installed_true_when_valid(tmp_path: Path) -> None:
     # Write at least 200 KB
     (model_dir / "model.bin").write_bytes(b"dummy_binary_data" * 20000)
     (model_dir / "source.spm").write_bytes(b"dummy_spm_data")
+    (model_dir / "config.json").write_bytes(b"{}")
 
     assert mgr.is_installed("ja-en") is True
     assert mgr.get_disk_size_mb("ja-en") > 0.0
@@ -41,6 +42,7 @@ def test_list_models_status(tmp_path: Path) -> None:
     model_dir.mkdir(parents=True)
     (model_dir / "model.bin").write_bytes(b"binary")
     (model_dir / "source.spm").write_bytes(b"spm")
+    (model_dir / "config.json").write_bytes(b"{}")
 
     status_list = mgr.list_models_status()
     assert len(status_list) == len(RECOMMENDED_MODELS)
@@ -58,6 +60,7 @@ def test_delete_model(tmp_path: Path) -> None:
     model_dir.mkdir(parents=True)
     (model_dir / "model.bin").write_bytes(b"binary")
     (model_dir / "source.spm").write_bytes(b"spm")
+    (model_dir / "config.json").write_bytes(b"{}")
 
     assert mgr.is_installed("ko-en") is True
 

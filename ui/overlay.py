@@ -47,7 +47,6 @@ class SubtitleOverlayWindow(QWidget):
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.SubWindow
         )
         # Transparent background attribute
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)

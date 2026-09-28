@@ -5,7 +5,7 @@ import sys
 from typing import Optional
 
 from PyQt6.QtCore import QDir, QLockFile
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from core.capture.factory import create_capture_driver
 from core.config import ConfigManager
@@ -48,8 +48,9 @@ class SubtitleTranslatorApp:
 
     def _connect_signals(self) -> None:
         """Connect inter-component event listeners."""
-        # Pipeline -> Overlay
+        # Pipeline -> Overlay & Logging
         self.signals.subtitle_ready.connect(self.overlay.update_text)
+        self.signals.error_occurred.connect(self._on_pipeline_error)
 
         # Tray -> Pipeline & UI
         self.tray.translation_toggled.connect(self._on_translation_toggled)
@@ -58,11 +59,47 @@ class SubtitleTranslatorApp:
         self.tray.settings_requested.connect(self._open_settings)
         self.tray.quit_requested.connect(self.quit)
 
+    def _on_pipeline_error(self, error: str) -> None:
+        """Handle background pipeline errors."""
+        logger.error("Pipeline background error: %s", error)
+
     def _on_translation_toggled(self, active: bool) -> None:
         """Start or pause translation worker."""
         if active:
+            src = self.config_manager.config.source_language
+            tgt = self.config_manager.config.target_language
+            pair_id = f"{src}-{tgt}"
+            from core.translate.models import ModelManager, RECOMMENDED_MODELS
+            mm = ModelManager()
+            if not mm.is_installed(pair_id):
+                _set_macos_activation_policy(regular=True)
+                meta = RECOMMENDED_MODELS.get(pair_id)
+                size_str = f" (~{meta.approx_size_mb} MB)" if meta else ""
+                name_str = meta.name if meta else pair_id
+                reply = QMessageBox.question(
+                    None,
+                    "Translation Model Required",
+                    f"The offline translation model for '{name_str}' is not downloaded yet{size_str}.\n\n"
+                    "Would you like to download it now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    from ui.model_dialog import ModelDownloadProgressDialog
+                    dialog = ModelDownloadProgressDialog(mm, pair_id)
+                    dialog.start_download()
+                    _set_macos_activation_policy(regular=False)
+                    if not mm.is_installed(pair_id):
+                        self.tray.set_active(False)
+                        return
+                else:
+                    _set_macos_activation_policy(regular=False)
+                    self.tray.set_active(False)
+                    return
+
             logger.info("Starting translation overlay...")
             self.overlay.show()
+            self.overlay.update_text("⚡ Subtitle Translator Active")
             if not self.worker.isRunning():
                 self.worker.start()
         else:
@@ -81,19 +118,44 @@ class SubtitleTranslatorApp:
     def _open_roi_selector(self) -> None:
         """Open interactive screen region selector."""
         logger.info("Opening custom ROI selector...")
+        _set_macos_activation_policy(regular=True)
+
+        def _cleanup() -> None:
+            _set_macos_activation_policy(regular=False)
+
+        def _on_selected(roi: Rect) -> None:
+            _cleanup()
+            self._on_roi_selected(roi)
+
+        def _on_cancelled() -> None:
+            _cleanup()
+            logger.info("ROI selection cancelled.")
+
         self.region_selector = RegionSelectorWidget(
-            on_selected=self._on_roi_selected,
-            on_cancelled=lambda: logger.info("ROI selection cancelled."),
+            on_selected=_on_selected,
+            on_cancelled=_on_cancelled,
         )
         # Cover primary screen
         bounds = self.capture_driver.get_monitor_bounds(1)
         self.region_selector.setGeometry(bounds.left, bounds.top, bounds.width, bounds.height)
         self.region_selector.show()
+        self.region_selector.raise_()
+        self.region_selector.activateWindow()
 
     def _on_roi_selected(self, roi: Rect) -> None:
         """Apply chosen custom ROI."""
         logger.info("Custom ROI selected: %s", roi.as_tuple())
         self.worker.set_custom_roi(roi)
+        # Position overlay directly near selected ROI
+        bounds = self.capture_driver.get_monitor_bounds(1)
+        overlay_h = 140
+        overlay_w = max(roi.width, 400)
+        overlay_x = max(bounds.left, min(roi.left + (roi.width - overlay_w) // 2, bounds.right - overlay_w))
+        overlay_y = roi.bottom + 10
+        if overlay_y + overlay_h > bounds.bottom:
+            overlay_y = max(bounds.top, roi.top - overlay_h - 10)
+        self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
+        self.overlay.update_text("🎯 Region locked")
 
     def _on_window_selected(self, window_info: Optional[WindowInfo]) -> None:
         """Set targeted application window."""

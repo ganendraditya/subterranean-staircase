@@ -121,3 +121,19 @@ def test_tray_controller_shows_update_action(qapp, tmp_path: Path) -> None:
     tray.close()
 
 
+def test_tray_controller_set_active(qapp, tmp_path: Path) -> None:
+    config_mgr = ConfigManager(config_path=tmp_path / "config.json")
+    config_mgr.update(check_updates=False)
+    tray = TrayController(config_manager=config_mgr)
+
+    tray.set_active(True)
+    assert tray._is_active is True
+    assert tray.toggle_action.text() == "Pause Translation"
+
+    tray.set_active(False)
+    assert tray._is_active is False
+    assert tray.toggle_action.text() == "Start Translation"
+    tray.close()
+
+
+

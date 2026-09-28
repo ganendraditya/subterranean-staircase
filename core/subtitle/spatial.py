@@ -16,7 +16,7 @@ class DualBandSpatialFilter:
     def __init__(
         self,
         top_band_ratio: float = 0.20,
-        bottom_band_ratio: float = 0.25,
+        bottom_band_ratio: float = 0.30,
         min_confidence: float = 0.40,
         min_text_length: int = 1,
     ) -> None:

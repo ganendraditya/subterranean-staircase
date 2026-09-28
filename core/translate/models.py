@@ -45,7 +45,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="Anime, J-Dramas, and Japanese streams",
         approx_size_mb=155,
         hf_repo="gaudi/opus-mt-ja-en-ctranslate2",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "ko-en": ModelMetadata(
         pair_id="ko-en",
@@ -55,7 +55,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="K-Dramas, variety shows, and streams",
         approx_size_mb=148,
         hf_repo="gaudi/opus-mt-ko-en-ctranslate2",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "zh-en": ModelMetadata(
         pair_id="zh-en",
@@ -65,7 +65,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="C-Dramas, Donghua, and Chinese videos",
         approx_size_mb=152,
         hf_repo="gaudi/opus-mt-zh-en-ctranslate2",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "en-id": ModelMetadata(
         pair_id="en-id",
@@ -75,7 +75,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="Western movies, YouTube, and tech talks to Indonesian",
         approx_size_mb=75,
         hf_repo="manancode/opus-mt-en-id-ctranslate2-android",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "es-en": ModelMetadata(
         pair_id="es-en",
@@ -85,7 +85,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="Latin American & Spanish films/shows",
         approx_size_mb=142,
         hf_repo="gaudi/opus-mt-es-en-ctranslate2",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "fr-en": ModelMetadata(
         pair_id="fr-en",
@@ -95,7 +95,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="French cinema and international media",
         approx_size_mb=144,
         hf_repo="gaudi/opus-mt-fr-en-ctranslate2",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "de-en": ModelMetadata(
         pair_id="de-en",
@@ -105,7 +105,7 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="German films and media",
         approx_size_mb=146,
         hf_repo="gaudi/opus-mt-de-en-ctranslate2",
-        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json"],
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
 }
 
@@ -126,10 +126,11 @@ class ModelManager:
         if not path.is_dir():
             return False
 
-        # Must have model.bin and at least one sentencepiece/vocabulary file
+        # Must have model.bin, at least one sentencepiece/vocabulary file, and config.json
         has_bin = (path / "model.bin").exists()
         has_spm = (path / "source.spm").exists() or (path / "spm.model").exists()
-        return has_bin and has_spm
+        has_cfg = (path / "config.json").exists()
+        return has_bin and has_spm and has_cfg
 
     def get_disk_size_mb(self, pair_id: str) -> float:
         """Calculate total size in megabytes of an installed model."""
