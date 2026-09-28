@@ -56,7 +56,7 @@ class SubtitleTranslatorApp:
         self.signals.error_occurred.connect(self._on_pipeline_error)
 
         # Tray -> Control Center & Teardown
-        self.tray.control_center_requested.connect(self._toggle_control_center)
+        self.tray.control_center_requested.connect(self._show_control_center)
         self.tray.translation_toggled.connect(self._on_translation_toggled)
         self.tray.quit_requested.connect(self.quit)
 
@@ -72,17 +72,13 @@ class SubtitleTranslatorApp:
         """Handle background pipeline errors."""
         logger.error("Pipeline background error: %s", error)
 
-    def _toggle_control_center(self) -> None:
-        """Toggle the unified Control Center window."""
-        if self.control_center.isVisible():
-            self.control_center.hide()
-            _set_macos_activation_policy(regular=False)
-        else:
-            _set_macos_activation_policy(regular=True)
-            self.control_center.refresh_state()
-            self.control_center.show()
-            self.control_center.raise_()
-            self.control_center.activateWindow()
+    def _show_control_center(self) -> None:
+        """Open and bring unified Control Center dialog to foreground."""
+        _set_macos_activation_policy(regular=True)
+        self.control_center.refresh_state()
+        self.control_center.show()
+        self.control_center.raise_()
+        self.control_center.activateWindow()
 
     def _on_control_center_finished(self, result: int) -> None:
         """Return to accessory mode when Control Center is dismissed."""
