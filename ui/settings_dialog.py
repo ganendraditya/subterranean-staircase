@@ -64,7 +64,12 @@ class SettingsDialog(QDialog):
     def _init_ui(self) -> None:
         self.setWindowTitle("Subtitle Translator — Settings")
         self.setMinimumWidth(380)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowTitleHint
+        )
 
         layout = QVBoxLayout(self)
         form_layout = QFormLayout()
