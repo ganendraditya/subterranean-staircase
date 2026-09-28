@@ -132,10 +132,24 @@ class SubtitleTranslatorApp:
         QApplication.quit()
 
 
+def _set_macos_accessory_mode() -> None:
+    """Hide application icon from macOS Dock, making it a pure Menu Bar accessory app (like Cloudflare WARP)."""
+    if sys.platform == "darwin":
+        try:
+            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+            if NSApp is not None:
+                NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        except Exception as e:
+            logger.debug("Failed to set macOS activation policy to accessory: %s", e)
+
+
 def main() -> int:
     app = QApplication(sys.argv)
     # Prevent macOS from quitting when last window is hidden
     app.setQuitOnLastWindowClosed(False)
+
+    # Hide from macOS Dock (pure status item / tray app)
+    _set_macos_accessory_mode()
 
     # Enforce single instance to prevent duplicate tray icons
     lock_path = QDir.tempPath() + "/subtrans_single_instance.lock"
