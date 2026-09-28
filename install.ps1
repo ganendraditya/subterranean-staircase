@@ -181,29 +181,16 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     }
 }
 
-# 7. Optional Windows Startup Shortcut (auto-start subtrans on login)
+# 7. Configure Windows Startup Shortcut (auto-start subtrans on login)
 $StartupDir = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::Startup)
 $StartupShortcut = Join-Path $StartupDir "subtrans.cmd"
-$InstallStartup = $false
 
-if (Test-Path $StartupShortcut) {
-    Write-Host "✔ Windows Startup script already configured: $StartupShortcut" -ForegroundColor Green
-} elseif ([Environment]::UserInteractive) {
-    Write-Host ""
-    $PromptStartup = Read-Host "Start Subterranean Staircase automatically when Windows boots? [y/N]"
-    if ($PromptStartup -match "^[yY]") {
-        $InstallStartup = $true
-    }
-}
-
-if ($InstallStartup) {
-    try {
-        $StartupContent = "@echo off`r`nstart `"`" `"$LauncherPath`"`r`n"
-        [System.IO.File]::WriteAllText($StartupShortcut, $StartupContent, [System.Text.UTF8Encoding]::new($false))
-        Write-Host "✔ Added to Windows Startup: $StartupShortcut" -ForegroundColor Green
-    } catch {
-        Write-Warning "Could not write startup shortcut: $_"
-    }
+try {
+    $StartupContent = "@echo off`r`nstart `"`" `"$LauncherPath`"`r`n"
+    [System.IO.File]::WriteAllText($StartupShortcut, $StartupContent, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "✔ Configured background service — subtrans will standby at login." -ForegroundColor Green
+} catch {
+    Write-Warning "Could not write startup shortcut: $_"
 }
 
 Write-Host ""

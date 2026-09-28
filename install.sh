@@ -141,29 +141,13 @@ EOF
 chmod +x "${LAUNCHER_PATH}"
 echo "✔ Created launcher: ${LAUNCHER_PATH}"
 
-# 6. Optional LaunchAgent (macOS only — auto-start subtrans at login)
-LAUNCH_AGENT_PLIST=""
+# 6. Configure LaunchAgent (macOS auto-start on login)
 if [ "$(uname)" = "Darwin" ]; then
     LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
     LAUNCH_AGENT_PLIST="${LAUNCH_AGENTS_DIR}/com.subtitle-translator.subtrans.plist"
-    INSTALL_AGENT=false
+    mkdir -p "${LAUNCH_AGENTS_DIR}"
 
-    if [ -f "${LAUNCH_AGENT_PLIST}" ]; then
-        echo "✔ LaunchAgent already installed: ${LAUNCH_AGENT_PLIST}"
-        launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
-        INSTALL_AGENT=false
-    elif [ -t 0 ] || [ -e /dev/tty ]; then
-        echo ""
-        read -r -p "Install LaunchAgent to auto-start subtrans at login? [y/N] " _LA_CONFIRM </dev/tty || _LA_CONFIRM="n"
-        case "${_LA_CONFIRM}" in
-            [yY][eE][sS]|[yY]) INSTALL_AGENT=true ;;
-            *) INSTALL_AGENT=false ;;
-        esac
-    fi
-
-    if [ "${INSTALL_AGENT}" = "true" ]; then
-        mkdir -p "${LAUNCH_AGENTS_DIR}"
-        cat > "${LAUNCH_AGENT_PLIST}" <<PLIST
+    cat > "${LAUNCH_AGENT_PLIST}" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -185,10 +169,8 @@ if [ "$(uname)" = "Darwin" ]; then
 </dict>
 </plist>
 PLIST
-        launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
-        echo "✔ LaunchAgent installed — subtrans will auto-start at login."
-        echo "  To disable: launchctl unload \"${LAUNCH_AGENT_PLIST}\""
-    fi
+    launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
+    echo "✔ Configured background service — subtrans will standby at login."
 fi
 
 # 8. Configure PATH automatically in user shell profile if missing
@@ -223,8 +205,7 @@ echo "Run 'subtrans' to launch Subtitle Translator."
 echo "Run 'subtrans uninstall' to remove it."
 echo "=================================================="
 
-# Auto-launch app into background immediately after install if not already running (and not handled by LaunchAgent)
-if [ "${INSTALL_AGENT:-false}" != "true" ] && ! pgrep -f "subtitle-translator/run.py" >/dev/null 2>&1; then
-    echo "🚀 Starting Subterranean Staircase in your Menu Bar / System Tray..."
+# Auto-launch app into background immediately after install if not already running
+if ! pgrep -f "subtitle-translator/run.py" >/dev/null 2>&1; then
     nohup "${LAUNCHER_PATH}" >/dev/null 2>&1 &
 fi
