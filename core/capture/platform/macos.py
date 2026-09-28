@@ -5,6 +5,7 @@ Extracts list of visible application windows and provides targeted window frame 
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import List, Optional
 import numpy as np
@@ -12,6 +13,8 @@ import numpy as np
 from core.capture.base import BaseCapture
 from core.capture.screen import MSSScreenCapture
 from core.contracts import Frame, Rect, WindowInfo
+
+logger = logging.getLogger("subtitle_translator.capture.macos")
 
 try:
     import Quartz
