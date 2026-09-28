@@ -106,11 +106,14 @@ class SubtitleTranslatorApp:
             self.overlay.setGeometry(bounds.left + 100, bounds.bottom - overlay_h - 50, bounds.width - 200, overlay_h)
 
     def _open_settings(self) -> None:
-        """Open settings configuration window."""
+        """Open settings configuration window and show icon in Dock while active."""
         if hasattr(self, "settings_dialog") and self.settings_dialog is not None and self.settings_dialog.isVisible():
             self.settings_dialog.raise_()
             self.settings_dialog.activateWindow()
             return
+
+        # Show icon in macOS Dock while settings window is open
+        _set_macos_activation_policy(regular=True)
 
         self.settings_dialog = SettingsDialog(config_manager=self.config_manager)
         self.settings_dialog.finished.connect(self._on_settings_closed)
@@ -119,9 +122,11 @@ class SubtitleTranslatorApp:
         self.settings_dialog.activateWindow()
 
     def _on_settings_closed(self, result: int) -> None:
-        """Update overlay style after settings dialog closes."""
+        """Update overlay style and return to pure menu-bar background mode."""
         self.overlay.style_config = self.config_manager.config.overlay
         self.overlay.update()
+        # Hide icon from macOS Dock when settings window is closed
+        _set_macos_activation_policy(regular=False)
 
     def start(self) -> None:
         """Display system tray and initialize geometry."""
@@ -142,15 +147,30 @@ class SubtitleTranslatorApp:
         QApplication.quit()
 
 
-def _set_macos_accessory_mode() -> None:
-    """Hide application icon from macOS Dock, making it a pure Menu Bar accessory app (like Cloudflare WARP)."""
+def _set_macos_activation_policy(regular: bool) -> None:
+    """Dynamically toggle macOS activation policy.
+
+    When regular=True: Shows icon in macOS Dock (when Settings window is opened).
+    When regular=False: Hides icon from macOS Dock (pure background menu-bar mode).
+    """
     if sys.platform == "darwin":
         try:
-            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+            from AppKit import (
+                NSApp,
+                NSApplicationActivationPolicyAccessory,
+                NSApplicationActivationPolicyRegular,
+            )
             if NSApp is not None:
-                NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+                policy = (
+                    NSApplicationActivationPolicyRegular
+                    if regular
+                    else NSApplicationActivationPolicyAccessory
+                )
+                NSApp.setActivationPolicy_(policy)
+                if regular:
+                    NSApp.activateIgnoringOtherApps_(True)
         except Exception as e:
-            logger.debug("Failed to set macOS activation policy to accessory: %s", e)
+            logger.debug("Failed to set macOS activation policy (regular=%s): %s", regular, e)
 
 
 def main() -> int:
@@ -158,8 +178,8 @@ def main() -> int:
     # Prevent macOS from quitting when last window is hidden
     app.setQuitOnLastWindowClosed(False)
 
-    # Hide from macOS Dock (pure status item / tray app)
-    _set_macos_accessory_mode()
+    # Hide from macOS Dock initially (pure status item / tray app)
+    _set_macos_activation_policy(regular=False)
 
     # Enforce single instance to prevent duplicate tray icons
     lock_path = QDir.tempPath() + "/subtrans_single_instance.lock"
