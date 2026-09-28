@@ -223,8 +223,8 @@ echo "Run 'subtrans' to launch Subtitle Translator."
 echo "Run 'subtrans uninstall' to remove it."
 echo "=================================================="
 
-# Auto-launch app into background immediately after install if not already running
-if ! pgrep -f "subtitle-translator/run.py" >/dev/null 2>&1; then
+# Auto-launch app into background immediately after install if not already running (and not handled by LaunchAgent)
+if [ "${INSTALL_AGENT:-false}" != "true" ] && ! pgrep -f "subtitle-translator/run.py" >/dev/null 2>&1; then
     echo "🚀 Starting Subterranean Staircase in your Menu Bar / System Tray..."
     nohup "${LAUNCHER_PATH}" >/dev/null 2>&1 &
 fi

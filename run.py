@@ -4,6 +4,7 @@ import logging
 import sys
 from typing import Optional
 
+from PyQt6.QtCore import QDir, QLockFile
 from PyQt6.QtWidgets import QApplication
 
 from core.capture.factory import create_capture_driver
@@ -136,8 +137,18 @@ def main() -> int:
     # Prevent macOS from quitting when last window is hidden
     app.setQuitOnLastWindowClosed(False)
 
+    # Enforce single instance to prevent duplicate tray icons
+    lock_path = QDir.tempPath() + "/subtrans_single_instance.lock"
+    lock_file = QLockFile(lock_path)
+    if not lock_file.tryLock(100):
+        logger.warning("Another instance of Subterranean Staircase is already running. Exiting.")
+        return 0
+
     translator_app = SubtitleTranslatorApp()
     translator_app.start()
+
+    # Retain lock_file reference throughout app lifecycle
+    app._lock_file = lock_file  # type: ignore[attr-defined]
 
     return app.exec()
 
