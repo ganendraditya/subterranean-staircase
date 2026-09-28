@@ -11,109 +11,132 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "  Subterranean Staircase / Subtitle Translator" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
-# 1. Check Python (requires Python 3.10 - 3.12 for ONNX/PyTorch compatibility)
-$PyExe = $null
-$PyVersion = $null
-$candidates = Get-Command python3.12.exe, python3.11.exe, python3.10.exe, python.exe, py.exe -ErrorAction SilentlyContinue
-foreach ($cmd in $candidates) {
-    $exe = if ($cmd.Path) { $cmd.Path } elseif ($cmd.Source) { $cmd.Source } else { $cmd.Definition }
-    $ver = if ($exe) { & $exe -c "import sys; sys.exit(1) if not (3, 10) <= sys.version_info < (3, 13) else print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
-    if ($ver) {
-        $PyExe = $exe
-        $PyVersion = $ver
-        break
-    }
-}
+# Attempt Fast Prebuilt Release Download (Zero-Python requirement)
+$Arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }
+$AssetZip = "subtrans-windows-$Arch.zip"
+$ReleaseUrl = "https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/$AssetZip"
+$PrebuiltInstalled = $false
 
-if (-not $PyVersion) {
-    Write-Error "Python 3.10, 3.11, or 3.12 is required (ONNX runtime and CTranslate2 do not yet support Python 3.13+). Please install Python 3.11 or 3.12."
-    exit 1
-}
-
-# 2. Check Git
-$GitCmd = Get-Command git.exe -ErrorAction SilentlyContinue
-if (-not $GitCmd) {
-    Write-Error "Git is required but was not found in PATH. Please install Git from git-scm.com"
-    exit 1
-}
-
-# 3. Clone or update repository
-if (Test-Path (Join-Path $InstallDir ".git")) {
-    Write-Host "Updating existing installation in $InstallDir..."
-    git -C $InstallDir pull --quiet
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Git pull encountered issues. Resetting to remote state (stashing local changes)..."
-        git -C $InstallDir stash --quiet 2>$null
-        git -C $InstallDir fetch --quiet origin
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to fetch repository from origin."
-            exit 1
-        }
-        $upstream = git -C $InstallDir rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>$null
-        if (-not $upstream -or $LASTEXITCODE -ne 0) {
-            $upstream = (git -C $InstallDir rev-parse FETCH_HEAD 2>$null) | Select-Object -First 1
-            if (-not $upstream -or $LASTEXITCODE -ne 0) { $upstream = "HEAD" }
-        }
-        git -C $InstallDir reset --hard $upstream --quiet
-        Write-Warning "Local modifications were stashed. You can inspect or restore them using 'git -C \`"$InstallDir\`" stash pop'."
-    }
-} else {
-    if (Test-Path $InstallDir) {
-        if ((Get-ChildItem -Path $InstallDir -Force -ErrorAction SilentlyContinue).Count -gt 0) {
-            Write-Warning "Target directory $InstallDir already exists and is not a valid Git repository."
-            if (-not [Environment]::UserInteractive) {
-                Write-Error "Target directory exists and session is non-interactive. Installation aborted."
-                exit 1
-            }
-            $Confirm = Read-Host "Do you want to overwrite it? [y/N]"
-            if ($Confirm -notmatch "^[yY]") {
-                Write-Error "Installation aborted."
-                exit 1
-            }
-        }
-        Remove-Item -Recurse -Force $InstallDir
-    }
-    Write-Host "Cloning repository into $InstallDir..."
-    git clone --quiet --depth 1 $RepoUrl $InstallDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to clone repository from $RepoUrl."
-        exit 1
-    }
-}
-
-# 4. Setup Virtual Environment
-$VenvDir = Join-Path $InstallDir ".venv"
-$VenvPython = Join-Path $VenvDir "Scripts\python.exe"
-$VenvPyVer = if (Test-Path $VenvPython) { & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
-
-if (-not (Test-Path $VenvPython) -or ($VenvPyVer -ne $PyVersion)) {
-    Write-Host "Creating virtual environment with Python $PyVersion in $VenvDir..."
-    if (Test-Path $VenvDir) { Remove-Item -Recurse -Force $VenvDir }
-    & $PyExe -m venv $VenvDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create virtual environment."
-        exit 1
-    }
-}
-
-Write-Host ""
-Write-Host "📦 Installing AI & GUI dependencies (RapidOCR, CTranslate2, PyQt6)..." -ForegroundColor Cyan
-Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
-
-$MirrorArgs = @()
 try {
-    $resp = Invoke-WebRequest -Uri "https://mirrors.aliyun.com/pypi/simple/" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
-    if ($resp.StatusCode -eq 200) {
-        Write-Host "✔ Using high-speed Regional PyPI CDN mirror" -ForegroundColor Green
-        $MirrorArgs = @("-i", "https://mirrors.aliyun.com/pypi/simple/", "--trusted-host", "mirrors.aliyun.com")
+    $head = Invoke-WebRequest -Uri $ReleaseUrl -Method Head -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+    if ($head.StatusCode -eq 200) {
+        Write-Host "🚀 Found prebuilt standalone release for Windows ($Arch)." -ForegroundColor Green
+        Write-Host "⬇ Downloading prebuilt package..." -ForegroundColor Cyan
+        $tmpZip = Join-Path $env:TEMP "subtrans_dist_$([System.Guid]::NewGuid()).zip"
+        Invoke-WebRequest -Uri $ReleaseUrl -OutFile $tmpZip -UseBasicParsing
+        Write-Host "📦 Extracting to $InstallDir..." -ForegroundColor Cyan
+        if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
+        Expand-Archive -Path $tmpZip -DestinationPath $InstallDir -Force
+        Remove-Item -Force $tmpZip -ErrorAction SilentlyContinue
+        $PrebuiltInstalled = $true
     }
 } catch {}
 
-& $VenvPython -m pip install @MirrorArgs --upgrade pip --quiet
-& $VenvPython -m pip install @MirrorArgs -r (Join-Path $InstallDir "requirements.txt") |
-    Where-Object { $_ -match "^(Downloading|Installing collected packages|Successfully installed|ERROR)" }
+if (-not $PrebuiltInstalled) {
+    # 1. Check Python (requires Python 3.10 - 3.12 for ONNX/PyTorch compatibility)
+    $PyExe = $null
+    $PyVersion = $null
+    $candidates = Get-Command python3.12.exe, python3.11.exe, python3.10.exe, python.exe, py.exe -ErrorAction SilentlyContinue
+    foreach ($cmd in $candidates) {
+        $exe = if ($cmd.Path) { $cmd.Path } elseif ($cmd.Source) { $cmd.Source } else { $cmd.Definition }
+        $ver = if ($exe) { & $exe -c "import sys; sys.exit(1) if not (3, 10) <= sys.version_info < (3, 13) else print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
+        if ($ver) {
+            $PyExe = $exe
+            $PyVersion = $ver
+            break
+        }
+    }
 
-Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
+    if (-not $PyVersion) {
+        Write-Error "Python 3.10, 3.11, or 3.12 is required (ONNX runtime and CTranslate2 do not yet support Python 3.13+). Please install Python 3.11 or 3.12."
+        exit 1
+    }
+
+    # 2. Check Git
+    $GitCmd = Get-Command git.exe -ErrorAction SilentlyContinue
+    if (-not $GitCmd) {
+        Write-Error "Git is required but was not found in PATH. Please install Git from git-scm.com"
+        exit 1
+    }
+
+    # 3. Clone or update repository
+    if (Test-Path (Join-Path $InstallDir ".git")) {
+        Write-Host "Updating existing installation in $InstallDir..."
+        git -C $InstallDir pull --quiet
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Git pull encountered issues. Resetting to remote state (stashing local changes)..."
+            git -C $InstallDir stash --quiet 2>$null
+            git -C $InstallDir fetch --quiet origin
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to fetch repository from origin."
+                exit 1
+            }
+            $upstream = git -C $InstallDir rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>$null
+            if (-not $upstream -or $LASTEXITCODE -ne 0) {
+                $upstream = (git -C $InstallDir rev-parse FETCH_HEAD 2>$null) | Select-Object -First 1
+                if (-not $upstream -or $LASTEXITCODE -ne 0) { $upstream = "HEAD" }
+            }
+            git -C $InstallDir reset --hard $upstream --quiet
+            Write-Warning "Local modifications were stashed. You can inspect or restore them using 'git -C \`"$InstallDir\`" stash pop'."
+        }
+    } else {
+        if (Test-Path $InstallDir) {
+            if ((Get-ChildItem -Path $InstallDir -Force -ErrorAction SilentlyContinue).Count -gt 0) {
+                Write-Warning "Target directory $InstallDir already exists and is not a valid Git repository."
+                if (-not [Environment]::UserInteractive) {
+                    Write-Error "Target directory exists and session is non-interactive. Installation aborted."
+                    exit 1
+                }
+                $Confirm = Read-Host "Do you want to overwrite it? [y/N]"
+                if ($Confirm -notmatch "^[yY]") {
+                    Write-Error "Installation aborted."
+                    exit 1
+                }
+            }
+            Remove-Item -Recurse -Force $InstallDir
+        }
+        Write-Host "Cloning repository into $InstallDir..."
+        git clone --quiet --depth 1 $RepoUrl $InstallDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to clone repository from $RepoUrl."
+            exit 1
+        }
+    }
+
+    # 4. Setup Virtual Environment
+    $VenvDir = Join-Path $InstallDir ".venv"
+    $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
+    $VenvPyVer = if (Test-Path $VenvPython) { & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null } else { $null }
+
+    if (-not (Test-Path $VenvPython) -or ($VenvPyVer -ne $PyVersion)) {
+        Write-Host "Creating virtual environment with Python $PyVersion in $VenvDir..."
+        if (Test-Path $VenvDir) { Remove-Item -Recurse -Force $VenvDir }
+        & $PyExe -m venv $VenvDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to create virtual environment."
+            exit 1
+        }
+    }
+
+    Write-Host ""
+    Write-Host "📦 Installing AI & GUI dependencies (RapidOCR, CTranslate2, PyQt6)..." -ForegroundColor Cyan
+    Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
+
+    $MirrorArgs = @()
+    try {
+        $resp = Invoke-WebRequest -Uri "https://mirrors.aliyun.com/pypi/simple/" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
+        if ($resp.StatusCode -eq 200) {
+            Write-Host "✔ Using high-speed Regional PyPI CDN mirror" -ForegroundColor Green
+            $MirrorArgs = @("-i", "https://mirrors.aliyun.com/pypi/simple/", "--trusted-host", "mirrors.aliyun.com")
+        }
+    } catch {}
+
+    & $VenvPython -m pip install @MirrorArgs --upgrade pip --quiet
+    & $VenvPython -m pip install @MirrorArgs -r (Join-Path $InstallDir "requirements.txt") |
+        Where-Object { $_ -match "^(Downloading|Installing collected packages|Successfully installed|ERROR)" }
+
+    Write-Host "--------------------------------------------------" -ForegroundColor DarkGray
+}
 
 # 5. Create launcher batch script in bin directory
 if (-not (Test-Path $BinDir)) {
