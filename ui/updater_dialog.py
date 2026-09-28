@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.updater import UpdateInfo, UpdateManager
+from ui.styles import MODERN_DARK_THEME
 
 logger = logging.getLogger("subtitle_translator.ui.updater")
 
@@ -59,7 +60,8 @@ class UpdateProgressDialog(QDialog):
         self.worker: Optional[ApplyUpdateWorker] = None
 
         self.setWindowTitle("Updating Subtitle Translator")
-        self.setFixedSize(380, 160)
+        self.setStyleSheet(MODERN_DARK_THEME)
+        self.setFixedSize(400, 170)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowCloseButtonHint)
 
         layout = QVBoxLayout(self)

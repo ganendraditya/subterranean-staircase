@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QFormLayout,
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -32,6 +32,7 @@ from core.config import ConfigManager
 from core.translate.models import ModelManager
 from core.updater import UpdateInfo, UpdateManager
 from ui.model_dialog import ModelDownloadProgressDialog
+from ui.styles import MODERN_DARK_THEME
 from ui.updater_dialog import UpdateCheckWorker, UpdateProgressDialog
 
 
@@ -62,8 +63,10 @@ class SettingsDialog(QDialog):
         self._init_ui()
 
     def _init_ui(self) -> None:
-        self.setWindowTitle("Subtitle Translator — Settings")
-        self.setMinimumWidth(380)
+        self.setObjectName("SettingsRoot")
+        self.setStyleSheet(MODERN_DARK_THEME)
+        self.setWindowTitle("Subterranean Staircase — Settings")
+        self.setMinimumWidth(520)
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -71,11 +74,28 @@ class SettingsDialog(QDialog):
             | Qt.WindowType.WindowTitleHint
         )
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(16)
+
+        # -------------------------------------------------------------
+        # Card 1: Language & Subtitle Appearance
+        # -------------------------------------------------------------
+        general_card = QFrame(self)
+        general_card.setObjectName("CardPanel")
+        card_layout = QVBoxLayout(general_card)
+        card_layout.setSpacing(12)
+
+        header_label = QLabel("Subtitle & Language Configuration", general_card)
+        header_label.setObjectName("SectionHeader")
+        card_layout.addWidget(header_label)
+
         form_layout = QFormLayout()
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form_layout.setSpacing(10)
 
         # 1. Source Language
-        self.source_combo = QComboBox(self)
+        self.source_combo = QComboBox(general_card)
         for name, code in self.LANGUAGES:
             self.source_combo.addItem(f"{name} ({code})", code)
         src_code = self.config_manager.config.source_language
@@ -88,7 +108,7 @@ class SettingsDialog(QDialog):
         form_layout.addRow(QLabel("Source Language:"), self.source_combo)
 
         # 2. Target Language
-        self.target_combo = QComboBox(self)
+        self.target_combo = QComboBox(general_card)
         for name, code in self.LANGUAGES:
             self.target_combo.addItem(f"{name} ({code})", code)
         tgt_code = self.config_manager.config.target_language
@@ -101,30 +121,38 @@ class SettingsDialog(QDialog):
         form_layout.addRow(QLabel("Target Language:"), self.target_combo)
 
         # 3. Font Size
-        self.font_size_spin = QSpinBox(self)
+        self.font_size_spin = QSpinBox(general_card)
         self.font_size_spin.setRange(12, 64)
         self.font_size_spin.setValue(self.config_manager.config.overlay.font_size)
         form_layout.addRow(QLabel("Subtitle Font Size:"), self.font_size_spin)
 
         # 4. Fade-out delay
-        self.fade_out_spin = QSpinBox(self)
+        self.fade_out_spin = QSpinBox(general_card)
         self.fade_out_spin.setRange(1, 15)
         self.fade_out_spin.setSuffix(" sec")
         self.fade_out_spin.setValue(int(self.config_manager.config.overlay.fade_out_seconds))
         form_layout.addRow(QLabel("Subtitle Fade-Out:"), self.fade_out_spin)
 
-        layout.addLayout(form_layout)
+        card_layout.addLayout(form_layout)
+        main_layout.addWidget(general_card)
 
-        # 5. Offline Models Manager Group
-        models_group = QGroupBox("Offline Translation Models", self)
-        models_layout = QVBoxLayout(models_group)
-        models_layout.setSpacing(8)
+        # -------------------------------------------------------------
+        # Card 2: Offline Translation Models
+        # -------------------------------------------------------------
+        models_card = QFrame(self)
+        models_card.setObjectName("CardPanel")
+        models_layout = QVBoxLayout(models_card)
+        models_layout.setSpacing(10)
 
-        models_hint = QLabel("Download models for offline on-device translation. Delete to free disk space.", self)
-        models_hint.setStyleSheet("color: #888888; font-size: 11px;")
+        models_header = QLabel("Offline Translation Models", models_card)
+        models_header.setObjectName("SectionHeader")
+        models_layout.addWidget(models_header)
+
+        models_hint = QLabel("On-device CTranslate2 MarianMT models. Download on-demand or delete to reclaim space.", models_card)
+        models_hint.setObjectName("SubtleHint")
         models_layout.addWidget(models_hint)
 
-        self.models_table = QTableWidget(self)
+        self.models_table = QTableWidget(models_card)
         self.models_table.setColumnCount(4)
         self.models_table.setHorizontalHeaderLabels(["Language Pair", "Description", "Status / Size", "Action"])
         self.models_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -133,56 +161,61 @@ class SettingsDialog(QDialog):
         self.models_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.models_table.verticalHeader().setVisible(False)
         self.models_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self.models_table.setFixedHeight(180)
+        self.models_table.setFixedHeight(210)
         models_layout.addWidget(self.models_table)
 
         self._refresh_models_table()
-        layout.addWidget(models_group)
+        main_layout.addWidget(models_card)
 
-        # 6. System Integration & Autostart
-        system_group = QGroupBox("System & Autostart", self)
-        system_layout = QVBoxLayout(system_group)
+        # -------------------------------------------------------------
+        # Card 3: System & Background Preferences
+        # -------------------------------------------------------------
+        system_card = QFrame(self)
+        system_card.setObjectName("CardPanel")
+        system_layout = QVBoxLayout(system_card)
+        system_layout.setSpacing(12)
+
+        sys_header = QLabel("System & Lifecycle Preferences", system_card)
+        sys_header.setObjectName("SectionHeader")
+        system_layout.addWidget(sys_header)
+
         self.autostart_manager = AutostartManager()
-        self.autostart_cb = QCheckBox("Start Subterranean Staircase on system login", self)
-        # Reflect actual system status or saved configuration
+        self.autostart_cb = QCheckBox("Start Subterranean Staircase automatically on system login", system_card)
         self.autostart_cb.setChecked(
             self.config_manager.config.autostart_on_boot or self.autostart_manager.is_enabled()
         )
         system_layout.addWidget(self.autostart_cb)
-        layout.addWidget(system_group)
 
-        # 6. Updates Group
-        update_group = QGroupBox("Application Updates", self)
-        update_layout = QVBoxLayout(update_group)
-        update_layout.setSpacing(8)
-
-        self.check_updates_cb = QCheckBox("Check for updates on launch", self)
+        self.check_updates_cb = QCheckBox("Check for application updates on launch", system_card)
         self.check_updates_cb.setChecked(self.config_manager.config.check_updates)
-        update_layout.addWidget(self.check_updates_cb)
+        system_layout.addWidget(self.check_updates_cb)
 
         check_row = QHBoxLayout()
-        self.check_now_btn = QPushButton("Check for Updates Now", self)
+        self.check_now_btn = QPushButton("Check for Updates Now", system_card)
         self.check_now_btn.clicked.connect(self._check_for_updates_now)
         check_row.addWidget(self.check_now_btn)
         check_row.addStretch()
-        update_layout.addLayout(check_row)
+        system_layout.addLayout(check_row)
 
-        layout.addWidget(update_group)
+        main_layout.addWidget(system_card)
 
-        # Buttons
+        # -------------------------------------------------------------
+        # Bottom Actions
+        # -------------------------------------------------------------
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        self.save_btn = QPushButton("Save Settings", self)
-        self.save_btn.setDefault(True)
-        self.save_btn.clicked.connect(self._save_and_close)
-
         self.cancel_btn = QPushButton("Cancel", self)
         self.cancel_btn.clicked.connect(self.reject)
-
         button_layout.addWidget(self.cancel_btn)
+
+        self.save_btn = QPushButton("Save Settings", self)
+        self.save_btn.setObjectName("PrimaryButton")
+        self.save_btn.setDefault(True)
+        self.save_btn.clicked.connect(self._save_and_close)
         button_layout.addWidget(self.save_btn)
-        layout.addLayout(button_layout)
+
+        main_layout.addLayout(button_layout)
 
     def _refresh_models_table(self) -> None:
         """Populate the models table with current installation status and action buttons."""
@@ -200,16 +233,16 @@ class SettingsDialog(QDialog):
             self.models_table.setItem(row, 1, desc_item)
 
             if item["installed"]:
-                status_text = f"✔ Installed ({item['installed_size_mb']} MB)"
+                status_text = f"✔ Ready ({item['installed_size_mb']} MB)"
                 status_item = QTableWidgetItem(status_text)
                 btn = QPushButton("Delete")
-                btn.setStyleSheet("color: #ff5555;")
+                btn.setObjectName("TableDeleteButton")
                 btn.clicked.connect(lambda checked, pid=pair_id: self._delete_model_clicked(pid))
             else:
-                status_text = f"Not Installed (~{item['approx_size_mb']} MB)"
+                status_text = f"Available (~{item['approx_size_mb']} MB)"
                 status_item = QTableWidgetItem(status_text)
                 btn = QPushButton("Download")
-                btn.setStyleSheet("color: #00e5ff;")
+                btn.setObjectName("TableDownloadButton")
                 btn.clicked.connect(lambda checked, pid=pair_id: self._download_model_clicked(pid))
 
             status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
