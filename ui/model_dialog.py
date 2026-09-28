@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.translate.models import ModelManager
+from ui.styles import MODERN_DARK_THEME
 
 logger = logging.getLogger("subtitle_translator.ui.model_dialog")
 
@@ -49,7 +50,8 @@ class ModelDownloadProgressDialog(QDialog):
         self.worker: Optional[ModelDownloadWorker] = None
 
         self.setWindowTitle("Downloading Translation Model")
-        self.setFixedSize(380, 150)
+        self.setStyleSheet(MODERN_DARK_THEME)
+        self.setFixedSize(400, 160)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowFlags(
             Qt.WindowType.Dialog
