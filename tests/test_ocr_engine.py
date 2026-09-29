@@ -68,39 +68,20 @@ def test_rapidocr_skips_malformed_boxes() -> None:
     assert len(detections) == 0
 
 
-def test_rapidocr_compact_crop_upscaling() -> None:
-    mock_instance = MagicMock()
-    # Mock returns bounding box in 2x upscaled space: [20, 40] to [400, 120]
-    mock_results = [
-        [
-            [[20.0, 40.0], [400.0, 40.0], [400.0, 120.0], [20.0, 120.0]],
-            "Upscaled Subtitle Text",
-            0.99,
-        ]
-    ]
-    mock_instance.return_value = (mock_results, [0.01])
-
-    engine = RapidOCREngine(rapidocr_instance=mock_instance)
-    # Image height 70 (< 120), so it should trigger 2x bicubic upscaling
-    compact_img = np.zeros((70, 500, 3), dtype=np.uint8)
-    detections = engine.detect(compact_img)
-
-    # Verify mock was called with 2x resized image: height 140, width 1000
-    called_img = mock_instance.call_args[0][0]
-    assert called_img.shape == (140, 1000, 3)
-
-    assert len(detections) == 1
-    det = detections[0]
-    assert det.text == "Upscaled Subtitle Text"
-    # Verify box coordinates were mapped back to original space (divided by 2.0)
-    assert det.box.points[0] == (10.0, 20.0)
-    assert det.box.points[2] == (200.0, 60.0)
-
-
 def test_rapidocr_initialization_parameters() -> None:
     with patch("core.ocr.engine.RapidOCR") as mock_rapid:
         _ = RapidOCREngine()
-        mock_rapid.assert_called_once_with(use_cls=False, unclip_ratio=2.0)
+        mock_rapid.assert_called_once_with(use_cls=False, det_unclip_ratio=2.0)
+
+
+def test_rapidocr_real_instance_unclip_ratio() -> None:
+    """Verify that det_unclip_ratio actually reaches DBPostProcess in the real RapidOCR engine."""
+    from core.ocr.engine import HAS_RAPIDOCR
+    if not HAS_RAPIDOCR:
+        pytest.skip("rapidocr-onnxruntime not installed")
+    engine = RapidOCREngine()
+    # Confirm DBPostProcess postprocessor has active unclip_ratio == 2.0
+    assert engine._engine.text_det.postprocess_op.unclip_ratio == 2.0
 
 
 def test_rapidocr_initialization_failure_when_uninstalled() -> None:

@@ -8,7 +8,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import time
 from typing import Any, List, Optional
-import cv2
 import numpy as np
 
 from core.contracts import Frame, SubtitleBox, SubtitleDetection
@@ -38,9 +37,9 @@ class RapidOCREngine(BaseOCR):
     def __init__(
         self,
         rapidocr_instance: Optional[Any] = None,
+        *,
         use_cls: bool = False,
-        unclip_ratio: float = 2.0,
-        **kwargs: Any,
+        det_unclip_ratio: float = 2.0,
     ) -> None:
         if rapidocr_instance is not None:
             self._engine = rapidocr_instance
@@ -49,11 +48,11 @@ class RapidOCREngine(BaseOCR):
                 raise RuntimeError("rapidocr-onnxruntime is not installed")
             # Subtitles are strictly horizontal and right-side up; disabling cls saves ~36ms
             # and prevents spurious 180-degree inverted line artifacts.
-            # unclip_ratio=2.0 prevents character ascender/descender boundary clipping.
+            # det_unclip_ratio=2.0 prevents character ascender/descender boundary clipping
+            # in DBNet text detection (must be prefixed with det_ for RapidOCR config routing).
             self._engine = RapidOCR(
                 use_cls=use_cls,
-                unclip_ratio=unclip_ratio,
-                **kwargs,
+                det_unclip_ratio=det_unclip_ratio,
             )
 
     def detect(self, frame_or_image: Frame | np.ndarray) -> List[SubtitleDetection]:
@@ -70,15 +69,6 @@ class RapidOCREngine(BaseOCR):
 
         if image is None or image.size == 0:
             return []
-
-        # Subtitle glyph enhancement:
-        # Compact subtitle crops (height < 120px) suffer from spatial character collapse
-        # in the CTC decoder. 2x bicubic upscaling restores word spacing and character ascenders.
-        orig_h = image.shape[0]
-        scale_factor = 1.0
-        if orig_h < 120 and image.shape[1] > 0:
-            scale_factor = 2.0
-            image = cv2.resize(image, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
 
         ocr_res = self._engine(image)
         if not ocr_res or not isinstance(ocr_res, (tuple, list)) or not ocr_res[0]:
@@ -100,9 +90,6 @@ class RapidOCREngine(BaseOCR):
                 score = float(item[2])
                 # dt_boxes can be numpy array or list
                 box_points = [list(map(float, pt)) for pt in dt_boxes]
-                # If image was scaled, map box coordinates back to original frame space
-                if scale_factor != 1.0:
-                    box_points = [[pt[0] / scale_factor, pt[1] / scale_factor] for pt in box_points]
                 box = SubtitleBox.from_list(box_points)
                 detections.append(
                     SubtitleDetection(

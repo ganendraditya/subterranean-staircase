@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Ground Truth Benchmark & Evaluation Tool for Subtitle OCR and Translation.
 
-Calculates Word Error Rate (WER), Character Error Rate (CER), and latency metrics
-by comparing OCR detections against official ground truth transcripts (e.g. YouTube).
+Calculates Word Error Rate (WER) and Character Error Rate (CER) by comparing
+OCR stabilized detections against official ground truth transcripts (e.g. YouTube).
+Uses timestamp-aware alignment to prevent spurious/oracle matching across video time.
 """
 
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import os
 import re
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 def levenshtein_distance(seq1: List[str] | str, seq2: List[str] | str) -> int:
@@ -77,9 +79,16 @@ def fetch_youtube_ground_truth(video_id: str) -> List[Tuple[float, float, str]]:
         return []
 
 
+def parse_log_timestamp(ts_str: str) -> float:
+    """Parse log timestamp 'YYYY-MM-DD HH:MM:SS,mmm' to POSIX epoch float."""
+    dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+    return dt.timestamp()
+
+
 def evaluate_log_against_ground_truth(
     log_path: str,
     video_id: str = "UF8uR6Z6KLc",
+    max_time_window_sec: float = 6.0,
 ) -> None:
     """Parse audit session log and evaluate precision against YouTube ground truth."""
     if not os.path.isfile(log_path):
@@ -94,48 +103,82 @@ def evaluate_log_against_ground_truth(
 
     print(f"✔ Retrieved {len(gt_entries)} ground truth subtitle snippets.")
 
-    # Parse OCR stabilized lines from audit log
     with open(log_path, "r", encoding="utf-8") as f:
         log_content = f.read()
 
-    stable_matches = re.findall(
-        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-STABLE\] Sentence stabilized: (?:'|\")(.*?)(?:'|\")",
+    stable_matches_raw = re.findall(
+        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-STABLE\] Sentence stabilized: (['\"])(.*?)\2",
         log_content,
     )
 
-    if not stable_matches:
+    if not stable_matches_raw:
         print("No [AUDIT-STABLE] lines found in log.")
         return
 
-    print(f"✔ Found {len(stable_matches)} OCR stabilized sentences in log.\n")
+    print(f"✔ Found {len(stable_matches_raw)} OCR stabilized sentences in log.")
 
-    wers = []
-    cers = []
+    # Parse timestamps for OCR events
+    ocr_events: List[Tuple[float, str]] = []
+    for ts_str, _, text in stable_matches_raw:
+        try:
+            t = parse_log_timestamp(ts_str)
+            ocr_events.append((t, text))
+        except ValueError:
+            continue
+
+    if not ocr_events:
+        print("Could not parse OCR event timestamps.")
+        return
+
+    # Calibrate time offset between log epoch and YouTube video timeline
+    # We find the best time offset T_0 such that log_t - T_0 aligns with gt_start
+    # using the first few high-confidence anchors
+    base_log_time = ocr_events[0][0]
+    best_offset = base_log_time - gt_entries[0][0]
+    
+    # Try finding an exact anchor match in first 10 entries to lock video sync
+    for log_t, ocr_txt in ocr_events[:15]:
+        for gt_s, gt_e, gt_txt in gt_entries[:15]:
+            if compute_wer(gt_txt, ocr_txt) < 0.15:
+                best_offset = log_t - gt_s
+                break
+
+    wers: List[float] = []
+    cers: List[float] = []
+    matched_count = 0
 
     print("=" * 80)
     print(f"{'#':<4} {'WER':<8} {'CER':<8} {'Ground Truth':<30} ➔ {'OCR Detected'}")
     print("=" * 80)
 
-    # Simple best-match alignment between GT and OCR detections
-    matched_count = 0
-    for idx, (gt_start, gt_end, gt_text) in enumerate(gt_entries):
+    used_ocr_indices = set()
+    for gt_start, gt_end, gt_text in gt_entries:
         if len(gt_text) < 4:
             continue
 
-        best_wer = float("inf")
-        best_ocr = ""
-        for _, ocr_text in stable_matches:
-            wer = compute_wer(gt_text, ocr_text)
-            if wer < best_wer:
-                best_wer = wer
-                best_ocr = ocr_text
+        target_time = best_offset + gt_start
 
-        if best_wer < 0.8:  # Reasonable alignment threshold
+        # Search candidates strictly within temporal window [target_time - win, target_time + win]
+        best_wer = float("inf")
+        best_idx: Optional[int] = None
+        best_ocr: Optional[str] = None
+        for i, (log_t, ocr_text) in enumerate(ocr_events):
+            if i in used_ocr_indices:
+                continue
+            if abs(log_t - target_time) <= max_time_window_sec:
+                wer = compute_wer(gt_text, ocr_text)
+                if wer < best_wer:
+                    best_wer = wer
+                    best_ocr = ocr_text
+                    best_idx = i
+
+        if best_ocr is not None and best_wer < 0.8:
+            used_ocr_indices.add(best_idx)
             cer = compute_cer(gt_text, best_ocr)
-            wers.append(min(1.0, best_wer))
-            cers.append(min(1.0, cer))
+            wers.append(best_wer)
+            cers.append(cer)
             matched_count += 1
-            if matched_count <= 20:  # Print first 20 aligned samples
+            if matched_count <= 20:
                 gt_snippet = (gt_text[:28] + "..") if len(gt_text) > 30 else gt_text
                 ocr_snippet = (best_ocr[:38] + "..") if len(best_ocr) > 40 else best_ocr
                 print(f"{matched_count:<4} {best_wer*100:5.1f}%  {cer*100:5.1f}%  {gt_snippet:<30} ➔ {ocr_snippet}")
@@ -144,21 +187,22 @@ def evaluate_log_against_ground_truth(
         avg_wer = (sum(wers) / len(wers)) * 100.0
         avg_cer = (sum(cers) / len(cers)) * 100.0
         print("=" * 80)
-        print(f"Summary Evaluation ({matched_count} aligned sentences):")
+        print(f"Summary Temporal Evaluation ({matched_count} aligned sentences in time window ±{max_time_window_sec}s):")
         print(f"  • Mean Word Error Rate (WER)     : {avg_wer:.2f}% (Accuracy: {100.0 - avg_wer:.2f}%)")
         print(f"  • Mean Character Error Rate (CER): {avg_cer:.2f}% (Accuracy: {100.0 - avg_cer:.2f}%)")
         print("=" * 80)
     else:
-        print("Could not align OCR lines to ground truth.")
+        print("No sentences could be temporally aligned within the time window.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate Subtitle OCR against Ground Truth")
     parser.add_argument("--video-id", default="UF8uR6Z6KLc", help="YouTube video ID (default: Steve Jobs 2005)")
     parser.add_argument("--log", default="audit_session.log", help="Path to audit session log")
+    parser.add_argument("--window", type=float, default=6.0, help="Temporal window in seconds (default: 6.0s)")
     args = parser.parse_args()
 
-    evaluate_log_against_ground_truth(args.log, args.video_id)
+    evaluate_log_against_ground_truth(args.log, args.video_id, max_time_window_sec=args.window)
 
 
 if __name__ == "__main__":

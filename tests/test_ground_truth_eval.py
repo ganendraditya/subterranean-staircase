@@ -27,7 +27,3 @@ def test_compute_cer() -> None:
     assert compute_cer("apple   computer", "Apple Computer") == 0.0
     # 1 character typo out of 9 characters
     assert abs(compute_cer("Macintosh", "Macintosn") - (1 / 9)) < 1e-4
-
-
-def pytest_approx(val: float) -> float:
-    return round(val, 4)
