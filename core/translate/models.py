@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.translate.constants import get_default_models_dir
+from core.translate.packs import ATOMIC_LANGUAGE_PACKS, LanguagePackMetadata
 
 logger = logging.getLogger("subtitle_translator.model_manager")
 
@@ -266,3 +267,72 @@ class ModelManager:
         except Exception as e:
             logger.exception("Failed to delete model %s: %s", pair_id, e)
             return False, f"Failed to delete model: {str(e)}"
+
+    # -------------------------------------------------------------
+    # Atomic Language Pack Management
+    # -------------------------------------------------------------
+
+    def is_pack_installed(self, pack_id: str) -> bool:
+        """Check if an atomic language pack is completely installed."""
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        if not pack:
+            return False
+        return all(self.is_installed(p) for p in pack.translation_pairs)
+
+    def is_pack_partially_installed(self, pack_id: str) -> bool:
+        """Check if any model in an atomic language pack is installed on disk."""
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        if not pack:
+            return False
+        return any(self.is_installed(p) for p in pack.translation_pairs)
+
+    def get_pack_disk_size_mb(self, pack_id: str) -> float:
+        """Calculate total disk space in MB used by an installed pack."""
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        if not pack:
+            return 0.0
+        return round(sum(self.get_disk_size_mb(p) for p in pack.translation_pairs), 2)
+
+    def list_packs_status(self) -> List[Dict[str, Any]]:
+        """List all atomic language packs with installation status and sizes."""
+        results = []
+        for pack_id, pack in ATOMIC_LANGUAGE_PACKS.items():
+            installed = self.is_pack_installed(pack_id)
+            partial = self.is_pack_partially_installed(pack_id)
+            disk_size = self.get_pack_disk_size_mb(pack_id)
+            results.append({
+                "pack_id": pack_id,
+                "name": pack.name,
+                "description": pack.description,
+                "approx_size_mb": pack.approx_size_mb,
+                "installed": installed,
+                "partially_installed": partial,
+                "installed_size_mb": disk_size,
+                "is_core": pack.is_core,
+                "translation_pairs": pack.translation_pairs,
+            })
+        return results
+
+    def delete_pack(self, pack_id: str) -> Tuple[bool, str]:
+        """Delete all model assets associated with an atomic language pack."""
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        if not pack:
+            return False, f"Unknown language pack '{pack_id}'."
+        if pack.is_core:
+            return False, "Cannot delete the Core English <-> Indonesian pack."
+
+        deleted_any = False
+        errors = []
+        for pair_id in pack.translation_pairs:
+            if self.is_installed(pair_id):
+                ok, msg = self.delete_model(pair_id)
+                if ok:
+                    deleted_any = True
+                else:
+                    errors.append(msg)
+
+        if errors:
+            return False, f"Failed deleting pack '{pack_id}': {', '.join(errors)}"
+        if not deleted_any:
+            return False, f"Pack '{pack_id}' was not installed."
+        return True, f"Pack '{pack_id}' deleted successfully."
