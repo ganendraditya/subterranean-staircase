@@ -87,6 +87,8 @@ class TranslationPipelineWorker(QThread):
             self.diff_detector.reset()
             self.history_tracker.reset()
             self._last_translated_sentence = ""
+            self._pending_sentence = ""
+            self._pending_sentence_time = 0.0
         logger.info("[AUDIT-TARGET] Target window updated: %s", window_id if window_id is not None else "Entire Screen")
 
     def set_custom_roi(self, roi: Optional[Rect]) -> None:
@@ -96,6 +98,8 @@ class TranslationPipelineWorker(QThread):
             self.diff_detector.reset()
             self.history_tracker.reset()
             self._last_translated_sentence = ""
+            self._pending_sentence = ""
+            self._pending_sentence_time = 0.0
         logger.info("[AUDIT-ROI] Custom ROI updated: %s", roi.as_tuple() if roi is not None else "Full Area")
 
     def stop(self, timeout_ms: int = 3000) -> bool:
@@ -173,6 +177,8 @@ class TranslationPipelineWorker(QThread):
                 logger.info("[AUDIT-CLEAR] Subtitles cleared from screen (0 text detected, clear latency: %.1fms)", clear_lag_ms)
                 self.history_tracker.reset()
                 self._last_translated_sentence = ""
+                self._pending_sentence = ""
+                self._pending_sentence_time = 0.0
                 self.signals.subtitle_cleared.emit()
             return
 
@@ -194,6 +200,8 @@ class TranslationPipelineWorker(QThread):
             if self._last_translated_sentence:
                 self.history_tracker.reset()
                 self._last_translated_sentence = ""
+                self._pending_sentence = ""
+                self._pending_sentence_time = 0.0
                 self.signals.subtitle_cleared.emit()
             return
 
@@ -205,6 +213,8 @@ class TranslationPipelineWorker(QThread):
             if self._last_translated_sentence:
                 self.history_tracker.reset()
                 self._last_translated_sentence = ""
+                self._pending_sentence = ""
+                self._pending_sentence_time = 0.0
                 self.signals.subtitle_cleared.emit()
             return
 
@@ -227,7 +237,11 @@ class TranslationPipelineWorker(QThread):
         # If words are appending rapidly (typing effect / partial line updates),
         # debounce for 0.12s so NMT translates the finished thought rather than a half-word fragment.
         now = time.time()
-        is_extension = raw_sentence.startswith(self._pending_sentence) and len(raw_sentence) > len(self._pending_sentence)
+        is_extension = (
+            bool(self._pending_sentence)
+            and raw_sentence.startswith(self._pending_sentence)
+            and len(raw_sentence) > len(self._pending_sentence)
+        )
         if is_extension and (now - self._pending_sentence_time) < 0.12:
             self._pending_sentence = raw_sentence
             self._pending_sentence_time = now

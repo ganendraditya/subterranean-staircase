@@ -78,16 +78,16 @@ class RapidOCREngine(BaseOCR):
         infer_image = image
         if 60 <= h <= 350 and w > 100:
             try:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
                 # Find rows with significant luminance activity (subtitles have high brightness)
-                row_max = np.max(gray, axis=1)
+                # Compute row max across channels without allocating a separate full-size grayscale buffer
+                row_max = np.max(image, axis=(1, 2)) if len(image.shape) == 3 else np.max(image, axis=1)
                 active_rows = np.where(row_max > 35)[0]
                 if len(active_rows) > 0:
                     y_min = max(0, int(active_rows[0]) - 8)
                     y_max = min(h, int(active_rows[-1]) + 8)
                     # Only crop if it removes at least 25% of empty padding
                     if (y_max - y_min) < (0.75 * h) and (y_max - y_min) >= 20:
-                        infer_image = image[y_min:y_max, :]
+                        infer_image = np.ascontiguousarray(image[y_min:y_max, :])
                         y_offset = y_min
             except Exception:
                 infer_image = image

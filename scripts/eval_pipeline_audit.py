@@ -21,7 +21,6 @@ import argparse
 from datetime import datetime
 import os
 import re
-import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -70,8 +69,7 @@ def fetch_captions(video_id: str, lang_code: str = "en") -> List[Tuple[float, fl
     """Fetch manual captions for the given YouTube video ID and language code."""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        ytt = YouTubeTranscriptApi()
-        tl = ytt.list(video_id)
+        tl = YouTubeTranscriptApi.list_transcripts(video_id)
         transcript = tl.find_manually_created_transcript([lang_code]).fetch()
         entries = []
         for item in transcript:
@@ -131,7 +129,8 @@ def run_comprehensive_audit(
     re_ocr = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-OCR\] (\d+) detections in ([\d\.]+)ms")
     re_stable = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-STABLE\] Sentence stabilized: (['\"])(.*?)\2")
     re_trans = re.compile(
-        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-TRANS\] \(OCR: ([\d\.]+)ms \| Trans: ([\d\.]+)ms \| Total E2E: ([\d\.]+)ms\) (['\"])(.*?)\5 ➔ (['\"])(.*?)\7"
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-TRANS\] \(OCR: ([\d\.]+)ms \| Trans: ([\d\.]+)ms \| Total E2E: ([\d\.]+)ms\) (.*) ➔ (.*)$",
+        re.MULTILINE,
     )
     re_clear = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-CLEAR\] Subtitles cleared.*?clear latency: ([\d\.]+)ms")
 
@@ -144,6 +143,12 @@ def run_comprehensive_audit(
         ts = parse_timestamp(m.group(1))
         stable_events.append({"timestamp": ts, "text": m.group(3)})
 
+    def _strip_quotes(s: str) -> str:
+        s = s.strip()
+        if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
+            return s[1:-1]
+        return s
+
     trans_events: List[Dict[str, Any]] = []
     for m in re_trans.finditer(log_text):
         ts = parse_timestamp(m.group(1))
@@ -152,8 +157,8 @@ def run_comprehensive_audit(
             "ocr_ms": float(m.group(2)),
             "trans_ms": float(m.group(3)),
             "e2e_ms": float(m.group(4)),
-            "source": m.group(6),
-            "translation": m.group(8),
+            "source": _strip_quotes(m.group(5)),
+            "translation": _strip_quotes(m.group(6)),
         })
 
     events_to_eval = trans_events if trans_events else [{"timestamp": s["timestamp"], "source": s["text"], "translation": "", "ocr_ms": 0, "trans_ms": 0, "e2e_ms": 0} for s in stable_events]
@@ -218,9 +223,17 @@ def run_comprehensive_audit(
                 e2e_latencies.append(matched_ev["e2e_ms"])
             sync_lags.append(lag_sec)
 
+            ref_target = ""
+            if gt_target:
+                for tgt_s, tgt_e, tgt_txt in gt_target:
+                    if abs(tgt_s - gt_s) <= 2.0:
+                        ref_target = tgt_txt
+                        break
+
             paired_samples.append({
                 "gt_time": f"{gt_s:5.1f}s",
                 "gt_text": gt_txt,
+                "ref_target": ref_target,
                 "ocr_text": matched_ev["source"],
                 "trans_text": matched_ev.get("translation", ""),
                 "wer": best_wer,
@@ -245,8 +258,8 @@ def run_comprehensive_audit(
         print(f"{'TIME':<8} {'OFFICIAL HUMAN TRANSLATION':<35} ➔ {'NMT TRANSLATED'}")
         print("=" * 95)
         for s in paired_samples[:15]:
-            if s["trans_text"]:
-                print(f"{s['gt_time']:<8} {s['ocr_text'][:33]:<35} ➔ {s['trans_text'][:50]}")
+            if s["trans_text"] and s.get("ref_target"):
+                print(f"{s['gt_time']:<8} {s['ref_target'][:33]:<35} ➔ {s['trans_text'][:50]}")
 
     print("\n" + "=" * 95)
     print("📈 COMPREHENSIVE PIPELINE PERFORMANCE SUMMARY")
