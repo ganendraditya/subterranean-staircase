@@ -53,6 +53,20 @@ def test_pack_installation_lifecycle(tmp_path: Path) -> None:
     assert not ja_dir.exists()
 
 
+def test_partial_pack_state_reporting(tmp_path: Path) -> None:
+    mm = ModelManager(models_dir=tmp_path)
+    # Chinese pack has zh-en and en-zh. Simulate only zh-en installed.
+    zh_dir = mm.get_model_path("zh-en")
+    zh_dir.mkdir(parents=True)
+    (zh_dir / "model.bin").write_bytes(b"0" * (1024 * 1024))
+    (zh_dir / "source.spm").write_bytes(b"dummy_spm")
+    (zh_dir / "config.json").write_bytes(b"{}")
+
+    assert mm.is_pack_installed("zh") is False
+    assert mm.is_pack_partially_installed("zh") is True
+    assert mm.get_pack_disk_size_mb("zh") > 0.0
+
+
 def test_list_packs_status(tmp_path: Path) -> None:
     mm = ModelManager(models_dir=tmp_path)
     packs_status = mm.list_packs_status()

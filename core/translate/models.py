@@ -279,6 +279,13 @@ class ModelManager:
             return False
         return all(self.is_installed(p) for p in pack.translation_pairs)
 
+    def is_pack_partially_installed(self, pack_id: str) -> bool:
+        """Check if any model in an atomic language pack is installed on disk."""
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        if not pack:
+            return False
+        return any(self.is_installed(p) for p in pack.translation_pairs)
+
     def get_pack_disk_size_mb(self, pack_id: str) -> float:
         """Calculate total disk space in MB used by an installed pack."""
         pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
@@ -291,13 +298,15 @@ class ModelManager:
         results = []
         for pack_id, pack in ATOMIC_LANGUAGE_PACKS.items():
             installed = self.is_pack_installed(pack_id)
-            disk_size = self.get_pack_disk_size_mb(pack_id) if installed else 0.0
+            partial = self.is_pack_partially_installed(pack_id)
+            disk_size = self.get_pack_disk_size_mb(pack_id)
             results.append({
                 "pack_id": pack_id,
                 "name": pack.name,
                 "description": pack.description,
                 "approx_size_mb": pack.approx_size_mb,
                 "installed": installed,
+                "partially_installed": partial,
                 "installed_size_mb": disk_size,
                 "is_core": pack.is_core,
                 "translation_pairs": pack.translation_pairs,

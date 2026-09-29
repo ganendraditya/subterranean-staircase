@@ -734,6 +734,7 @@ class ControlCenterDialog(QDialog):
         for row, pack in enumerate(packs):
             pack_id = pack["pack_id"]
             installed = pack["installed"]
+            partially_installed = pack.get("partially_installed", False)
             is_core = pack.get("is_core", False)
 
             name_item = QTableWidgetItem(pack["name"])
@@ -751,6 +752,13 @@ class ControlCenterDialog(QDialog):
                     btn.setEnabled(False)
                 else:
                     btn.clicked.connect(lambda _, pid=pack_id: self._on_delete_pack_clicked(pid))
+            elif partially_installed:
+                status_text = f"⚠ Incomplete ({pack['installed_size_mb']} MB)"
+                status_item = QTableWidgetItem(status_text)
+                status_item.setForeground(QColor("#FBBF24"))
+                btn = QPushButton("Fix / Resume", self.packs_table)
+                btn.setObjectName("PrimaryButton")
+                btn.clicked.connect(lambda _, pid=pack_id: self._on_download_pack_clicked(pid))
             else:
                 status_text = f"Available (~{pack['approx_size_mb']} MB)"
                 status_item = QTableWidgetItem(status_text)
