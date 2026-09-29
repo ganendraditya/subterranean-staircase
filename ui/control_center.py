@@ -33,7 +33,9 @@ from core.autostart import AutostartManager
 from core.capture.base import BaseCapture
 from core.config import ConfigManager
 from core.contracts import Rect, WindowInfo
+from core.translate.languages import BIG_5_LANGUAGES
 from core.translate.models import RECOMMENDED_MODELS, ModelManager
+from core.translate.router import TranslationRouter, normalize_lang_code
 from core.updater import UpdateInfo, UpdateManager
 from ui.model_dialog import ModelDownloadProgressDialog
 from ui.styles import MODERN_DARK_THEME
@@ -75,26 +77,19 @@ class ControlCenterDialog(QDialog):
     settings_saved = pyqtSignal()
     quit_requested = pyqtSignal()
 
-    LANGUAGES = [
-        ("English", "en"),
-        ("Indonesian", "id"),
-        ("Japanese", "ja"),
-        ("Korean", "ko"),
-        ("Chinese", "zh"),
-        ("French", "fr"),
-        ("German", "de"),
-        ("Spanish", "es"),
-    ]
+    LANGUAGES = BIG_5_LANGUAGES
 
     def __init__(
         self,
         config_manager: ConfigManager,
         capture_driver: Optional[BaseCapture] = None,
+        router: Optional[TranslationRouter] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.config_manager = config_manager
         self.capture_driver = capture_driver
+        self.router = router if router is not None else TranslationRouter()
         self.model_manager = ModelManager()
         self.autostart_manager = AutostartManager()
         self.update_manager = UpdateManager()
@@ -422,18 +417,29 @@ class ControlCenterDialog(QDialog):
         """Synchronize UI with persistent configuration and installed models."""
         cfg = self.config_manager.config
 
-        # Source / Target Lang
+        # Source / Target Lang (fallback safely if config holds deprecated pre-M2 code)
         s_idx = self.source_lang_combo.findData(cfg.source_language)
         if s_idx >= 0:
             self.source_lang_combo.blockSignals(True)
             self.source_lang_combo.setCurrentIndex(s_idx)
             self.source_lang_combo.blockSignals(False)
+        else:
+            self.source_lang_combo.setCurrentIndex(0)
+            self.config_manager.update(source_language=self.source_lang_combo.currentData())
 
         t_idx = self.target_lang_combo.findData(cfg.target_language)
         if t_idx >= 0:
             self.target_lang_combo.blockSignals(True)
             self.target_lang_combo.setCurrentIndex(t_idx)
             self.target_lang_combo.blockSignals(False)
+        else:
+            # Choose a target distinct from source language
+            current_src = normalize_lang_code(self.source_lang_combo.currentData() or "en")
+            fallback_tgt = "id" if current_src == "en" else "en"
+            t_idx_fb = self.target_lang_combo.findData(fallback_tgt)
+            if t_idx_fb >= 0:
+                self.target_lang_combo.setCurrentIndex(t_idx_fb)
+            self.config_manager.update(target_language=fallback_tgt)
 
         # Refresh target windows
         self._populate_windows()
@@ -565,51 +571,130 @@ class ControlCenterDialog(QDialog):
         except Exception as e:
             logger.debug("Failed to render preview frame: %s", e)
 
-    def _get_current_pair_id(self) -> str:
-        src = self.source_lang_combo.currentData() or "en"
-        tgt = self.target_lang_combo.currentData() or "id"
-        return f"{src}-{tgt}"
+
 
     def _refresh_model_status(self) -> None:
         """Update model availability badge and download button for active language pair."""
-        pair_id = self._get_current_pair_id()
-        installed = self.model_manager.is_installed(pair_id)
+        src = self.source_lang_combo.currentData() or "en"
+        tgt = self.target_lang_combo.currentData() or "id"
 
-        meta = RECOMMENDED_MODELS.get(pair_id)
-        size_str = f"~{meta.approx_size_mb} MB" if meta else ""
+        # Same language selected (normalize in case regional tags are used)
+        if normalize_lang_code(src) == normalize_lang_code(tgt):
+            self.model_status_label.setText("Source and Target are the same language")
+            self.model_status_label.setStyleSheet("color: #9CA3AF; font-weight: 500;")
+            self.model_action_btn.setEnabled(False)
+            self.model_action_btn.setVisible(False)
+            return
 
-        if installed:
-            disk_mb = self.model_manager.get_disk_size_mb(pair_id)
-            self.model_status_label.setText(f"✔ Ready: {pair_id} ({disk_mb} MB on disk)")
-            self.model_status_label.setStyleSheet("color: #4ADE80; font-weight: 500;")
-            self.model_action_btn.setText("Delete")
-            self.model_action_btn.setObjectName("TableDeleteButton")
+        self.model_action_btn.setVisible(True)
+        needed_pairs = self.router.required_pairs(src, tgt)
+
+        if not needed_pairs:
+            self.model_status_label.setText("No translation route available in catalog")
+            self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
+            self.model_action_btn.setEnabled(False)
+            self.model_action_btn.setText("Unavailable")
+            self.model_action_btn.setObjectName("SecondaryButton")
+            self.model_action_btn.style().unpolish(self.model_action_btn)
+            self.model_action_btn.style().polish(self.model_action_btn)
+            return
+
+        # Direct 1-hop
+        if len(needed_pairs) == 1:
+            hop_pair = needed_pairs[0]
+            installed = self.model_manager.is_installed(hop_pair)
+            meta = RECOMMENDED_MODELS.get(hop_pair)
+
+            if meta is None and not installed:
+                self.model_status_label.setText(f"⚠ Direct model '{hop_pair}' not available in catalog")
+                self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
+                self.model_action_btn.setEnabled(False)
+                self.model_action_btn.setText("Unavailable")
+                self.model_action_btn.setObjectName("SecondaryButton")
+            elif installed:
+                disk_mb = self.model_manager.get_disk_size_mb(hop_pair)
+                self.model_status_label.setText(f"✔ Ready: Direct {hop_pair} ({disk_mb} MB on disk)")
+                self.model_status_label.setStyleSheet("color: #4ADE80; font-weight: 500;")
+                self.model_action_btn.setEnabled(True)
+                self.model_action_btn.setText("Delete")
+                self.model_action_btn.setObjectName("TableDeleteButton")
+            else:
+                size_str = f"~{meta.approx_size_mb} MB" if meta else ""
+                self.model_status_label.setText(f"⚠ Model not downloaded ({size_str})")
+                self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
+                self.model_action_btn.setEnabled(True)
+                self.model_action_btn.setText("Download")
+                self.model_action_btn.setObjectName("PrimaryButton")
         else:
-            self.model_status_label.setText(f"⚠ Model not downloaded ({size_str})")
-            self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
-            self.model_action_btn.setText("Download")
-            self.model_action_btn.setObjectName("PrimaryButton")
+            # 2-hop Pivot: e.g. ja -> en -> id
+            hop1_pair = needed_pairs[0]
+            hop2_pair = needed_pairs[1]
+            h1_installed = self.model_manager.is_installed(hop1_pair)
+            h2_installed = self.model_manager.is_installed(hop2_pair)
+
+            if h1_installed and h2_installed:
+                total_mb = round(self.model_manager.get_disk_size_mb(hop1_pair) + self.model_manager.get_disk_size_mb(hop2_pair), 2)
+                self.model_status_label.setText(f"✔ Ready: Pivot ({hop1_pair} + {hop2_pair}, {total_mb} MB)")
+                self.model_status_label.setStyleSheet("color: #4ADE80; font-weight: 500;")
+                self.model_action_btn.setEnabled(True)
+                self.model_action_btn.setText("Delete All")
+                self.model_action_btn.setObjectName("TableDeleteButton")
+            else:
+                missing = [p for p in needed_pairs if not self.model_manager.is_installed(p)]
+                unobtainable = [p for p in missing if p not in RECOMMENDED_MODELS]
+                if unobtainable:
+                    self.model_status_label.setText(f"⚠ Missing model(s): {', '.join(unobtainable)}")
+                    self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
+                    self.model_action_btn.setEnabled(False)
+                    self.model_action_btn.setText("Unavailable")
+                    self.model_action_btn.setObjectName("SecondaryButton")
+                else:
+                    self.model_status_label.setText(f"⚠ Pivot requires: {', '.join(missing)}")
+                    self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
+                    self.model_action_btn.setEnabled(True)
+                    self.model_action_btn.setText("Download")
+                    self.model_action_btn.setObjectName("PrimaryButton")
 
         self.model_action_btn.style().unpolish(self.model_action_btn)
         self.model_action_btn.style().polish(self.model_action_btn)
 
     def _on_current_model_action_clicked(self) -> None:
-        """Handle Download or Delete for the currently selected language pair."""
-        pair_id = self._get_current_pair_id()
-        if self.model_manager.is_installed(pair_id):
+        """Handle Download or Delete for the currently selected language pair or its pivot hops."""
+        src = self.source_lang_combo.currentData() or "en"
+        tgt = self.target_lang_combo.currentData() or "id"
+        needed_pairs = self.router.required_pairs(src, tgt)
+        if not needed_pairs:
+            return
+
+        all_installed = all(self.model_manager.is_installed(p) for p in needed_pairs)
+
+        if all_installed:
             confirm = QMessageBox.question(
                 self,
                 "Delete Model",
-                f"Delete offline translation model for '{pair_id}'?\nThis will reclaim disk space.",
+                f"Delete offline translation model(s) for {', '.join(needed_pairs)}?\nThis will reclaim disk space.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if confirm == QMessageBox.StandardButton.Yes:
-                self.model_manager.delete_model(pair_id)
+                for p in needed_pairs:
+                    self.model_manager.delete_model(p)
                 self._refresh_model_status()
         else:
-            dialog = ModelDownloadProgressDialog(self.model_manager, pair_id, self)
-            dialog.start_download()
+            # Pre-validate all missing hops against catalog before attempting downloads
+            missing_pairs = [p for p in needed_pairs if not self.model_manager.is_installed(p)]
+            unobtainable = [p for p in missing_pairs if p not in RECOMMENDED_MODELS]
+            if unobtainable:
+                QMessageBox.warning(
+                    self,
+                    "Model Unavailable",
+                    f"Model(s) {', '.join(unobtainable)} are not available in catalog.\nPlease select a supported route.",
+                )
+                return
+
+            for p in missing_pairs:
+                dialog = ModelDownloadProgressDialog(self.model_manager, p, self)
+                dialog.start_download()
             self._refresh_model_status()
 
     def _on_language_changed(self) -> None:

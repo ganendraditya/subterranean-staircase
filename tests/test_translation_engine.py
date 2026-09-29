@@ -17,14 +17,17 @@ def test_routing_logic() -> None:
 
     # Direct 1-hop pairs
     assert engine._route("en", "id") == [("en", "id")]
+    assert engine._route("id", "en") == [("id", "en")]
     assert engine._route("ja", "en") == [("ja", "en")]
+    assert engine._route("en", "zh") == [("en", "zh")]
 
     # 2-hop routing through English
     assert engine._route("ja", "id") == [("ja", "en"), ("en", "id")]
     assert engine._route("ko", "id") == [("ko", "en"), ("en", "id")]
+    assert engine._route("ja", "zh") == [("ja", "en"), ("en", "zh")]
+    assert engine._route("id", "zh") == [("id", "en"), ("en", "zh")]
 
     # Regional English (en-US, en_GB) maps to standard 'en' for Opus-MT model compatibility
-    assert engine._route("en-US", "fr") == [("en", "fr")]
     assert engine._route("ja", "en_GB") == [("ja", "en")]
 
     # Regional English to English variant returns empty route
@@ -32,8 +35,22 @@ def test_routing_logic() -> None:
     assert engine._route("en-US", "en-GB") == []
     assert engine._route("en", "en-US") == []
 
-    # Regional target tags (e.g. zh-CN) retain case-sensitivity for model directory lookup
-    assert engine._route("ja", "zh-CN") == [("ja", "en"), ("en", "zh-CN")]
+    # Unobtainable routes return empty
+    assert engine._route("en", "ja") == []
+
+
+def test_translate_empty_route_raises_value_error(tmp_path: Path) -> None:
+    from core.storage.cache import SQLiteTranslationCache
+    db_path = tmp_path / "test_cache.db"
+    cache = SQLiteTranslationCache(db_path=db_path)
+    # Simulate a poisoned row from an unroutable language pair
+    cache.set("Test", "zh", "ja", "Poisoned Source Text")
+
+    engine = CTranslate2Engine(cache=cache)
+    # When no route exists in catalog, translate() must raise ValueError before cache return
+    req = TranslationRequest(source_text="Test", source_lang="zh", target_lang="ja")
+    with pytest.raises(ValueError, match="No translation route available"):
+        engine.translate(req)
 
 
 def test_translate_empty_or_same_language() -> None:

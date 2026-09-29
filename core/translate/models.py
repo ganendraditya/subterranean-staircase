@@ -13,9 +13,9 @@ import shutil
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.translate.local import get_default_models_dir
+from core.translate.constants import get_default_models_dir
 
 logger = logging.getLogger("subtitle_translator.model_manager")
 
@@ -75,6 +75,26 @@ RECOMMENDED_MODELS: Dict[str, ModelMetadata] = {
         description="Western movies, YouTube, and tech talks to Indonesian",
         approx_size_mb=75,
         hf_repo="manancode/opus-mt-en-id-ctranslate2-android",
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
+    ),
+    "id-en": ModelMetadata(
+        pair_id="id-en",
+        source_lang="id",
+        target_lang="en",
+        name="Indonesian → English",
+        description="Indonesian media, streams, and content to English",
+        approx_size_mb=145,
+        hf_repo="gaudi/opus-mt-id-en-ctranslate2",
+        files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
+    ),
+    "en-zh": ModelMetadata(
+        pair_id="en-zh",
+        source_lang="en",
+        target_lang="zh",
+        name="English → Chinese",
+        description="English media to Simplified Chinese",
+        approx_size_mb=155,
+        hf_repo="gaudi/opus-mt-en-zh-ctranslate2",
         files=["model.bin", "source.spm", "target.spm", "shared_vocabulary.json", "config.json"],
     ),
     "es-en": ModelMetadata(

@@ -7,13 +7,14 @@ and seamless integration with the SQLite WAL translation cache.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import os
 from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.contracts import TranslationRequest, TranslationResult
 from core.storage.cache import SQLiteTranslationCache
+from core.translate.constants import get_default_models_dir
+from core.translate.router import TranslationRouter, normalize_lang_code
 
 try:
     import ctranslate2
@@ -21,12 +22,6 @@ try:
     HAS_CTRANSLATE2 = True
 except ImportError:
     HAS_CTRANSLATE2 = False
-
-
-def get_default_models_dir() -> Path:
-    """Return default models directory: ~/.cache/subtitle-translator/models/"""
-    base_dir = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return base_dir / "subtitle-translator" / "models"
 
 
 class BaseTranslator(ABC):
@@ -48,46 +43,32 @@ class CTranslate2Engine(BaseTranslator):
         device: str = "cpu",
         inter_threads: int = 1,
         intra_threads: int = 2,
+        router: Optional[TranslationRouter] = None,
     ) -> None:
         self.models_dir = models_dir or get_default_models_dir()
         self.cache = cache
         self.device = device
         self.inter_threads = inter_threads
         self.intra_threads = intra_threads
+        self.router = router if router is not None else TranslationRouter()
 
         # Model and tokenizer cache: { "en-id": (translator, sp_source, sp_target) }
         self._loaded_pairs: Dict[str, Tuple[Any, Any, Any]] = {}
 
     def _route(self, source_lang: str, target_lang: str) -> List[Tuple[str, str]]:
         """Determine translation routing path (direct vs 2-hop via English)."""
-        src = source_lang.strip()
-        tgt = target_lang.strip()
+        return self.router.resolve_route(source_lang, target_lang)
 
-        if src.lower() == tgt.lower():
-            return []
-
-        src_base = src.replace("_", "-").split("-")[0].lower()
-        tgt_base = tgt.replace("_", "-").split("-")[0].lower()
-
-        # If source is English regional variant (e.g. en-US), map to standard 'en' for model resolution
-        eff_src = "en" if src_base == "en" else src
-        eff_tgt = "en" if tgt_base == "en" else tgt
-
-        if eff_src.lower() == eff_tgt.lower():
-            return []
-
-        # Direct pair if source or target base language is English
-        if src_base == "en" or tgt_base == "en":
-            return [(eff_src, eff_tgt)]
-
-        # 2-hop routing: eff_src -> en -> eff_tgt
-        return [(eff_src, "en"), ("en", eff_tgt)]
+    def _validate_lang_code(self, code: str) -> None:
+        """Validate language code for security and prevent directory traversal."""
+        valid_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        if not set(code).issubset(valid_chars) or not code:
+            raise ValueError(f"Invalid language codes: '{code}'")
 
     def _get_pair_model_path(self, src: str, tgt: str) -> Path:
         """Get filesystem directory for the specific language pair model with path-traversal protection."""
-        valid_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-        if not (set(src).issubset(valid_chars) and set(tgt).issubset(valid_chars)) or not src or not tgt:
-            raise ValueError(f"Invalid language codes: '{src}', '{tgt}'")
+        self._validate_lang_code(src)
+        self._validate_lang_code(tgt)
         return self.models_dir / f"opus-mt-{src}-{tgt}"
 
     def load_pair(self, src: str, tgt: str) -> Tuple[Any, Any, Any]:
@@ -158,11 +139,10 @@ class CTranslate2Engine(BaseTranslator):
     def translate(self, request: TranslationRequest) -> TranslationResult:
         """Translate source text with multi-hop support and cache lookup."""
         text = request.source_text.strip()
-        src = request.source_lang.strip()
-        tgt = request.target_lang.strip()
-        start_time = time.perf_counter()
+        src = normalize_lang_code(request.source_lang)
+        tgt = normalize_lang_code(request.target_lang)
 
-        if not text or src.lower() == tgt.lower():
+        if not text or src == tgt:
             return TranslationResult(
                 source_text=request.source_text,
                 translated_text=text,
@@ -172,7 +152,16 @@ class CTranslate2Engine(BaseTranslator):
                 latency_ms=0.0,
             )
 
-        # 1. Check SQLite translation memory cache
+        self._validate_lang_code(src)
+        self._validate_lang_code(tgt)
+        start_time = time.perf_counter()
+
+        # 1. Resolve translation route first before checking cache or executing models
+        route = self._route(src, tgt)
+        if not route:
+            raise ValueError(f"No translation route available in catalog for '{src}' ➔ '{tgt}'.")
+
+        # 2. Check SQLite translation memory cache
         if self.cache is not None:
             cached_trans = self.cache.get(text, src, tgt)
             if cached_trans is not None:
@@ -186,8 +175,7 @@ class CTranslate2Engine(BaseTranslator):
                     latency_ms=elapsed_ms,
                 )
 
-        # 2. Execute translation route
-        route = self._route(src, tgt)
+        # 3. Execute translation route
         current_text = text
 
         for hop_src, hop_tgt in route:
@@ -195,7 +183,7 @@ class CTranslate2Engine(BaseTranslator):
             if not current_text:
                 break
 
-        # 3. Store translated output in cache
+        # 4. Store translated output in cache
         if self.cache is not None and current_text:
             self.cache.set(text, src, tgt, current_text)
 
