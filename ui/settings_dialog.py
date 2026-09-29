@@ -29,8 +29,8 @@ from PyQt6.QtWidgets import (
 
 from core.autostart import AutostartManager
 from core.config import ConfigManager
+from core.translate.languages import BIG_5_LANGUAGES
 from core.translate.models import ModelManager
-from core.translate.router import BIG_5_LANGUAGES
 from core.updater import UpdateInfo, UpdateManager
 from ui.model_dialog import ModelDownloadProgressDialog
 from ui.styles import MODERN_DARK_THEME

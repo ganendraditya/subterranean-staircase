@@ -24,7 +24,6 @@ def test_routing_logic() -> None:
     assert engine._route("ko", "id") == [("ko", "en"), ("en", "id")]
 
     # Regional English (en-US, en_GB) maps to standard 'en' for Opus-MT model compatibility
-    assert engine._route("en-US", "fr") == [("en", "fr")]
     assert engine._route("ja", "en_GB") == [("ja", "en")]
 
     # Regional English to English variant returns empty route
@@ -32,8 +31,9 @@ def test_routing_logic() -> None:
     assert engine._route("en-US", "en-GB") == []
     assert engine._route("en", "en-US") == []
 
-    # Base target tags (e.g. zh) used for model directory lookup
-    assert engine._route("ja", "zh") == [("ja", "en"), ("en", "zh")]
+    # Unobtainable routes return empty
+    assert engine._route("id", "en") == []
+    assert engine._route("en", "ja") == []
 
 
 def test_translate_empty_or_same_language() -> None:

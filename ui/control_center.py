@@ -33,8 +33,9 @@ from core.autostart import AutostartManager
 from core.capture.base import BaseCapture
 from core.config import ConfigManager
 from core.contracts import Rect, WindowInfo
+from core.translate.languages import BIG_5_LANGUAGES
 from core.translate.models import RECOMMENDED_MODELS, ModelManager
-from core.translate.router import BIG_5_LANGUAGES, TranslationRouter, normalize_lang_code
+from core.translate.router import TranslationRouter, normalize_lang_code
 from core.updater import UpdateInfo, UpdateManager
 from ui.model_dialog import ModelDownloadProgressDialog
 from ui.styles import MODERN_DARK_THEME
@@ -416,18 +417,22 @@ class ControlCenterDialog(QDialog):
         """Synchronize UI with persistent configuration and installed models."""
         cfg = self.config_manager.config
 
-        # Source / Target Lang
+        # Source / Target Lang (fallback to combo defaults if config holds deprecated pre-M2 code)
         s_idx = self.source_lang_combo.findData(cfg.source_language)
         if s_idx >= 0:
             self.source_lang_combo.blockSignals(True)
             self.source_lang_combo.setCurrentIndex(s_idx)
             self.source_lang_combo.blockSignals(False)
+        else:
+            self.config_manager.update(source_language=self.source_lang_combo.currentData())
 
         t_idx = self.target_lang_combo.findData(cfg.target_language)
         if t_idx >= 0:
             self.target_lang_combo.blockSignals(True)
             self.target_lang_combo.setCurrentIndex(t_idx)
             self.target_lang_combo.blockSignals(False)
+        else:
+            self.config_manager.update(target_language=self.target_lang_combo.currentData())
 
         # Refresh target windows
         self._populate_windows()
@@ -575,17 +580,21 @@ class ControlCenterDialog(QDialog):
             return
 
         self.model_action_btn.setVisible(True)
-        hops = self.router.resolve_route(src, tgt)
+        needed_pairs = self.router.required_pairs(src, tgt)
 
-        if not hops:
-            self.model_status_label.setText("No route available")
-            self.model_status_label.setStyleSheet("color: #9CA3AF; font-weight: 500;")
+        if not needed_pairs:
+            self.model_status_label.setText("No translation route available in catalog")
+            self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
             self.model_action_btn.setEnabled(False)
+            self.model_action_btn.setText("Unavailable")
+            self.model_action_btn.setObjectName("SecondaryButton")
+            self.model_action_btn.style().unpolish(self.model_action_btn)
+            self.model_action_btn.style().polish(self.model_action_btn)
             return
 
         # Direct 1-hop
-        if len(hops) == 1:
-            hop_pair = f"{hops[0][0]}-{hops[0][1]}"
+        if len(needed_pairs) == 1:
+            hop_pair = needed_pairs[0]
             installed = self.model_manager.is_installed(hop_pair)
             meta = RECOMMENDED_MODELS.get(hop_pair)
 
@@ -611,28 +620,33 @@ class ControlCenterDialog(QDialog):
                 self.model_action_btn.setObjectName("PrimaryButton")
         else:
             # 2-hop Pivot: e.g. ja -> en -> id
-            hop1_pair = f"{hops[0][0]}-{hops[0][1]}"
-            hop2_pair = f"{hops[1][0]}-{hops[1][1]}"
+            hop1_pair = needed_pairs[0]
+            hop2_pair = needed_pairs[1]
             h1_installed = self.model_manager.is_installed(hop1_pair)
             h2_installed = self.model_manager.is_installed(hop2_pair)
 
-            self.model_action_btn.setEnabled(True)
             if h1_installed and h2_installed:
                 total_mb = round(self.model_manager.get_disk_size_mb(hop1_pair) + self.model_manager.get_disk_size_mb(hop2_pair), 2)
                 self.model_status_label.setText(f"✔ Ready: Pivot ({hop1_pair} + {hop2_pair}, {total_mb} MB)")
                 self.model_status_label.setStyleSheet("color: #4ADE80; font-weight: 500;")
+                self.model_action_btn.setEnabled(True)
                 self.model_action_btn.setText("Delete All")
                 self.model_action_btn.setObjectName("TableDeleteButton")
             else:
-                missing = []
-                if not h1_installed:
-                    missing.append(hop1_pair)
-                if not h2_installed:
-                    missing.append(hop2_pair)
-                self.model_status_label.setText(f"⚠ Pivot requires: {', '.join(missing)}")
-                self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
-                self.model_action_btn.setText("Download")
-                self.model_action_btn.setObjectName("PrimaryButton")
+                missing = [p for p in needed_pairs if not self.model_manager.is_installed(p)]
+                unobtainable = [p for p in missing if p not in RECOMMENDED_MODELS]
+                if unobtainable:
+                    self.model_status_label.setText(f"⚠ Missing model(s): {', '.join(unobtainable)}")
+                    self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
+                    self.model_action_btn.setEnabled(False)
+                    self.model_action_btn.setText("Unavailable")
+                    self.model_action_btn.setObjectName("SecondaryButton")
+                else:
+                    self.model_status_label.setText(f"⚠ Pivot requires: {', '.join(missing)}")
+                    self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
+                    self.model_action_btn.setEnabled(True)
+                    self.model_action_btn.setText("Download")
+                    self.model_action_btn.setObjectName("PrimaryButton")
 
         self.model_action_btn.style().unpolish(self.model_action_btn)
         self.model_action_btn.style().polish(self.model_action_btn)
@@ -641,11 +655,10 @@ class ControlCenterDialog(QDialog):
         """Handle Download or Delete for the currently selected language pair or its pivot hops."""
         src = self.source_lang_combo.currentData() or "en"
         tgt = self.target_lang_combo.currentData() or "id"
-        hops = self.router.resolve_route(src, tgt)
-        if not hops:
+        needed_pairs = self.router.required_pairs(src, tgt)
+        if not needed_pairs:
             return
 
-        needed_pairs = [f"{s}-{t}" for s, t in hops]
         all_installed = all(self.model_manager.is_installed(p) for p in needed_pairs)
 
         if all_installed:

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
-from core.translate.local import get_default_models_dir
+from core.translate.constants import get_default_models_dir
 
 logger = logging.getLogger("subtitle_translator.model_manager")
 

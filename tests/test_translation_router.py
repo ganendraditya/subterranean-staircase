@@ -1,7 +1,8 @@
 """Unit tests for TranslationRouter and multi-hop pivot routing."""
 
-import pytest
-from core.translate.router import BIG_5_LANGUAGES, TranslationRouter, normalize_lang_code
+from core.translate.languages import BIG_5_LANGUAGES
+from core.translate.models import RECOMMENDED_MODELS
+from core.translate.router import TranslationRouter, normalize_lang_code
 
 
 def test_big_5_languages_defined() -> None:
@@ -36,15 +37,31 @@ def test_router_direct_1_hop() -> None:
 
 def test_router_pivot_2_hop() -> None:
     router = TranslationRouter()
-    # Cross language pairs with English pivot
+    # Cross language pairs with English pivot (ja->en and en->id exist in catalog)
     assert router.resolve_route("ja", "id") == [("ja", "en"), ("en", "id")]
     assert router.resolve_route("ko", "id") == [("ko", "en"), ("en", "id")]
     assert router.resolve_route("zh", "id") == [("zh", "en"), ("en", "id")]
 
 
-def test_router_custom_direct_pairs() -> None:
-    # If a direct ja-id model exists in custom pair registry, route directly
-    router = TranslationRouter(available_direct_pairs={"ja-id", "en-id"})
-    assert router.resolve_route("ja", "id") == [("ja", "id")]
-    # But ko-id still pivots through en
-    assert router.resolve_route("ko", "id") == [("ko", "en"), ("en", "id")]
+def test_router_unobtainable_routes_return_empty() -> None:
+    router = TranslationRouter()
+    # Reverse directions without models in catalog return []
+    assert router.resolve_route("id", "en") == []
+    assert router.resolve_route("en", "ja") == []
+    assert router.resolve_route("id", "ja") == []
+
+
+def test_router_required_pairs_helper() -> None:
+    router = TranslationRouter()
+    assert router.required_pairs("ja", "id") == ["ja-en", "en-id"]
+    assert router.required_pairs("en", "id") == ["en-id"]
+    assert router.required_pairs("ja", "ja") == []
+
+
+def test_all_deliverable_routes_exist_in_catalog() -> None:
+    router = TranslationRouter()
+    for _, s_code in BIG_5_LANGUAGES:
+        for _, t_code in BIG_5_LANGUAGES:
+            hops = router.resolve_route(s_code, t_code)
+            for hop_s, hop_t in hops:
+                assert f"{hop_s}-{hop_t}" in RECOMMENDED_MODELS

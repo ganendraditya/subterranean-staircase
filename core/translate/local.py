@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.contracts import TranslationRequest, TranslationResult
 from core.storage.cache import SQLiteTranslationCache
-from core.translate.router import TranslationRouter
+from core.translate.router import TranslationRouter, normalize_lang_code
 
 try:
     import ctranslate2
@@ -24,10 +24,7 @@ except ImportError:
     HAS_CTRANSLATE2 = False
 
 
-def get_default_models_dir() -> Path:
-    """Return default models directory: ~/.cache/subtitle-translator/models/"""
-    base_dir = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return base_dir / "subtitle-translator" / "models"
+from core.translate.constants import get_default_models_dir
 
 
 class BaseTranslator(ABC):
@@ -145,8 +142,8 @@ class CTranslate2Engine(BaseTranslator):
     def translate(self, request: TranslationRequest) -> TranslationResult:
         """Translate source text with multi-hop support and cache lookup."""
         text = request.source_text.strip()
-        src = request.source_lang.strip()
-        tgt = request.target_lang.strip()
+        src = normalize_lang_code(request.source_lang)
+        tgt = normalize_lang_code(request.target_lang)
         self._validate_lang_code(src)
         self._validate_lang_code(tgt)
         start_time = time.perf_counter()
