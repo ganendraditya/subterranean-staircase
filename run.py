@@ -13,6 +13,9 @@ from core.capture.factory import create_capture_driver
 from core.config import ConfigManager
 from core.contracts import Rect, WindowInfo
 from core.pipeline import PipelineSignals, TranslationPipelineWorker
+from core.translate.local import CTranslate2Engine
+from core.translate.router import TranslationRouter
+from core.storage.cache import SQLiteTranslationCache
 from ui.control_center import ControlCenterDialog
 from ui.overlay import SubtitleOverlayWindow
 from ui.region_selector import RegionSelectorWidget
@@ -62,6 +65,7 @@ class SubtitleTranslatorApp:
         self.config_manager = ConfigManager()
         self.capture_driver = create_capture_driver()
         self.signals = PipelineSignals()
+        self.router = TranslationRouter()
 
         # UI Components
         self.overlay = SubtitleOverlayWindow(style_config=self.config_manager.config.overlay)
@@ -72,14 +76,18 @@ class SubtitleTranslatorApp:
         self.control_center = ControlCenterDialog(
             config_manager=self.config_manager,
             capture_driver=self.capture_driver,
+            router=self.router,
         )
         self.region_selector: Optional[RegionSelectorWidget] = None
 
-        # Background Worker
+        # Background Worker with injected router and cache
+        cache = SQLiteTranslationCache()
+        translator_engine = CTranslate2Engine(cache=cache, router=self.router)
         self.worker = TranslationPipelineWorker(
             config_manager=self.config_manager,
             signals=self.signals,
             capture_driver=self.capture_driver,
+            translator_engine=translator_engine,
         )
 
         self._connect_signals()
@@ -133,37 +141,54 @@ class SubtitleTranslatorApp:
         if active:
             src = self.config_manager.config.source_language
             tgt = self.config_manager.config.target_language
-            pair_id = f"{src}-{tgt}"
+
+            # 1. Resolve required models via router
+            needed_pairs = self.router.required_pairs(src, tgt)
+            if not needed_pairs:
+                _set_macos_activation_policy(regular=True)
+                QMessageBox.warning(
+                    self.control_center if self.control_center.isVisible() else None,
+                    "Translation Route Unavailable",
+                    f"No offline translation route is available for '{src}' ➔ '{tgt}'.\n"
+                    "Please select a supported language pair in Control Center.",
+                )
+                self.tray.set_active(False)
+                self.control_center.set_active(False)
+                return
+
             from core.translate.models import ModelManager, RECOMMENDED_MODELS
             mm = ModelManager()
-            if not mm.is_installed(pair_id):
+            missing_pairs = [p for p in needed_pairs if not mm.is_installed(p)]
+
+            if missing_pairs:
                 _set_macos_activation_policy(regular=True)
-                meta = RECOMMENDED_MODELS.get(pair_id)
-                size_str = f" (~{meta.approx_size_mb} MB)" if meta else ""
-                name_str = meta.name if meta else pair_id
+                # Format name and approximate size for missing legs
+                size_total = sum(RECOMMENDED_MODELS[p].approx_size_mb for p in missing_pairs if p in RECOMMENDED_MODELS)
+                desc = ", ".join(f"'{p}'" for p in missing_pairs)
                 reply = QMessageBox.question(
                     self.control_center if self.control_center.isVisible() else None,
-                    "Translation Model Required",
-                    f"The offline translation model for '{name_str}' is not downloaded yet{size_str}.\n\n"
-                    "Would you like to download it now?",
+                    "Translation Model(s) Required",
+                    f"The offline translation model(s) for {desc} are not downloaded yet (~{size_total} MB).\n\n"
+                    "Would you like to download them now?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.Yes,
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     from ui.model_dialog import ModelDownloadProgressDialog
-                    dialog = ModelDownloadProgressDialog(
-                        mm, pair_id, parent=self.control_center if self.control_center.isVisible() else None
-                    )
-                    dialog.start_download()
-                    if not self.control_center.isVisible():
-                        pass
-                    if not mm.is_installed(pair_id):
+                    for p in missing_pairs:
+                        if p not in RECOMMENDED_MODELS:
+                            continue
+                        dialog = ModelDownloadProgressDialog(
+                            mm, p, parent=self.control_center if self.control_center.isVisible() else None
+                        )
+                        dialog.start_download()
+
+                    # Re-verify all required pairs are installed
+                    if not all(mm.is_installed(p) for p in needed_pairs):
                         self.tray.set_active(False)
                         self.control_center.set_active(False)
                         return
                 else:
-                    if not self.control_center.isVisible():
-                        pass
                     self.tray.set_active(False)
                     self.control_center.set_active(False)
                     return

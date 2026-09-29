@@ -39,6 +39,14 @@ def test_routing_logic() -> None:
     assert engine._route("en", "ja") == []
 
 
+def test_translate_empty_route_raises_value_error() -> None:
+    engine = CTranslate2Engine()
+    # When no route exists in catalog, translate() must raise ValueError to prevent cache poisoning
+    req = TranslationRequest(source_text="Test", source_lang="en", target_lang="ja")
+    with pytest.raises(ValueError, match="No translation route available"):
+        engine.translate(req)
+
+
 def test_translate_empty_or_same_language() -> None:
     engine = CTranslate2Engine()
 

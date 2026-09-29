@@ -417,13 +417,14 @@ class ControlCenterDialog(QDialog):
         """Synchronize UI with persistent configuration and installed models."""
         cfg = self.config_manager.config
 
-        # Source / Target Lang (fallback to combo defaults if config holds deprecated pre-M2 code)
+        # Source / Target Lang (fallback safely if config holds deprecated pre-M2 code)
         s_idx = self.source_lang_combo.findData(cfg.source_language)
         if s_idx >= 0:
             self.source_lang_combo.blockSignals(True)
             self.source_lang_combo.setCurrentIndex(s_idx)
             self.source_lang_combo.blockSignals(False)
         else:
+            self.source_lang_combo.setCurrentIndex(0)
             self.config_manager.update(source_language=self.source_lang_combo.currentData())
 
         t_idx = self.target_lang_combo.findData(cfg.target_language)
@@ -432,7 +433,13 @@ class ControlCenterDialog(QDialog):
             self.target_lang_combo.setCurrentIndex(t_idx)
             self.target_lang_combo.blockSignals(False)
         else:
-            self.config_manager.update(target_language=self.target_lang_combo.currentData())
+            # Choose a target distinct from source language
+            current_src = normalize_lang_code(self.source_lang_combo.currentData() or "en")
+            fallback_tgt = "id" if current_src == "en" else "en"
+            t_idx_fb = self.target_lang_combo.findData(fallback_tgt)
+            if t_idx_fb >= 0:
+                self.target_lang_combo.setCurrentIndex(t_idx_fb)
+            self.config_manager.update(target_language=fallback_tgt)
 
         # Refresh target windows
         self._populate_windows()

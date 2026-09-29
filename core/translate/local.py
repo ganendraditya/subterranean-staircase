@@ -7,13 +7,13 @@ and seamless integration with the SQLite WAL translation cache.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import os
 from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.contracts import TranslationRequest, TranslationResult
 from core.storage.cache import SQLiteTranslationCache
+from core.translate.constants import get_default_models_dir
 from core.translate.router import TranslationRouter, normalize_lang_code
 
 try:
@@ -22,9 +22,6 @@ try:
     HAS_CTRANSLATE2 = True
 except ImportError:
     HAS_CTRANSLATE2 = False
-
-
-from core.translate.constants import get_default_models_dir
 
 
 class BaseTranslator(ABC):
@@ -175,6 +172,9 @@ class CTranslate2Engine(BaseTranslator):
 
         # 2. Execute translation route
         route = self._route(src, tgt)
+        if not route:
+            raise ValueError(f"No translation route available in catalog for '{src}' ➔ '{tgt}'.")
+
         current_text = text
 
         for hop_src, hop_tgt in route:
