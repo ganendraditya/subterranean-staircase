@@ -4,7 +4,15 @@ Follows clean, high-contrast, anti-slop design principles with a zinc/charcoal d
 and neon cyan accents (#00E5FF) matching native pro tools (Linear, Raycast, DaVinci).
 """
 
-MODERN_DARK_THEME = """
+import os
+
+_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+_CHEVRON_DOWN_SVG = os.path.join(_ASSETS_DIR, "chevron_down.svg").replace("\\", "/")
+_CHEVRON_DOWN_HOVER_SVG = os.path.join(_ASSETS_DIR, "chevron_down_hover.svg").replace("\\", "/")
+_SPIN_UP_SVG = os.path.join(_ASSETS_DIR, "spin_up.svg").replace("\\", "/")
+_SPIN_DOWN_SVG = os.path.join(_ASSETS_DIR, "spin_down.svg").replace("\\", "/")
+
+_RAW_THEME = """
 /* Global Window Styling */
 QDialog, QWidget#SettingsRoot {
     background-color: #121214;
@@ -45,7 +53,7 @@ QComboBox {
     color: #F3F4F6;
     border: 1px solid #3F3F46;
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 6px 28px 6px 12px;
     min-height: 20px;
     font-weight: 500;
 }
@@ -62,17 +70,21 @@ QComboBox:focus {
 
 QComboBox::drop-down {
     subcontrol-origin: padding;
-    subcontrol-position: top right;
+    subcontrol-position: center right;
     width: 24px;
-    border-left: none;
+    border: none;
+    background: transparent;
 }
 
 QComboBox::down-arrow {
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #9CA3AF;
+    image: url("__CHEVRON_DOWN_SVG__");
+    width: 12px;
+    height: 12px;
     margin-right: 8px;
+}
+
+QComboBox::down-arrow:hover {
+    image: url("__CHEVRON_DOWN_HOVER_SVG__");
 }
 
 QComboBox QAbstractItemView {
@@ -92,7 +104,7 @@ QSpinBox {
     color: #F3F4F6;
     border: 1px solid #3F3F46;
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 6px 22px 6px 10px;
     min-height: 20px;
 }
 
@@ -104,10 +116,43 @@ QSpinBox:focus {
     border-color: #00E5FF;
 }
 
-QSpinBox::up-button, QSpinBox::down-button {
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 18px;
+    border-left: 1px solid #3F3F46;
+    border-bottom: 1px solid #3F3F46;
+    border-top-right-radius: 5px;
     background: transparent;
-    border: none;
-    width: 16px;
+}
+
+QSpinBox::up-button:hover {
+    background-color: #323238;
+}
+
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 18px;
+    border-left: 1px solid #3F3F46;
+    border-bottom-right-radius: 5px;
+    background: transparent;
+}
+
+QSpinBox::down-button:hover {
+    background-color: #323238;
+}
+
+QSpinBox::up-arrow {
+    image: url("__SPIN_UP_SVG__");
+    width: 8px;
+    height: 8px;
+}
+
+QSpinBox::down-arrow {
+    image: url("__SPIN_DOWN_SVG__");
+    width: 8px;
+    height: 8px;
 }
 
 /* CheckBox */
@@ -227,6 +272,26 @@ QPushButton#TableDeleteButton:hover {
     border-color: #FF6B6B;
 }
 
+QPushButton#SecondaryButton {
+    background-color: #27272A;
+    color: #F3F4F6;
+    border: 1px solid #3F3F46;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+QPushButton#SecondaryButton:hover {
+    background-color: #323238;
+    border-color: #52525B;
+    color: #FFFFFF;
+}
+
+QPushButton#SecondaryButton:pressed {
+    background-color: #1E1E22;
+}
+
 /* Control Center Specific Elements */
 QPushButton#StartButton {
     background-color: #00E5FF;
@@ -308,3 +373,11 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
 """
+
+MODERN_DARK_THEME = (
+    _RAW_THEME
+    .replace("__CHEVRON_DOWN_SVG__", _CHEVRON_DOWN_SVG)
+    .replace("__CHEVRON_DOWN_HOVER_SVG__", _CHEVRON_DOWN_HOVER_SVG)
+    .replace("__SPIN_UP_SVG__", _SPIN_UP_SVG)
+    .replace("__SPIN_DOWN_SVG__", _SPIN_DOWN_SVG)
+)

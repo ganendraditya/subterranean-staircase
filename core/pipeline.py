@@ -31,8 +31,11 @@ logger = logging.getLogger(__name__)
 class PipelineSignals(QObject):
     """Signals emitted from background pipeline worker to Qt UI thread."""
     subtitle_ready = pyqtSignal(str)          # Translated text to display
-    translation_status = pyqtSignal(str)       # Status updates (e.g. "Processing", "Idle")
-    error_occurred = pyqtSignal(str)           # Error notifications
+    subtitle_active = pyqtSignal(str)         # Heartbeat to keep active subtitle alive while on screen
+    subtitle_cleared = pyqtSignal()           # Signal when subtitles naturally disappear from screen
+    translation_status = pyqtSignal(str)      # Status updates (e.g. "Processing", "Idle")
+    error_occurred = pyqtSignal(str)          # Error notifications
+    frame_captured = pyqtSignal(object)       # Emits captured np.ndarray frame for live GUI preview monitor
 
 
 class TranslationPipelineWorker(QThread):
@@ -79,6 +82,7 @@ class TranslationPipelineWorker(QThread):
             self.diff_detector.reset()
             self.history_tracker.reset()
             self._last_translated_sentence = ""
+        logger.info("[AUDIT-TARGET] Target window updated: %s", window_id if window_id is not None else "Entire Screen")
 
     def set_custom_roi(self, roi: Optional[Rect]) -> None:
         """Focus translation on a user-selected custom bounding rectangle."""
@@ -87,6 +91,7 @@ class TranslationPipelineWorker(QThread):
             self.diff_detector.reset()
             self.history_tracker.reset()
             self._last_translated_sentence = ""
+        logger.info("[AUDIT-ROI] Custom ROI updated: %s", roi.as_tuple() if roi is not None else "Full Area")
 
     def stop(self, timeout_ms: int = 3000) -> bool:
         """Signal thread to cleanly terminate loop and wait for completion."""
@@ -130,7 +135,7 @@ class TranslationPipelineWorker(QThread):
         # 1. Capture Frame (Window or Screen)
         if target_win is not None:
             try:
-                frame = self.capture_driver.grab_window(target_win, crop_rect=crop)
+                frame = self.capture_driver.grab_window(target_win, crop_rect=crop, is_global_coords=True)
             except Exception:
                 # Target window temporarily inaccessible -> fallback to screen for this cycle
                 frame = self.capture_driver.grab_screen(1, crop_rect=crop)
@@ -140,15 +145,34 @@ class TranslationPipelineWorker(QThread):
         if frame is None or frame.image is None or frame.image.size == 0:
             return
 
+        # Emit frame for real-time OBS-like preview monitor in GUI
+        self.signals.frame_captured.emit(frame.image)
+
         # 2. Perceptual Frame-Diff Check (Short-circuit static frames < 1ms)
+        # However, do not short-circuit if history tracker still needs a second frame to stabilize newly appeared subtitles
         with self._state_lock:
-            if not self.diff_detector.has_changed(frame.image, threshold=cfg.frame_diff_threshold):
-                return  # Scene / subtitles unchanged, save 100% OCR compute!
+            has_pending_unstable = any(t.count < self.history_tracker.stable_min_count for t in self.history_tracker.active_tracks)
+            is_changed = self.diff_detector.has_changed(frame.image, threshold=cfg.frame_diff_threshold)
+            if not is_changed and not has_pending_unstable:
+                return  # Scene / subtitles unchanged and stabilized, save 100% OCR compute!
 
         # 3. Text Extraction (RapidOCR ONNX)
+        t_ocr0 = time.perf_counter()
         detections = self.ocr_engine.detect(frame)
+        t_ocr_ms = (time.perf_counter() - t_ocr0) * 1000.0
+
         if not detections:
+            # If screen previously had subtitles but now has zero text, signal natural clear
+            if self._last_translated_sentence:
+                clear_lag_ms = max(0.0, (time.time() - frame.timestamp) * 1000.0) if frame.timestamp > 0 else 0.0
+                logger.info("[AUDIT-CLEAR] Subtitles cleared from screen (0 text detected, clear latency: %.1fms)", clear_lag_ms)
+                self.history_tracker.reset()
+                self._last_translated_sentence = ""
+                self.signals.subtitle_cleared.emit()
             return
+
+        ocr_summary = ", ".join(f"'{d.text}'(conf={d.confidence:.2f})" for d in detections)
+        logger.info("[AUDIT-OCR] %d detections in %.1fms: %s", len(detections), t_ocr_ms, ocr_summary)
 
         # 4. Spatial Band Filtering (Reject center-screen reading text & noise unless custom ROI is set)
         with self._state_lock:
@@ -161,25 +185,41 @@ class TranslationPipelineWorker(QThread):
             spatial_candidates = self.spatial_filter.filter_detections(detections, frame_rect)
 
         if not spatial_candidates:
+            logger.info("[AUDIT-FILTER] Spatial drop: %d items rejected (outside top/bottom subtitle bands)", len(detections))
+            if self._last_translated_sentence:
+                self.history_tracker.reset()
+                self._last_translated_sentence = ""
+                self.signals.subtitle_cleared.emit()
             return
 
         # 5. Multilingual script filtering & text sanitation (synchronized with active config)
         self.text_filter.target_script = cfg.source_language.lower()
         valid_candidates = self.text_filter.filter_and_clean(spatial_candidates)
         if not valid_candidates:
+            logger.info("[AUDIT-FILTER] Clean/Script drop: %d items dropped (noise/scrubber or non-%s script)", len(spatial_candidates), cfg.source_language)
+            if self._last_translated_sentence:
+                self.history_tracker.reset()
+                self._last_translated_sentence = ""
+                self.signals.subtitle_cleared.emit()
             return
 
         # 6. Temporal History Stabilization & Anti-Flicker
-        stable_tracks = self.history_tracker.update(valid_candidates, now=frame.timestamp)
+        stable_tracks = self.history_tracker.update(valid_candidates, now=frame.timestamp, only_current=True)
         if not stable_tracks:
             return
 
         # Form sentence from stable tracks (top-to-bottom)
         raw_sentence = " ".join(t.stable_text for t in stable_tracks).strip()
-        if not raw_sentence or raw_sentence == self._last_translated_sentence:
+        if not raw_sentence:
+            return
+
+        # If sentence is unchanged, keep subtitle alive on overlay (prevent premature fade-out during pause / long lines)
+        if raw_sentence == self._last_translated_sentence:
+            self.signals.subtitle_active.emit(raw_sentence)
             return
 
         self._last_translated_sentence = raw_sentence
+        logger.info("[AUDIT-STABLE] Sentence stabilized: %r", raw_sentence)
 
         # 7. Translation Request
         req = TranslationRequest(
@@ -190,9 +230,13 @@ class TranslationPipelineWorker(QThread):
         )
 
         try:
+            t_trans0 = time.perf_counter()
             result = self.translator_engine.translate(req)
+            t_trans_ms = (time.perf_counter() - t_trans0) * 1000.0
             if result.translated_text:
+                e2e_ms = max(0.0, (time.time() - frame.timestamp) * 1000.0) if frame.timestamp > 0 else (t_ocr_ms + t_trans_ms)
+                logger.info("[AUDIT-TRANS] (OCR: %.1fms | Trans: %.1fms | Total E2E: %.1fms) %r ➔ %r", t_ocr_ms, t_trans_ms, e2e_ms, raw_sentence, result.translated_text)
                 self.signals.subtitle_ready.emit(result.translated_text)
         except Exception as e:
-            logger.warning("Translation failed: %s", e)
+            logger.warning("[AUDIT-TRANS-ERR] Translation failed: %s", e)
             self.signals.error_occurred.emit(f"Translation failed: {e}")

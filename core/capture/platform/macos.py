@@ -101,7 +101,12 @@ class MacOSWindowCapture(BaseCapture):
         if hasattr(self._screen_capture, "close"):
             self._screen_capture.close()
 
-    def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
+    def grab_window(
+        self,
+        window_id: int | str,
+        crop_rect: Optional[Rect] = None,
+        is_global_coords: Optional[bool] = None,
+    ) -> Frame:
         """Capture a targeted macOS window using CGWindowListCreateImage."""
         if not HAS_QUARTZ:
             raise RuntimeError("Quartz framework not available on this platform")
@@ -164,10 +169,30 @@ class MacOSWindowCapture(BaseCapture):
             scale_x = width / window_rect.width if window_rect.width > 0 else 1.0
             scale_y = height / window_rect.height if window_rect.height > 0 else 1.0
 
-            crop_scaled_left = int(round(crop_rect.left * scale_x))
-            crop_scaled_top = int(round(crop_rect.top * scale_y))
-            crop_scaled_right = int(round(crop_rect.right * scale_x))
-            crop_scaled_bottom = int(round(crop_rect.bottom * scale_y))
+            # Convert global screen coordinates (from ROI selector) into local window coordinates
+            if is_global_coords is None:
+                # Fallback: check if crop_rect is positioned within window screen coordinates
+                is_global = (
+                    crop_rect.left >= window_rect.left
+                    and crop_rect.top >= window_rect.top
+                    and crop_rect.right <= window_rect.right
+                    and crop_rect.bottom <= window_rect.bottom
+                )
+            else:
+                is_global = is_global_coords
+
+            if is_global:
+                local_left = crop_rect.left - window_rect.left
+                local_top = crop_rect.top - window_rect.top
+            else:
+                # Explicitly or default window-relative coordinates
+                local_left = crop_rect.left
+                local_top = crop_rect.top
+
+            crop_scaled_left = int(round(local_left * scale_x))
+            crop_scaled_top = int(round(local_top * scale_y))
+            crop_scaled_right = int(round((local_left + crop_rect.width) * scale_x))
+            crop_scaled_bottom = int(round((local_top + crop_rect.height) * scale_y))
 
             # Local cropping relative to window bounds
             target_left = max(0, min(crop_scaled_left, width))

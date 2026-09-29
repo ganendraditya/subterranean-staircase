@@ -25,8 +25,21 @@ class BaseCapture(ABC):
         pass
 
     @abstractmethod
-    def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
-        """Capture a specific application window by its OS window identifier."""
+    def grab_window(
+        self,
+        window_id: int | str,
+        crop_rect: Optional[Rect] = None,
+        is_global_coords: Optional[bool] = None,
+    ) -> Frame:
+        """Capture a specific application window by its OS window identifier.
+
+        Args:
+            window_id: OS window identifier.
+            crop_rect: Optional cropping rectangle.
+            is_global_coords: If True, crop_rect is in global screen coordinates and
+                will be converted to window-local coordinates. If False, crop_rect is
+                already window-local. If None, resolves via coordinate enclosure.
+        """
         pass
 
     @abstractmethod

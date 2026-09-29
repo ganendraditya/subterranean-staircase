@@ -35,8 +35,16 @@ def test_clean_subtitle_text() -> None:
     assert clean_subtitle_text("JA: 待って") == "待って"
     # Preserves ellipsis
     assert clean_subtitle_text("Wait... what???") == "Wait... what?"
+    # Strips trailing stutter dashes
+    assert clean_subtitle_text("service--") == "service"
     # Collapses erratic spaces
     assert clean_subtitle_text("  Too    many   spaces   ") == "Too many spaces"
+    # Player badges stripped when standalone or bracketed, preserved when legitimate words
+    assert clean_subtitle_text("cc") == ""
+    assert clean_subtitle_text("[CC]") == ""
+    assert clean_subtitle_text("Intro") == ""
+    assert clean_subtitle_text("intro to physics") == "intro to physics"
+    assert clean_subtitle_text("250 cc engine") == "250 cc engine"
 
 
 def test_subtitle_text_filter_latin() -> None:

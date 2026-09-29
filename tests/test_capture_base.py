@@ -26,7 +26,12 @@ class DummyCapture(BaseCapture):
         img = np.zeros((rect.height, rect.width, 3), dtype=np.uint8)
         return Frame(image=img, timestamp=1.0, source_rect=rect)
 
-    def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
+    def grab_window(
+        self,
+        window_id: int | str,
+        crop_rect: Optional[Rect] = None,
+        is_global_coords: Optional[bool] = None,
+    ) -> Frame:
         rect = crop_rect or Rect(100, 100, 1280, 720)
         img = np.zeros((rect.height, rect.width, 3), dtype=np.uint8)
         return Frame(image=img, timestamp=1.0, source_rect=rect, window_id=window_id)

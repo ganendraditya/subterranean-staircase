@@ -138,7 +138,16 @@ class CTranslate2Engine(BaseTranslator):
         translator, sp_source, sp_target = self.load_pair(src, tgt)
 
         tokens = sp_source.encode(text, out_type=str)
-        results = translator.translate_batch([tokens])
+        # MarianMT / Opus-MT models require the end-of-sequence token </s> to prevent infinite repetition loops
+        if not tokens or tokens[-1] != "</s>":
+            tokens.append("</s>")
+
+        results = translator.translate_batch(
+            [tokens],
+            max_decoding_length=128,
+            repetition_penalty=1.2,
+            no_repeat_ngram_size=3,
+        )
         if not results or not results[0].hypotheses:
             return ""
         output_tokens = results[0].hypotheses[0]

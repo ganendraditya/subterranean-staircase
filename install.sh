@@ -218,6 +218,10 @@ if [ "$(uname)" = "Darwin" ]; then
     mkdir -p "${MAC_APP_DIR}/Contents/MacOS"
     mkdir -p "${MAC_APP_DIR}/Contents/Resources"
 
+    if [ -f "${INSTALL_DIR}/ui/assets/app_icon.icns" ]; then
+        cp "${INSTALL_DIR}/ui/assets/app_icon.icns" "${MAC_APP_DIR}/Contents/Resources/app_icon.icns"
+    fi
+
     cat > "${MAC_APP_DIR}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -237,8 +241,8 @@ if [ "$(uname)" = "Darwin" ]; then
     <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>subtrans</string>
-    <key>LSUIElement</key>
-    <true/>
+    <key>CFBundleIconFile</key>
+    <string>app_icon</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Subterranean Staircase needs Screen Recording access to detect and translate on-screen subtitles in real time.</string>
 </dict>
@@ -290,7 +294,6 @@ if [ "$(uname)" = "Darwin" ]; then
 </dict>
 </plist>
 PLIST
-    launchctl load "${LAUNCH_AGENT_PLIST}" 2>/dev/null || true
     echo "✔ Configured background service — subtrans will standby at login."
 fi
 

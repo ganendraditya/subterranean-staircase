@@ -122,7 +122,12 @@ class MSSScreenCapture(BaseCapture):
             source_rect=actual_rect,
         )
 
-    def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
+    def grab_window(
+        self,
+        window_id: int | str,
+        crop_rect: Optional[Rect] = None,
+        is_global_coords: Optional[bool] = None,
+    ) -> Frame:
         """MSS is purely screen-coordinate based. Window grabbing is delegated to platform drivers."""
         raise NotImplementedError("Window-specific grabbing is handled by platform drivers (Quartz/Win32)")
 

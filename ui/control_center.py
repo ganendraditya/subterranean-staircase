@@ -7,9 +7,10 @@ single-click control window directly accessible from the Menu Bar / System Tray.
 from __future__ import annotations
 
 import logging
+import os
 from typing import List, Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -41,11 +42,35 @@ from ui.updater_dialog import UpdateCheckWorker, UpdateProgressDialog
 logger = logging.getLogger("subtitle_translator.ui.control_center")
 
 
+class StandbyCaptureSignals(QObject):
+    """Signals for asynchronous standby screen/window capture."""
+
+    frame_ready = pyqtSignal(object)
+
+
+class StandbyCaptureTask(QRunnable):
+    """Off-thread task for grabbing preview frames without blocking the Qt GUI thread."""
+
+    def __init__(self, capture_fn, signals: StandbyCaptureSignals) -> None:
+        super().__init__()
+        self.capture_fn = capture_fn
+        self.signals = signals
+
+    def run(self) -> None:
+        try:
+            img = self.capture_fn()
+            self.signals.frame_ready.emit(img)
+        except Exception as e:
+            logger.debug("Standby background capture failed: %s", e)
+            self.signals.frame_ready.emit(None)
+
+
 class ControlCenterDialog(QDialog):
     """Unified single-window control panel for Subtitle Translator."""
 
     translation_toggled = pyqtSignal(bool)
     select_roi_requested = pyqtSignal()
+    reset_roi_requested = pyqtSignal()
     window_selected = pyqtSignal(object)  # WindowInfo or None
     settings_saved = pyqtSignal()
     quit_requested = pyqtSignal()
@@ -78,6 +103,15 @@ class ControlCenterDialog(QDialog):
         self._available_windows: List[WindowInfo] = []
         self._check_worker: Optional[UpdateCheckWorker] = None
 
+        self._thread_pool = QThreadPool.globalInstance()
+        self._standby_signals = StandbyCaptureSignals()
+        self._standby_signals.frame_ready.connect(self._on_standby_frame_received)
+        self._standby_busy: bool = False
+
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setInterval(200)  # Smooth 5 FPS standby preview off main thread
+        self._preview_timer.timeout.connect(self._on_preview_timer_tick)
+
         self._init_window()
         self._init_ui()
         self.refresh_state()
@@ -87,13 +121,16 @@ class ControlCenterDialog(QDialog):
         self.setObjectName("SettingsRoot")
         self.setStyleSheet(MODERN_DARK_THEME)
         self.setWindowTitle("Subtitle Translator — Control Center")
-        self.setMinimumWidth(540)
+        self.setMinimumWidth(560)
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowCloseButtonHint
             | Qt.WindowType.WindowTitleHint
         )
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
     def _init_ui(self) -> None:
         """Construct the unified control center UI sections."""
@@ -155,19 +192,37 @@ class ControlCenterDialog(QDialog):
         target_row.addWidget(self.window_combo, stretch=1)
 
         self.refresh_windows_btn = QPushButton("↻", capture_card)
+        self.refresh_windows_btn.setObjectName("SecondaryButton")
         self.refresh_windows_btn.setToolTip("Refresh open application windows")
-        self.refresh_windows_btn.setFixedWidth(36)
+        self.refresh_windows_btn.setFixedSize(36, 36)
+        self.refresh_windows_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_windows_btn.setStyleSheet(
+            "QPushButton#SecondaryButton {"
+            "  font-size: 16px;"
+            "  font-weight: bold;"
+            "  padding: 0px;"
+            "  text-align: center;"
+            "}"
+        )
         self.refresh_windows_btn.clicked.connect(self._populate_windows)
         target_row.addWidget(self.refresh_windows_btn)
 
         capture_layout.addLayout(target_row)
 
         roi_row = QHBoxLayout()
-        self.roi_btn = QPushButton("🎯 Select Screen Region (ROI)...", capture_card)
+        self.roi_btn = QPushButton("🎯 Select Region (ROI)...", capture_card)
         self.roi_btn.setObjectName("SecondaryButton")
         self.roi_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.roi_btn.clicked.connect(self._on_roi_clicked)
         roi_row.addWidget(self.roi_btn)
+
+        self.reset_roi_btn = QPushButton("✕ Reset", capture_card)
+        self.reset_roi_btn.setObjectName("SecondaryButton")
+        self.reset_roi_btn.setToolTip("Clear custom ROI and return to full capture area")
+        self.reset_roi_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reset_roi_btn.clicked.connect(self._on_reset_roi_clicked)
+        self.reset_roi_btn.setVisible(False)  # Visible only when custom ROI is active
+        roi_row.addWidget(self.reset_roi_btn)
 
         self.roi_hint = QLabel("Full capture area active", capture_card)
         self.roi_hint.setObjectName("SubtleHint")
@@ -175,6 +230,45 @@ class ControlCenterDialog(QDialog):
         roi_row.addStretch()
 
         capture_layout.addLayout(roi_row)
+
+        # -------------------------------------------------------------
+        # Section 2.5: Real-time Live ROI / Capture Monitor (OBS-Style Preview)
+        # -------------------------------------------------------------
+        self.preview_container = QFrame(capture_card)
+        self.preview_container.setObjectName("PreviewContainer")
+        self.preview_container.setStyleSheet(
+            "QFrame#PreviewContainer {"
+            "  background-color: #0A0D14;"
+            "  border: 1px solid #1F2937;"
+            "  border-radius: 8px;"
+            "  padding: 4px;"
+            "}"
+        )
+        preview_layout = QVBoxLayout(self.preview_container)
+        preview_layout.setContentsMargins(6, 6, 6, 6)
+        preview_layout.setSpacing(4)
+
+        preview_header_row = QHBoxLayout()
+        preview_title = QLabel("LIVE OCR CAPTURE MONITOR", self.preview_container)
+        preview_title.setStyleSheet("font-size: 11px; font-weight: bold; color: #00E5FF; letter-spacing: 0.5px;")
+        preview_header_row.addWidget(preview_title)
+
+        self.preview_fps_label = QLabel("STANDBY", self.preview_container)
+        self.preview_fps_label.setStyleSheet("font-size: 10px; font-weight: bold; color: #10B981;")
+        preview_header_row.addStretch()
+        preview_header_row.addWidget(self.preview_fps_label)
+        preview_layout.addLayout(preview_header_row)
+
+        self.preview_screen = QLabel(self.preview_container)
+        self.preview_screen.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_screen.setFixedHeight(95)
+        self.preview_screen.setStyleSheet(
+            "background-color: #000000; border-radius: 4px; color: #6B7280; font-size: 11px;"
+        )
+        self.preview_screen.setText("Loading live ROI capture feed...")
+        preview_layout.addWidget(self.preview_screen)
+
+        capture_layout.addWidget(self.preview_container)
         main_layout.addWidget(capture_card)
 
         # -------------------------------------------------------------
@@ -365,10 +459,59 @@ class ControlCenterDialog(QDialog):
 
         self.window_combo.blockSignals(False)
 
+    def showEvent(self, event) -> None:
+        """Start preview timer and take immediate frame when window opens."""
+        super().showEvent(event)
+        self._preview_timer.start()
+        self._on_preview_timer_tick()
+
+    def hideEvent(self, event) -> None:
+        """Stop preview timer to conserve CPU when window is closed."""
+        super().hideEvent(event)
+        self._preview_timer.stop()
+
+    def _on_preview_timer_tick(self) -> None:
+        """Dispatch standby frame capture off the main thread to prevent UI freezing."""
+        if not self.isVisible() or self._is_active or self._standby_busy:
+            return
+
+        crop = None
+        roi_data = self.config_manager.config.custom_roi
+        if isinstance(roi_data, (list, tuple)) and len(roi_data) == 4:
+            try:
+                crop = Rect(*(int(x) for x in roi_data))
+            except (ValueError, TypeError):
+                crop = None
+
+        win_info = self.window_combo.currentData()
+        target_win_id = win_info.window_id if win_info is not None else None
+
+        self._standby_busy = True
+
+        def _do_capture():
+            if target_win_id is not None:
+                try:
+                    frame = self.capture_driver.grab_window(target_win_id, crop_rect=crop, is_global_coords=True)
+                except Exception:
+                    frame = self.capture_driver.grab_screen(1, crop_rect=crop)
+            else:
+                frame = self.capture_driver.grab_screen(1, crop_rect=crop)
+            return frame.image if frame is not None else None
+
+        task = StandbyCaptureTask(_do_capture, self._standby_signals)
+        self._thread_pool.start(task)
+
+    def _on_standby_frame_received(self, image) -> None:
+        """Handle standby frame captured off the main thread."""
+        self._standby_busy = False
+        if image is not None and self.isVisible() and not self._is_active:
+            self.update_live_preview(image, is_live=False)
+
     def _on_target_window_changed(self, index: int) -> None:
         """Handle window selection change."""
         win = self.window_combo.currentData()
         self.window_selected.emit(win)
+        self._on_preview_timer_tick()
 
     def _on_toggle_clicked(self) -> None:
         """Toggle active translation."""
@@ -379,9 +522,48 @@ class ControlCenterDialog(QDialog):
         self.hide()
         self.select_roi_requested.emit()
 
-    def set_roi_hint(self, roi_text: str) -> None:
-        """Update ROI description label."""
+    def _on_reset_roi_clicked(self) -> None:
+        """Clear active custom ROI."""
+        self.reset_roi_requested.emit()
+        self._on_preview_timer_tick()
+
+    def set_roi_hint(self, roi_text: str, has_custom_roi: bool = False) -> None:
+        """Update ROI description label and reset button visibility."""
         self.roi_hint.setText(roi_text)
+        self.reset_roi_btn.setVisible(has_custom_roi)
+        self._on_preview_timer_tick()
+
+    def update_live_preview(self, img_bgr, is_live: bool = True) -> None:
+        """Update OBS-style real-time ROI monitor feed from captured numpy image."""
+        if not self.isVisible() or img_bgr is None or img_bgr.size == 0:
+            return
+
+        try:
+            from PyQt6.QtGui import QImage, QPixmap
+            import cv2
+
+            h, w = img_bgr.shape[:2]
+            # Convert BGR to RGB
+            rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+            bytes_per_line = 3 * w
+            q_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+            pix = QPixmap.fromImage(q_img)
+
+            # Scale to fit monitor box while maintaining aspect ratio
+            scaled_pix = pix.scaled(
+                self.preview_screen.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.preview_screen.setPixmap(scaled_pix)
+            if is_live:
+                self.preview_fps_label.setStyleSheet("font-size: 10px; font-weight: bold; color: #10B981;")
+                self.preview_fps_label.setText(f"{w}x{h} ACTIVE")
+            else:
+                self.preview_fps_label.setStyleSheet("font-size: 10px; font-weight: bold; color: #00E5FF;")
+                self.preview_fps_label.setText(f"{w}x{h} PREVIEW")
+        except Exception as e:
+            logger.debug("Failed to render preview frame: %s", e)
 
     def _get_current_pair_id(self) -> str:
         src = self.source_lang_combo.currentData() or "en"

@@ -194,7 +194,12 @@ class WindowsWindowCapture(BaseCapture):
         """Capture monitor screen via the underlying screen capture driver."""
         return self._screen_capture.grab_screen(monitor_index, crop_rect)
 
-    def grab_window(self, window_id: int | str, crop_rect: Optional[Rect] = None) -> Frame:
+    def grab_window(
+        self,
+        window_id: int | str,
+        crop_rect: Optional[Rect] = None,
+        is_global_coords: Optional[bool] = None,
+    ) -> Frame:
         """Capture a targeted Windows application window using PrintWindow / GDI."""
         if not HAS_WIN32:
             raise RuntimeError("Windows capture driver is only available on Windows OS")
@@ -271,10 +276,29 @@ class WindowsWindowCapture(BaseCapture):
                 if crop_rect.width <= 0 or crop_rect.height <= 0:
                     raise ValueError("crop_rect width and height must be positive")
 
-                target_left = max(0, min(crop_rect.left, width))
-                target_top = max(0, min(crop_rect.top, height))
-                target_right = max(target_left, min(crop_rect.right, width))
-                target_bottom = max(target_top, min(crop_rect.bottom, height))
+                # Convert global screen coordinates (from ROI selector) into local window coordinates
+                if is_global_coords is None:
+                    # Fallback: check if crop_rect is positioned within window screen coordinates
+                    is_global = (
+                        crop_rect.left >= rect.left
+                        and crop_rect.top >= rect.top
+                        and crop_rect.right <= rect.right
+                        and crop_rect.bottom <= rect.bottom
+                    )
+                else:
+                    is_global = is_global_coords
+
+                if is_global:
+                    local_left = crop_rect.left - rect.left
+                    local_top = crop_rect.top - rect.top
+                else:
+                    local_left = crop_rect.left
+                    local_top = crop_rect.top
+
+                target_left = max(0, min(local_left, width))
+                target_top = max(0, min(local_top, height))
+                target_right = max(target_left, min(local_left + crop_rect.width, width))
+                target_bottom = max(target_top, min(local_top + crop_rect.height, height))
 
                 if target_right == target_left or target_bottom == target_top:
                     raise ValueError("crop_rect does not intersect with the window area")
