@@ -63,9 +63,12 @@ class TranslationPipelineWorker(QThread):
         self.capture_driver = capture_driver or create_capture_driver()
         self.ocr_engine = ocr_engine or RapidOCREngine()
 
-        # Cache & Translator setup
-        cache = SQLiteTranslationCache()
-        self.translator_engine = translator_engine or CTranslate2Engine(cache=cache)
+        # Cache & Translator setup (lazy instantiate default cache only if no engine provided)
+        if translator_engine is not None:
+            self.translator_engine = translator_engine
+        else:
+            cache = SQLiteTranslationCache()
+            self.translator_engine = CTranslate2Engine(cache=cache)
 
         # Filters
         self.diff_detector = FrameDiffDetector(default_threshold=self.config_manager.config.frame_diff_threshold)

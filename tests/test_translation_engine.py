@@ -39,10 +39,16 @@ def test_routing_logic() -> None:
     assert engine._route("en", "ja") == []
 
 
-def test_translate_empty_route_raises_value_error() -> None:
-    engine = CTranslate2Engine()
-    # When no route exists in catalog, translate() must raise ValueError to prevent cache poisoning
-    req = TranslationRequest(source_text="Test", source_lang="en", target_lang="ja")
+def test_translate_empty_route_raises_value_error(tmp_path: Path) -> None:
+    from core.storage.cache import SQLiteTranslationCache
+    db_path = tmp_path / "test_cache.db"
+    cache = SQLiteTranslationCache(db_path=db_path)
+    # Simulate a poisoned row from an unroutable language pair
+    cache.set("Test", "zh", "ja", "Poisoned Source Text")
+
+    engine = CTranslate2Engine(cache=cache)
+    # When no route exists in catalog, translate() must raise ValueError before cache return
+    req = TranslationRequest(source_text="Test", source_lang="zh", target_lang="ja")
     with pytest.raises(ValueError, match="No translation route available"):
         engine.translate(req)
 

@@ -156,7 +156,12 @@ class CTranslate2Engine(BaseTranslator):
         self._validate_lang_code(tgt)
         start_time = time.perf_counter()
 
-        # 1. Check SQLite translation memory cache
+        # 1. Resolve translation route first before checking cache or executing models
+        route = self._route(src, tgt)
+        if not route:
+            raise ValueError(f"No translation route available in catalog for '{src}' ➔ '{tgt}'.")
+
+        # 2. Check SQLite translation memory cache
         if self.cache is not None:
             cached_trans = self.cache.get(text, src, tgt)
             if cached_trans is not None:
@@ -170,11 +175,7 @@ class CTranslate2Engine(BaseTranslator):
                     latency_ms=elapsed_ms,
                 )
 
-        # 2. Execute translation route
-        route = self._route(src, tgt)
-        if not route:
-            raise ValueError(f"No translation route available in catalog for '{src}' ➔ '{tgt}'.")
-
+        # 3. Execute translation route
         current_text = text
 
         for hop_src, hop_tgt in route:
@@ -182,7 +183,7 @@ class CTranslate2Engine(BaseTranslator):
             if not current_text:
                 break
 
-        # 3. Store translated output in cache
+        # 4. Store translated output in cache
         if self.cache is not None and current_text:
             self.cache.set(text, src, tgt, current_text)
 
