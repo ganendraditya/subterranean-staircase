@@ -24,9 +24,9 @@ _PLAYER_CONTROLS = re.compile(
     r"(?:^\s*|[\(\[\{]\s*)(?:jump ahead|intro|cc)(?:\s*[\)\]\}]|\s*$)",
     re.IGNORECASE,
 )
-# Persistent channel watermark bugs and UI controls that leak into subtitle crops (e.g. standalone 'tv', 'subscribe')
+# Persistent channel watermark bugs and UI controls that leak into subtitle crops (e.g. standalone 'tv', 'subscribe', or trailing '... tv')
 _WATERMARK_NOISE = re.compile(
-    r"\b(?:tv|subscribers?|subscribe|channel|like\s*&\s*subscribe)\b",
+    r"(?:^\s*|[\(\[\{]\s*)(?:subscribers?|subscribe|channel|like\s*&\s*subscribe|tv)(?:\s*[\)\]\}]|\s*$)|(?<=[.!?,\-])\s*tv\s*$|\b(?:subscribers?|like\s*&\s*subscribe)\b|\b(?:subscribe\s+(?:to\s+)?(?:our\s+)?channel)\b",
     re.IGNORECASE,
 )
 _LANG_PREFIX = re.compile(

@@ -126,8 +126,17 @@ def run_comprehensive_audit(
     with open(log_path, "r", encoding="utf-8") as f:
         log_text = f.read()
 
+    def _strip_quotes(s: str) -> str:
+        s = s.strip()
+        if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
+            return s[1:-1]
+        return s
+
     re_ocr = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-OCR\] (\d+) detections in ([\d\.]+)ms")
-    re_stable = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-STABLE\] Sentence stabilized: (['\"])(.*?)\2")
+    re_stable = re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-STABLE\] Sentence stabilized: (.*)$",
+        re.MULTILINE,
+    )
     re_trans = re.compile(
         r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}).*?\[AUDIT-TRANS\] \(OCR: ([\d\.]+)ms \| Trans: ([\d\.]+)ms \| Total E2E: ([\d\.]+)ms\) (.*) ➔ (.*)$",
         re.MULTILINE,
@@ -141,13 +150,7 @@ def run_comprehensive_audit(
     stable_events: List[Dict[str, Any]] = []
     for m in re_stable.finditer(log_text):
         ts = parse_timestamp(m.group(1))
-        stable_events.append({"timestamp": ts, "text": m.group(3)})
-
-    def _strip_quotes(s: str) -> str:
-        s = s.strip()
-        if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
-            return s[1:-1]
-        return s
+        stable_events.append({"timestamp": ts, "text": _strip_quotes(m.group(2))})
 
     trans_events: List[Dict[str, Any]] = []
     for m in re_trans.finditer(log_text):

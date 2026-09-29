@@ -8,7 +8,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import time
 from typing import Any, List, Optional
-import cv2
 import numpy as np
 
 from core.contracts import Frame, SubtitleBox, SubtitleDetection

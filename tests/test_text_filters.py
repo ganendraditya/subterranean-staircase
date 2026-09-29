@@ -35,8 +35,12 @@ def test_clean_subtitle_text() -> None:
     assert clean_subtitle_text("JA: 待って") == "待って"
     # Channel watermark / noise removal
     assert clean_subtitle_text("Your hands are cold. tv") == "Your hands are cold."
-    assert clean_subtitle_text("Subscribe to our channel") == "to our"
+    assert clean_subtitle_text("Subscribe to our channel") == ""
     assert clean_subtitle_text("12.1M subscribers") == "12.1M"
+    assert clean_subtitle_text("tv") == ""
+    # Natural speech containing 'tv' or 'channel' is preserved
+    assert clean_subtitle_text("turn on the tv") == "turn on the tv"
+    assert clean_subtitle_text("which tv channel is it") == "which tv channel is it"
     # Preserves ellipsis
     assert clean_subtitle_text("Wait... what???") == "Wait... what?"
     # Strips trailing stutter dashes

@@ -158,9 +158,13 @@ class TranslationPipelineWorker(QThread):
         self.signals.frame_captured.emit(frame.image)
 
         # 2. Perceptual Frame-Diff Check (Short-circuit static frames < 1ms)
-        # However, do not short-circuit if history tracker still needs a second frame to stabilize newly appeared subtitles
+        # However, do not short-circuit if history tracker still needs a second frame to stabilize newly appeared subtitles,
+        # or if a pending sentence was debounced and is waiting to settle and be translated.
         with self._state_lock:
-            has_pending_unstable = any(t.count < self.history_tracker.stable_min_count for t in self.history_tracker.active_tracks)
+            has_pending_unstable = (
+                any(t.count < self.history_tracker.stable_min_count for t in self.history_tracker.active_tracks)
+                or (bool(self._pending_sentence) and self._pending_sentence != self._last_translated_sentence)
+            )
             is_changed = self.diff_detector.has_changed(frame.image, threshold=cfg.frame_diff_threshold)
             if not is_changed and not has_pending_unstable:
                 return  # Scene / subtitles unchanged and stabilized, save 100% OCR compute!
