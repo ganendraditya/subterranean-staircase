@@ -782,6 +782,9 @@ class ControlCenterDialog(QDialog):
             if not self.model_manager.is_installed(pair_id):
                 dialog = ModelDownloadProgressDialog(self.model_manager, pair_id, self)
                 dialog.start_download()
+                # Stop subsequent dialogs if user cancelled or download failed
+                if not self.model_manager.is_installed(pair_id):
+                    break
 
         self._refresh_model_status()
         self._refresh_packs_table()
@@ -800,7 +803,9 @@ class ControlCenterDialog(QDialog):
             QMessageBox.StandardButton.No,
         )
         if confirm == QMessageBox.StandardButton.Yes:
-            self.model_manager.delete_pack(pack_id)
+            success, msg = self.model_manager.delete_pack(pack_id)
+            if not success:
+                QMessageBox.warning(self, "Delete Failed", msg)
             self._refresh_model_status()
             self._refresh_packs_table()
 
@@ -821,6 +826,9 @@ class ControlCenterDialog(QDialog):
             if not self.model_manager.is_installed(pair_id):
                 dialog = ModelDownloadProgressDialog(self.model_manager, pair_id, self)
                 dialog.start_download()
+                # Stop batch loop if user cancelled or download failed
+                if not self.model_manager.is_installed(pair_id):
+                    break
 
         self._refresh_model_status()
         self._refresh_packs_table()

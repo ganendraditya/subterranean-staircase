@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.translate.constants import get_default_models_dir
-from core.translate.packs import ATOMIC_LANGUAGE_PACKS, LanguagePackMetadata
+from core.translate.packs import ATOMIC_LANGUAGE_PACKS
 
 logger = logging.getLogger("subtitle_translator.model_manager")
 
