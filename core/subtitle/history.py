@@ -7,21 +7,50 @@ and deduplicating identical subtitle lines.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import re
 import time
 from typing import Dict, List, Optional
 
 from core.contracts import SubtitleBox, SubtitleDetection
 
-_TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]|\w+")
+
+def _extract_tokens(text: str) -> list[str]:
+    """Extract word and CJK/Kana/Hangul character tokens without regex."""
+    if not text:
+        return []
+    tokens: list[str] = []
+    current_word: list[str] = []
+
+    for ch in text.lower():
+        cp = ord(ch)
+        # CJK / Kana / Hangul individual characters as discrete tokens
+        if (
+            (0x4E00 <= cp <= 0x9FFF)
+            or (0x3040 <= cp <= 0x309F)
+            or (0x30A0 <= cp <= 0x30FF)
+            or (0xAC00 <= cp <= 0xD7AF)
+        ):
+            if current_word:
+                tokens.append("".join(current_word))
+                current_word = []
+            tokens.append(ch)
+        elif ch.isalnum() or ch == "_":
+            current_word.append(ch)
+        else:
+            if current_word:
+                tokens.append("".join(current_word))
+                current_word = []
+
+    if current_word:
+        tokens.append("".join(current_word))
+    return tokens
 
 
 def text_similarity(a: str, b: str) -> float:
     """Calculate token-level Jaccard similarity between two text strings."""
     if not a or not b:
         return 0.0
-    tokens_a = set(_TOKEN_PATTERN.findall(a.lower()))
-    tokens_b = set(_TOKEN_PATTERN.findall(b.lower()))
+    tokens_a = set(_extract_tokens(a))
+    tokens_b = set(_extract_tokens(b))
     if not tokens_a or not tokens_b:
         return 0.0
 
@@ -40,8 +69,8 @@ def should_replace_best_text(
     if not current_best:
         return True
 
-    tokens_current = len(_TOKEN_PATTERN.findall(current_best.lower()))
-    tokens_new = len(_TOKEN_PATTERN.findall(new_text.lower()))
+    tokens_current = len(_extract_tokens(current_best))
+    tokens_new = len(_extract_tokens(new_text))
 
     # 1. Significantly longer complete sentence with reasonable confidence
     if tokens_new > tokens_current and new_conf >= (current_conf - 0.15):

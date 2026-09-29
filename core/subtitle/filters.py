@@ -1,54 +1,46 @@
-"""Multilingual script detection, OCR text normalization, and noise filters.
+"""Multilingual script detection and subtitle text normalization.
 
 Handles Latin, Japanese (Hiragana/Katakana), Korean (Hangul), Chinese (CJK),
-and Arabic script categorization while sanitizing common subtitle artifacts.
+and Arabic script categorization purely using Unicode codepoints without regex.
 """
 
 from __future__ import annotations
 
-import re
 from typing import List
 from core.contracts import SubtitleDetection
 
-# Pre-compiled regex patterns for Unicode script detection
-_CJK = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
-_HIRAGANA = re.compile(r"[\u3040-\u309f]")
-_KATAKANA = re.compile(r"[\u30a0-\u30ff]")
-_HANGUL = re.compile(r"[\uac00-\ud7af]")
-_ARABIC = re.compile(r"[\u0600-\u06ff]")
-
-# Common subtitle timestamp and prefix noise patterns (e.g., "[00:12]", "(EN)")
-_TIMESTAMP_PREFIX = re.compile(r"^\s*\[\s*\d{1,2}:\d{2}(?::\d{2})?\s*\]\s*")
-_PLAYER_TIMESTAMP = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\s*/\s*\d{1,2}:\d{2}(?::\d{2})?\b")
-_PLAYER_CONTROLS = re.compile(
-    r"(?:^\s*|[\(\[\{]\s*)(?:jump ahead|intro|cc)(?:\s*[\)\]\}]|\s*$)",
-    re.IGNORECASE,
-)
-# Persistent channel watermark bugs and UI controls that leak into subtitle crops (e.g. standalone 'tv', 'subscribe', or trailing '... tv')
-_WATERMARK_NOISE = re.compile(
-    r"(?:^\s*|[\(\[\{]\s*)(?:subscribers?|subscribe|channel|like\s*&\s*subscribe|tv)(?:\s*[\)\]\}]|\s*$)|(?<=[.!?,\-])\s*tv\s*$|\b(?:subscribers?|like\s*&\s*subscribe)\b|\b(?:subscribe\s+(?:to\s+)?(?:our\s+)?channel)\b",
-    re.IGNORECASE,
-)
-_LANG_PREFIX = re.compile(
-    r"^\s*(?:\(\s*(?:en|id|ja|zh|ko|fr|de|es|ar)\s*\)|(?:en|id|ja|zh|ko|fr|de|es|ar)\s*:)\s*",
-    re.IGNORECASE,
-)
-_REPEATED_PUNCT = re.compile(r"([!?.,\-])\1+")
-_TRAILING_DASHES = re.compile(r"[\s\-–—]+$")
-_EXCESSIVE_WHITESPACE = re.compile(r"\s+")
-
 
 def detect_script(text: str) -> str:
-    """Detect dominant script family: 'ar', 'ja', 'ko', 'zh', or 'latin'."""
+    """Detect dominant script family: 'ar', 'ja', 'ko', 'zh', or 'latin' using Unicode codepoints."""
     if not text:
         return "latin"
 
-    # Count character frequencies for script families to determine dominant script
-    ar_count = len(_ARABIC.findall(text))
-    ja_kana_count = len(_HIRAGANA.findall(text)) + len(_KATAKANA.findall(text))
-    ko_count = len(_HANGUL.findall(text))
-    cjk_count = len(_CJK.findall(text))
-    latin_count = len(re.findall(r"[a-zA-Z\u00c0-\u024f]", text))
+    ar_count = 0
+    ja_kana_count = 0
+    ko_count = 0
+    cjk_count = 0
+    latin_count = 0
+
+    for ch in text:
+        cp = ord(ch)
+        # Arabic: U+0600 - U+06FF
+        if 0x0600 <= cp <= 0x06FF:
+            ar_count += 1
+        # Japanese Hiragana: U+3040 - U+309F
+        elif 0x3040 <= cp <= 0x309F:
+            ja_kana_count += 1
+        # Japanese Katakana: U+30A0 - U+30FF
+        elif 0x30A0 <= cp <= 0x30FF:
+            ja_kana_count += 1
+        # Korean Hangul: U+AC00 - U+D7AF
+        elif 0xAC00 <= cp <= 0xD7AF:
+            ko_count += 1
+        # CJK Unified Ideographs & extensions
+        elif (0x4E00 <= cp <= 0x9FFF) or (0x3400 <= cp <= 0x4DBF) or (0xF900 <= cp <= 0xFAFF):
+            cjk_count += 1
+        # Latin basic & extended (A-Z, a-z, accented Latin)
+        elif (65 <= cp <= 90) or (97 <= cp <= 122) or (0x00C0 <= cp <= 0x024F):
+            latin_count += 1
 
     # If Kana is present, CJK characters in the same sentence are part of Japanese text
     ja_count = ja_kana_count + (cjk_count if ja_kana_count > 0 else 0)
@@ -69,30 +61,10 @@ def detect_script(text: str) -> str:
 
 
 def clean_subtitle_text(text: str) -> str:
-    """Clean subtitle artifacts, prefix timestamps, and collapse erratic whitespace."""
+    """Normalize subtitle text by collapsing whitespace without artificial word stripping."""
     if not text:
         return ""
-
-    # Remove timestamps like [01:23] or language prefixes like (EN)
-    cleaned = _TIMESTAMP_PREFIX.sub("", text)
-    cleaned = _PLAYER_TIMESTAMP.sub("", cleaned)
-    cleaned = _PLAYER_CONTROLS.sub("", cleaned)
-    cleaned = _WATERMARK_NOISE.sub("", cleaned)
-    cleaned = _LANG_PREFIX.sub("", cleaned)
-
-    # Normalize multiple punctuation (e.g. "???" -> "?", "..." preserved)
-    # Don't collapse triple dots into single dot
-    def _punct_repl(match: re.Match[str]) -> str:
-        ch = match.group(1)
-        if ch == "." and len(match.group(0)) >= 2:
-            return "..."
-        return ch
-
-    cleaned = _REPEATED_PUNCT.sub(_punct_repl, cleaned)
-    # Strip stutter/hesitation trailing dashes often found in YouTube auto-captions (e.g., "service--")
-    cleaned = _TRAILING_DASHES.sub("", cleaned)
-    cleaned = _EXCESSIVE_WHITESPACE.sub(" ", cleaned)
-    return cleaned.strip()
+    return " ".join(text.split()).strip()
 
 
 class SubtitleTextFilter:

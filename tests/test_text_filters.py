@@ -27,38 +27,22 @@ def test_detect_script() -> None:
 
 def test_clean_subtitle_text() -> None:
     assert clean_subtitle_text("") == ""
-    # Timestamp stripping
-    assert clean_subtitle_text("[00:15] Hello there!") == "Hello there!"
-    assert clean_subtitle_text("[1:23:45] Look out!!") == "Look out!"
-    # Language prefix stripping
-    assert clean_subtitle_text("(EN) What are you doing?") == "What are you doing?"
-    assert clean_subtitle_text("JA: 待って") == "待って"
-    # Channel watermark / noise removal
-    assert clean_subtitle_text("Your hands are cold. tv") == "Your hands are cold."
-    assert clean_subtitle_text("Subscribe to our channel") == ""
-    assert clean_subtitle_text("12.1M subscribers") == "12.1M"
-    assert clean_subtitle_text("tv") == ""
-    # Natural speech containing 'tv' or 'channel' is preserved
+    # Collapses erratic spaces and preserves original subtitle text cleanly
+    assert clean_subtitle_text("  Too    many   spaces   ") == "Too many spaces"
+    assert clean_subtitle_text("Hello there!") == "Hello there!"
+    assert clean_subtitle_text("Your hands are cold. tv") == "Your hands are cold. tv"
     assert clean_subtitle_text("turn on the tv") == "turn on the tv"
     assert clean_subtitle_text("which tv channel is it") == "which tv channel is it"
-    # Preserves ellipsis
-    assert clean_subtitle_text("Wait... what???") == "Wait... what?"
-    # Strips trailing stutter dashes
-    assert clean_subtitle_text("service--") == "service"
-    # Collapses erratic spaces
-    assert clean_subtitle_text("  Too    many   spaces   ") == "Too many spaces"
-    # Player badges stripped when standalone or bracketed, preserved when legitimate words
-    assert clean_subtitle_text("cc") == ""
-    assert clean_subtitle_text("[CC]") == ""
-    assert clean_subtitle_text("Intro") == ""
-    assert clean_subtitle_text("intro to physics") == "intro to physics"
+    assert clean_subtitle_text("Wait... what???") == "Wait... what???"
+    assert clean_subtitle_text("service--") == "service--"
+    assert clean_subtitle_text("Intro to physics") == "Intro to physics"
     assert clean_subtitle_text("250 cc engine") == "250 cc engine"
 
 
 def test_subtitle_text_filter_latin() -> None:
     filter_latin = SubtitleTextFilter(target_script="latin")
     dets = [
-        _make_det("[01:23] Good morning!"),
+        _make_det("Good morning!"),
         _make_det("こんにちは"),  # Japanese - should be rejected when expecting latin
         _make_det("Halo kawan"),
     ]
