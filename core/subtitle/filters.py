@@ -24,6 +24,11 @@ _PLAYER_CONTROLS = re.compile(
     r"(?:^\s*|[\(\[\{]\s*)(?:jump ahead|intro|cc)(?:\s*[\)\]\}]|\s*$)",
     re.IGNORECASE,
 )
+# Persistent channel watermark bugs and UI controls that leak into subtitle crops (e.g. standalone 'tv', 'subscribe')
+_WATERMARK_NOISE = re.compile(
+    r"\b(?:tv|subscribers?|subscribe|channel|like\s*&\s*subscribe)\b",
+    re.IGNORECASE,
+)
 _LANG_PREFIX = re.compile(
     r"^\s*(?:\(\s*(?:en|id|ja|zh|ko|fr|de|es|ar)\s*\)|(?:en|id|ja|zh|ko|fr|de|es|ar)\s*:)\s*",
     re.IGNORECASE,
@@ -72,6 +77,7 @@ def clean_subtitle_text(text: str) -> str:
     cleaned = _TIMESTAMP_PREFIX.sub("", text)
     cleaned = _PLAYER_TIMESTAMP.sub("", cleaned)
     cleaned = _PLAYER_CONTROLS.sub("", cleaned)
+    cleaned = _WATERMARK_NOISE.sub("", cleaned)
     cleaned = _LANG_PREFIX.sub("", cleaned)
 
     # Normalize multiple punctuation (e.g. "???" -> "?", "..." preserved)

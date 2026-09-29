@@ -33,6 +33,10 @@ def test_clean_subtitle_text() -> None:
     # Language prefix stripping
     assert clean_subtitle_text("(EN) What are you doing?") == "What are you doing?"
     assert clean_subtitle_text("JA: 待って") == "待って"
+    # Channel watermark / noise removal
+    assert clean_subtitle_text("Your hands are cold. tv") == "Your hands are cold."
+    assert clean_subtitle_text("Subscribe to our channel") == "to our"
+    assert clean_subtitle_text("12.1M subscribers") == "12.1M"
     # Preserves ellipsis
     assert clean_subtitle_text("Wait... what???") == "Wait... what?"
     # Strips trailing stutter dashes

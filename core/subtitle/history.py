@@ -186,13 +186,17 @@ class SubtitleHistoryTracker:
             t for t in candidate_tracks
             if t.count >= self.stable_min_count or (current_time - t.first_seen) >= 0.3
         ]
-        # Sort tracks in natural reading order: top-to-bottom first, then left-to-right
-        def _reading_order_key(t: SubtitleTrack) -> tuple[float, float]:
+        # Sort tracks in natural reading order:
+        # Cluster into discrete vertical lines using line-height threshold (~15-20px)
+        # to ensure left-to-right ordering on the same line before top-to-bottom.
+        def _reading_order_key(t: SubtitleTrack) -> tuple[int, float]:
             if not t.boxes:
-                return (0.0, 0.0)
+                return (0, 0.0)
             box = t.boxes[-1]
             min_x = min(p[0] for p in box.points)
-            return (box.center_y, min_x)
+            # Quantize vertical center into line bins (e.g. 18px bins)
+            line_bin = int(round(box.center_y / 18.0))
+            return (line_bin, min_x)
 
         active_stable.sort(key=_reading_order_key)
         return active_stable

@@ -134,3 +134,26 @@ def test_history_tracker_only_current() -> None:
     assert len(stable2) == 1
     assert stable2[0].text == "Line 2 from next caption"
 
+
+def test_history_tracker_reading_order_clustering() -> None:
+    tracker = SubtitleHistoryTracker(stable_min_count=1)
+
+    # Simulate multi-line detections:
+    # Line 1: y ~ 100 ("From this day on" at x=50, "you are here" at x=300)
+    # Line 2: y ~ 150 ("after school" at x=50, "okay?" at x=300)
+    def _box(x: float, y: float, text: str) -> SubtitleDetection:
+        pts = [[x, y - 5], [x + 100, y - 5], [x + 100, y + 5], [x, y + 5]]
+        return SubtitleDetection(text=text, confidence=0.9, box=SubtitleBox.from_list(pts))
+
+    # Give them out of order (Line 2 first, then Line 1)
+    dets = [
+        _box(300, 150, "okay?"),
+        _box(50, 150, "after school"),
+        _box(300, 100, "you are here"),
+        _box(50, 100, "From this day on"),
+    ]
+
+    stable = tracker.update(dets, now=0.0)
+    texts = [t.stable_text for t in stable]
+    assert texts == ["From this day on", "you are here", "after school", "okay?"]
+
