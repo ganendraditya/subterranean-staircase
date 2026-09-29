@@ -46,8 +46,8 @@ def test_router_pivot_2_hop() -> None:
 def test_router_unobtainable_routes_return_empty() -> None:
     router = TranslationRouter()
     # Reverse directions without models in catalog return []
-    assert router.resolve_route("id", "en") == []
     assert router.resolve_route("en", "ja") == []
+    assert router.resolve_route("en", "ko") == []
     assert router.resolve_route("id", "ja") == []
 
 

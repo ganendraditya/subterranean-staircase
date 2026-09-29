@@ -17,11 +17,15 @@ def test_routing_logic() -> None:
 
     # Direct 1-hop pairs
     assert engine._route("en", "id") == [("en", "id")]
+    assert engine._route("id", "en") == [("id", "en")]
     assert engine._route("ja", "en") == [("ja", "en")]
+    assert engine._route("en", "zh") == [("en", "zh")]
 
     # 2-hop routing through English
     assert engine._route("ja", "id") == [("ja", "en"), ("en", "id")]
     assert engine._route("ko", "id") == [("ko", "en"), ("en", "id")]
+    assert engine._route("ja", "zh") == [("ja", "en"), ("en", "zh")]
+    assert engine._route("id", "zh") == [("id", "en"), ("en", "zh")]
 
     # Regional English (en-US, en_GB) maps to standard 'en' for Opus-MT model compatibility
     assert engine._route("ja", "en_GB") == [("ja", "en")]
@@ -32,7 +36,6 @@ def test_routing_logic() -> None:
     assert engine._route("en", "en-US") == []
 
     # Unobtainable routes return empty
-    assert engine._route("id", "en") == []
     assert engine._route("en", "ja") == []
 
 

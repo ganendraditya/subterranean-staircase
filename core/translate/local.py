@@ -144,11 +144,8 @@ class CTranslate2Engine(BaseTranslator):
         text = request.source_text.strip()
         src = normalize_lang_code(request.source_lang)
         tgt = normalize_lang_code(request.target_lang)
-        self._validate_lang_code(src)
-        self._validate_lang_code(tgt)
-        start_time = time.perf_counter()
 
-        if not text or src.lower() == tgt.lower():
+        if not text or src == tgt:
             return TranslationResult(
                 source_text=request.source_text,
                 translated_text=text,
@@ -157,6 +154,10 @@ class CTranslate2Engine(BaseTranslator):
                 from_cache=False,
                 latency_ms=0.0,
             )
+
+        self._validate_lang_code(src)
+        self._validate_lang_code(tgt)
+        start_time = time.perf_counter()
 
         # 1. Check SQLite translation memory cache
         if self.cache is not None:
