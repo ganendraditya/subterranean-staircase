@@ -173,4 +173,76 @@ def test_set_target_window_and_roi_resets_history_and_cache(qapp, tmp_path) -> N
     worker.set_custom_roi(Rect(10, 10, 200, 100))
     assert len(worker.history_tracker._tracks) == 0
     assert worker._last_translated_sentence == ""
+    assert worker._pending_sentence == ""
+    assert worker._pending_sentence_time == 0.0
+
+
+def test_sentence_debouncing_behavior(qapp, tmp_path) -> None:
+    config_mgr = ConfigManager(config_path=tmp_path / "config.json")
+    signals = PipelineSignals()
+
+    mock_capture = MagicMock(spec=BaseCapture)
+    img1 = np.ones((100, 400, 3), dtype=np.uint8) * 50
+    img2 = np.ones((100, 400, 3), dtype=np.uint8) * 150
+    img3 = np.ones((100, 400, 3), dtype=np.uint8) * 250
+    mock_capture.grab_screen.return_value = Frame(
+        image=img1,
+        timestamp=1.0,
+        source_rect=Rect(100, 200, 400, 100),
+    )
+
+    mock_ocr = MagicMock(spec=BaseOCR)
+    box = SubtitleBox.from_list([[10.0, 40.0], [200.0, 40.0], [200.0, 60.0], [10.0, 60.0]])
+
+    mock_translator = MagicMock(spec=BaseTranslator)
+    mock_translator.translate.side_effect = lambda req: TranslationResult(
+        source_text=req.source_text,
+        translated_text=f"ID: {req.source_text}",
+        source_lang="en",
+        target_lang="id",
+    )
+
+    worker = TranslationPipelineWorker(
+        config_manager=config_mgr,
+        signals=signals,
+        capture_driver=mock_capture,
+        ocr_engine=mock_ocr,
+        translator_engine=mock_translator,
+    )
+    worker.history_tracker.stable_min_count = 1
+    worker.set_custom_roi(Rect(100, 200, 400, 100))
+
+    translated: list[str] = []
+    signals.subtitle_ready.connect(translated.append)
+
+    # 1. First initial sentence fragment: must NOT be debounced even if immediate
+    mock_ocr.detect.return_value = [
+        SubtitleDetection(text="Hello", confidence=0.95, box=box, timestamp=1.0)
+    ]
+    worker._process_cycle(config_mgr.config)
+    assert translated == ["ID: Hello"]
+
+    # 2. Extension arrives immediately (<0.12s): should be debounced (not translated yet)
+    mock_capture.grab_screen.return_value = Frame(
+        image=img2,
+        timestamp=1.05,
+        source_rect=Rect(100, 200, 400, 100),
+    )
+    mock_ocr.detect.return_value = [
+        SubtitleDetection(text="Hello world", confidence=0.95, box=box, timestamp=1.05)
+    ]
+    worker._process_cycle(config_mgr.config)
+    # Still only the first translation
+    assert translated == ["ID: Hello"]
+
+    # 3. Wait for debounce cooldown (>=0.12s) and run cycle: should now translate complete sentence
+    time.sleep(0.15)
+    mock_capture.grab_screen.return_value = Frame(
+        image=img3,
+        timestamp=1.25,
+        source_rect=Rect(100, 200, 400, 100),
+    )
+    worker._process_cycle(config_mgr.config)
+    assert translated == ["ID: Hello", "ID: Hello world"]
+
 

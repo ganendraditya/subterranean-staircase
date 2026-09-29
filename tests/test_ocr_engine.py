@@ -84,6 +84,37 @@ def test_rapidocr_real_instance_unclip_ratio() -> None:
     assert engine._engine.text_det.postprocess_op.unclip_ratio == 2.0
 
 
+def test_rapidocr_adaptive_strip_cropping() -> None:
+    mock_instance = MagicMock()
+    mock_results = [
+        [
+            [[20.0, 10.0], [200.0, 10.0], [200.0, 40.0], [20.0, 40.0]],
+            "Adaptive Cropped Text",
+            0.98,
+        ]
+    ]
+    mock_instance.return_value = (mock_results, [0.01])
+
+    engine = RapidOCREngine(rapidocr_instance=mock_instance)
+    # Image: height 180, width 800.
+    # Empty black padding top (0-60) and bottom (120-180), active text strip in (60-120).
+    test_img = np.zeros((180, 800, 3), dtype=np.uint8)
+    test_img[70:110, 50:400] = 255  # bright subtitle strip
+
+    detections = engine.detect(test_img)
+    assert len(detections) == 1
+    # Verify mock was called with cropped height (< 180)
+    called_img = mock_instance.call_args[0][0]
+    assert called_img.shape[0] < 180
+    assert called_img.shape[1] == 800
+
+    # Verify that bounding box Y coordinates were adjusted back with y_offset
+    det = detections[0]
+    assert det.text == "Adaptive Cropped Text"
+    # Y-coordinates should be restored to original coordinate space (> 10.0)
+    assert det.box.points[0][1] > 10.0
+
+
 def test_rapidocr_initialization_failure_when_uninstalled() -> None:
     with patch("core.ocr.engine.HAS_RAPIDOCR", False):
         with pytest.raises(RuntimeError, match="rapidocr-onnxruntime is not installed"):

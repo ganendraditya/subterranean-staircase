@@ -77,6 +77,8 @@ class TranslationPipelineWorker(QThread):
         self.text_filter = SubtitleTextFilter(target_script=self.config_manager.config.source_language)
 
         self._last_translated_sentence: str = ""
+        self._pending_sentence: str = ""
+        self._pending_sentence_time: float = 0.0
 
     def set_target_window(self, window_id: Optional[int | str]) -> None:
         """Lock capture onto a specific window ID, or None for full screen."""
@@ -85,6 +87,8 @@ class TranslationPipelineWorker(QThread):
             self.diff_detector.reset()
             self.history_tracker.reset()
             self._last_translated_sentence = ""
+            self._pending_sentence = ""
+            self._pending_sentence_time = 0.0
         logger.info("[AUDIT-TARGET] Target window updated: %s", window_id if window_id is not None else "Entire Screen")
 
     def set_custom_roi(self, roi: Optional[Rect]) -> None:
@@ -94,6 +98,8 @@ class TranslationPipelineWorker(QThread):
             self.diff_detector.reset()
             self.history_tracker.reset()
             self._last_translated_sentence = ""
+            self._pending_sentence = ""
+            self._pending_sentence_time = 0.0
         logger.info("[AUDIT-ROI] Custom ROI updated: %s", roi.as_tuple() if roi is not None else "Full Area")
 
     def stop(self, timeout_ms: int = 3000) -> bool:
@@ -152,9 +158,13 @@ class TranslationPipelineWorker(QThread):
         self.signals.frame_captured.emit(frame.image)
 
         # 2. Perceptual Frame-Diff Check (Short-circuit static frames < 1ms)
-        # However, do not short-circuit if history tracker still needs a second frame to stabilize newly appeared subtitles
+        # However, do not short-circuit if history tracker still needs a second frame to stabilize newly appeared subtitles,
+        # or if a pending sentence was debounced and is waiting to settle and be translated.
         with self._state_lock:
-            has_pending_unstable = any(t.count < self.history_tracker.stable_min_count for t in self.history_tracker.active_tracks)
+            has_pending_unstable = (
+                any(t.count < self.history_tracker.stable_min_count for t in self.history_tracker.active_tracks)
+                or (bool(self._pending_sentence) and self._pending_sentence != self._last_translated_sentence)
+            )
             is_changed = self.diff_detector.has_changed(frame.image, threshold=cfg.frame_diff_threshold)
             if not is_changed and not has_pending_unstable:
                 return  # Scene / subtitles unchanged and stabilized, save 100% OCR compute!
@@ -171,6 +181,8 @@ class TranslationPipelineWorker(QThread):
                 logger.info("[AUDIT-CLEAR] Subtitles cleared from screen (0 text detected, clear latency: %.1fms)", clear_lag_ms)
                 self.history_tracker.reset()
                 self._last_translated_sentence = ""
+                self._pending_sentence = ""
+                self._pending_sentence_time = 0.0
                 self.signals.subtitle_cleared.emit()
             return
 
@@ -192,6 +204,8 @@ class TranslationPipelineWorker(QThread):
             if self._last_translated_sentence:
                 self.history_tracker.reset()
                 self._last_translated_sentence = ""
+                self._pending_sentence = ""
+                self._pending_sentence_time = 0.0
                 self.signals.subtitle_cleared.emit()
             return
 
@@ -203,6 +217,8 @@ class TranslationPipelineWorker(QThread):
             if self._last_translated_sentence:
                 self.history_tracker.reset()
                 self._last_translated_sentence = ""
+                self._pending_sentence = ""
+                self._pending_sentence_time = 0.0
                 self.signals.subtitle_cleared.emit()
             return
 
@@ -221,6 +237,22 @@ class TranslationPipelineWorker(QThread):
             self.signals.subtitle_active.emit(raw_sentence)
             return
 
+        # Progressive sentence debouncing:
+        # If words are appending rapidly (typing effect / partial line updates),
+        # debounce for 0.12s so NMT translates the finished thought rather than a half-word fragment.
+        now = time.time()
+        is_extension = (
+            bool(self._pending_sentence)
+            and raw_sentence.startswith(self._pending_sentence)
+            and len(raw_sentence) > len(self._pending_sentence)
+        )
+        if is_extension and (now - self._pending_sentence_time) < 0.12:
+            self._pending_sentence = raw_sentence
+            self._pending_sentence_time = now
+            return
+
+        self._pending_sentence = raw_sentence
+        self._pending_sentence_time = now
         self._last_translated_sentence = raw_sentence
         logger.info("[AUDIT-STABLE] Sentence stabilized: %r", raw_sentence)
 
