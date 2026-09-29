@@ -22,37 +22,60 @@ from ui.region_selector import RegionSelectorWidget
 from ui.tray import TrayController
 
 def _init_logging() -> logging.Logger:
-    handlers = [logging.StreamHandler(sys.stdout)]
+    """Initialize logging.
 
-    # Prefer project root log for development/testing if writable, fallback to User AppData
-    log_candidates = [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "audit_session.log"),
-    ]
-    try:
-        from PyQt6.QtCore import QStandardPaths
+    Consumer mode (default):
+      Logs at WARNING level to stderr. No audit file written to disk to prevent bloat.
 
-        base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
-        if base_dir:
-            app_dir = os.path.join(base_dir, "Subterranean Staircase")
-            os.makedirs(app_dir, exist_ok=True)
-            log_candidates.append(os.path.join(app_dir, "audit_session.log"))
-    except Exception:
-        pass
+    Developer mode (--audit / --debug CLI flag or SUBTRANS_AUDIT=1 / SUBTRANS_DEBUG=1):
+      Logs at INFO level, streaming to stdout and recording structured telemetry
+      into audit_session.log for diagnostic analysis and Ground Truth benchmarks.
+    """
+    dev_flags = {"--audit", "--debug"}
+    is_dev_mode = any(arg in sys.argv for arg in dev_flags) or os.environ.get("SUBTRANS_AUDIT") == "1" or os.environ.get("SUBTRANS_DEBUG") == "1"
 
-    for candidate in log_candidates:
+    handlers: list[logging.Handler] = []
+
+    if is_dev_mode:
+        handlers.append(logging.StreamHandler(sys.stdout))
+        # Prefer project root log for development/testing if writable, fallback to User AppData
+        log_candidates = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "audit_session.log"),
+        ]
         try:
-            handler = logging.FileHandler(candidate, mode="a", encoding="utf-8")
-            handlers.append(handler)
-            break
+            from PyQt6.QtCore import QStandardPaths
+
+            base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+            if base_dir:
+                app_dir = os.path.join(base_dir, "Subterranean Staircase")
+                os.makedirs(app_dir, exist_ok=True)
+                log_candidates.append(os.path.join(app_dir, "audit_session.log"))
         except Exception:
-            continue
+            pass
+
+        for candidate in log_candidates:
+            try:
+                handler = logging.FileHandler(candidate, mode="a", encoding="utf-8")
+                handlers.append(handler)
+                break
+            except Exception:
+                continue
+
+        log_level = logging.INFO
+    else:
+        handlers.append(logging.StreamHandler(sys.stderr))
+        log_level = logging.WARNING
 
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format="%(asctime)s [%(levelname)s] [%(name)s]: %(message)s",
         handlers=handlers,
+        force=True,
     )
-    return logging.getLogger("SubtitleTranslator")
+    logger_instance = logging.getLogger("SubtitleTranslator")
+    if is_dev_mode:
+        logger_instance.info("Developer audit facade ACTIVE (level: INFO, telemetry to audit_session.log).")
+    return logger_instance
 
 
 logger = _init_logging()
