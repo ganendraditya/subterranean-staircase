@@ -68,6 +68,22 @@ def test_rapidocr_skips_malformed_boxes() -> None:
     assert len(detections) == 0
 
 
+def test_rapidocr_initialization_parameters() -> None:
+    with patch("core.ocr.engine.RapidOCR") as mock_rapid:
+        _ = RapidOCREngine()
+        mock_rapid.assert_called_once_with(use_cls=False, det_unclip_ratio=2.0)
+
+
+def test_rapidocr_real_instance_unclip_ratio() -> None:
+    """Verify that det_unclip_ratio actually reaches DBPostProcess in the real RapidOCR engine."""
+    from core.ocr.engine import HAS_RAPIDOCR
+    if not HAS_RAPIDOCR:
+        pytest.skip("rapidocr-onnxruntime not installed")
+    engine = RapidOCREngine()
+    # Confirm DBPostProcess postprocessor has active unclip_ratio == 2.0
+    assert engine._engine.text_det.postprocess_op.unclip_ratio == 2.0
+
+
 def test_rapidocr_initialization_failure_when_uninstalled() -> None:
     with patch("core.ocr.engine.HAS_RAPIDOCR", False):
         with pytest.raises(RuntimeError, match="rapidocr-onnxruntime is not installed"):

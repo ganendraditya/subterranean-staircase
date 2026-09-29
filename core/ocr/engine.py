@@ -34,14 +34,26 @@ class RapidOCREngine(BaseOCR):
     Replaces monolithic PaddleOCR, executing PP-OCRv4 natively without CUDA lock-in.
     """
 
-    def __init__(self, rapidocr_instance: Optional[Any] = None) -> None:
+    def __init__(
+        self,
+        rapidocr_instance: Optional[Any] = None,
+        *,
+        use_cls: bool = False,
+        det_unclip_ratio: float = 2.0,
+    ) -> None:
         if rapidocr_instance is not None:
             self._engine = rapidocr_instance
         else:
             if not HAS_RAPIDOCR:
                 raise RuntimeError("rapidocr-onnxruntime is not installed")
-            # RapidOCR automatically resolves execution providers (CoreML / DirectML / CPU)
-            self._engine = RapidOCR()
+            # Subtitles are strictly horizontal and right-side up; disabling cls saves ~36ms
+            # and prevents spurious 180-degree inverted line artifacts.
+            # det_unclip_ratio=2.0 prevents character ascender/descender boundary clipping
+            # in DBNet text detection (must be prefixed with det_ for RapidOCR config routing).
+            self._engine = RapidOCR(
+                use_cls=use_cls,
+                det_unclip_ratio=det_unclip_ratio,
+            )
 
     def detect(self, frame_or_image: Frame | np.ndarray) -> List[SubtitleDetection]:
         """Detect and recognize text lines within the provided frame.
