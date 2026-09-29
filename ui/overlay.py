@@ -78,6 +78,11 @@ class SubtitleOverlayWindow(QWidget):
             self._last_update_time = time.time()
             self.update()
 
+    def touch(self) -> None:
+        """Keep current subtitle alive while still detected on screen (prevents premature fade-out)."""
+        if self._current_text:
+            self._last_update_time = time.time()
+
     def clear_text(self) -> None:
         """Clear currently displayed subtitle."""
         if self._current_text:

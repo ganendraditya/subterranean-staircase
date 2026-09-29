@@ -216,6 +216,38 @@ try {
     Write-Warning "Could not write startup shortcut: $_"
 }
 
+# 8. Create Start Menu and Desktop Shortcuts
+$StartMenuPrograms = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::Programs)
+$DesktopDir = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)
+
+try {
+    $WshShell = New-Object -ComObject WScript.Shell
+    foreach ($targetDir in @($StartMenuPrograms, $DesktopDir)) {
+        if (Test-Path $targetDir) {
+            $shortcutPath = Join-Path $targetDir "Subtitle Translator.lnk"
+            $shortcut = $WshShell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath = Join-Path $InstallDir ".venv\Scripts\pythonw.exe"
+            if (-not (Test-Path $shortcut.TargetPath)) {
+                $shortcut.TargetPath = Join-Path $InstallDir ".venv\Scripts\python.exe"
+            }
+            $shortcut.Arguments = "`"$InstallDir\run.py`""
+            $shortcut.WorkingDirectory = $InstallDir
+            $shortcut.Description = "Real-time AI Subtitle Translator"
+            $iconIco = Join-Path $InstallDir "ui\assets\app_icon.ico"
+            $iconPng = Join-Path $InstallDir "ui\assets\app_icon.png"
+            if (Test-Path $iconIco) {
+                $shortcut.IconLocation = $iconIco
+            } elseif (Test-Path $iconPng) {
+                $shortcut.IconLocation = $iconPng
+            }
+            $shortcut.Save()
+        }
+    }
+    Write-Host "✔ Created Start Menu & Desktop shortcuts for Subtitle Translator." -ForegroundColor Green
+} catch {
+    Write-Debug "Could not create shortcuts: $_"
+}
+
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host "✔ Installation completed successfully!" -ForegroundColor Green

@@ -114,16 +114,24 @@ class SubtitleHistoryTracker:
         self.stable_min_count = stable_min_count
         self._tracks: Dict[str, SubtitleTrack] = {}
 
+    @property
+    def active_tracks(self) -> List[SubtitleTrack]:
+        """All unexpired tracks currently stored in tracker memory."""
+        return list(self._tracks.values())
+
     def update(
         self,
         detections: List[SubtitleDetection],
         now: Optional[float] = None,
+        only_current: bool = False,
     ) -> List[SubtitleTrack]:
         """Ingest new frame detections, match against active tracks, and prune stale entries.
 
+        If only_current is True, returns only tracks that were detected/updated in this cycle.
         Returns list of currently stable tracks.
         """
         current_time = now if now is not None else time.time()
+        seen_keys: set[str] = set()
 
         for det in detections:
             text = det.text.strip()
@@ -143,6 +151,7 @@ class SubtitleHistoryTracker:
             if best_match_key is not None:
                 track = self._tracks[best_match_key]
                 track.update(det.box, det.confidence, current_time, new_text=text)
+                seen_keys.add(best_match_key)
             else:
                 # Spawn new track with collision-safe key
                 base_key = f"{text}_{current_time:.3f}"
@@ -162,16 +171,30 @@ class SubtitleHistoryTracker:
                     boxes=[det.box],
                     confidences=[det.confidence],
                 )
+                seen_keys.add(new_key)
 
         # Prune expired tracks
         self._prune(current_time)
 
-        # Return active tracks meeting stability requirements
+        # Return stable tracks
+        candidate_tracks = (
+            [self._tracks[k] for k in seen_keys if k in self._tracks]
+            if only_current
+            else list(self._tracks.values())
+        )
         active_stable = [
-            t for t in self._tracks.values()
+            t for t in candidate_tracks
             if t.count >= self.stable_min_count or (current_time - t.first_seen) >= 0.3
         ]
-        active_stable.sort(key=lambda t: t.boxes[-1].center_y if t.boxes else 0.0)
+        # Sort tracks in natural reading order: top-to-bottom first, then left-to-right
+        def _reading_order_key(t: SubtitleTrack) -> tuple[float, float]:
+            if not t.boxes:
+                return (0.0, 0.0)
+            box = t.boxes[-1]
+            min_x = min(p[0] for p in box.points)
+            return (box.center_y, min_x)
+
+        active_stable.sort(key=_reading_order_key)
         return active_stable
 
     def _prune(self, now: float) -> None:

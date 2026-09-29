@@ -64,6 +64,10 @@ if [ -L "/usr/local/bin/${APP_NAME}" ]; then
 fi
 
 # Remove macOS App Bundle
+if [ -d "${HOME}/Applications/Subtitle Translator.app" ]; then
+    echo "Removing App Bundle: ${HOME}/Applications/Subtitle Translator.app..."
+    rm -rf "${HOME}/Applications/Subtitle Translator.app"
+fi
 if [ -d "${HOME}/Applications/Subterranean Staircase.app" ]; then
     echo "Removing App Bundle: ${HOME}/Applications/Subterranean Staircase.app..."
     rm -rf "${HOME}/Applications/Subterranean Staircase.app"

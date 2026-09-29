@@ -1,10 +1,12 @@
 """Subtitle Translator V1 Desktop Application Entrypoint."""
 
 import logging
+import os
 import sys
-from typing import Optional
+from typing import Callable, Optional
 
 from PyQt6.QtCore import QDir, QLockFile
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from core.capture.factory import create_capture_driver
@@ -16,8 +18,41 @@ from ui.overlay import SubtitleOverlayWindow
 from ui.region_selector import RegionSelectorWidget
 from ui.tray import TrayController
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("SubtitleTranslator")
+def _init_logging() -> logging.Logger:
+    handlers = [logging.StreamHandler(sys.stdout)]
+
+    # Prefer project root log for development/testing if writable, fallback to User AppData
+    log_candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "audit_session.log"),
+    ]
+    try:
+        from PyQt6.QtCore import QStandardPaths
+
+        base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        if base_dir:
+            app_dir = os.path.join(base_dir, "Subterranean Staircase")
+            os.makedirs(app_dir, exist_ok=True)
+            log_candidates.append(os.path.join(app_dir, "audit_session.log"))
+    except Exception:
+        pass
+
+    for candidate in log_candidates:
+        try:
+            handler = logging.FileHandler(candidate, mode="a", encoding="utf-8")
+            handlers.append(handler)
+            break
+        except Exception:
+            continue
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] [%(name)s]: %(message)s",
+        handlers=handlers,
+    )
+    return logging.getLogger("SubtitleTranslator")
+
+
+logger = _init_logging()
 
 
 class SubtitleTranslatorApp:
@@ -53,7 +88,10 @@ class SubtitleTranslatorApp:
         """Connect inter-component event listeners."""
         # Pipeline -> Overlay & Logging
         self.signals.subtitle_ready.connect(self.overlay.update_text)
+        self.signals.subtitle_active.connect(lambda _: self.overlay.touch())
+        self.signals.subtitle_cleared.connect(self.overlay.clear_text)
         self.signals.error_occurred.connect(self._on_pipeline_error)
+        self.signals.frame_captured.connect(self.control_center.update_live_preview)
 
         # Tray -> Control Center & Teardown
         self.tray.control_center_requested.connect(self._show_control_center)
@@ -63,6 +101,7 @@ class SubtitleTranslatorApp:
         # Control Center -> Actions & Teardown
         self.control_center.translation_toggled.connect(self._on_translation_toggled)
         self.control_center.select_roi_requested.connect(self._open_roi_selector)
+        self.control_center.reset_roi_requested.connect(self._on_reset_roi)
         self.control_center.window_selected.connect(self._on_window_selected)
         self.control_center.settings_saved.connect(self._on_settings_saved)
         self.control_center.quit_requested.connect(self.quit)
@@ -81,8 +120,8 @@ class SubtitleTranslatorApp:
         self.control_center.activateWindow()
 
     def _on_control_center_finished(self, result: int) -> None:
-        """Return to accessory mode when Control Center is dismissed."""
-        _set_macos_activation_policy(regular=False)
+        """Called when Control Center is dismissed."""
+        pass
 
     def _on_settings_saved(self) -> None:
         """Apply live visual updates when preferences are saved."""
@@ -117,14 +156,14 @@ class SubtitleTranslatorApp:
                     )
                     dialog.start_download()
                     if not self.control_center.isVisible():
-                        _set_macos_activation_policy(regular=False)
+                        pass
                     if not mm.is_installed(pair_id):
                         self.tray.set_active(False)
                         self.control_center.set_active(False)
                         return
                 else:
                     if not self.control_center.isVisible():
-                        _set_macos_activation_policy(regular=False)
+                        pass
                     self.tray.set_active(False)
                     self.control_center.set_active(False)
                     return
@@ -157,15 +196,17 @@ class SubtitleTranslatorApp:
         _set_macos_activation_policy(regular=True)
 
         def _cleanup() -> None:
-            _set_macos_activation_policy(regular=False)
+            pass
 
         def _on_selected(roi: Rect) -> None:
             _cleanup()
             self._on_roi_selected(roi)
+            self._show_control_center()
 
         def _on_cancelled() -> None:
             _cleanup()
             logger.info("ROI selection cancelled.")
+            self._show_control_center()
 
         self.region_selector = RegionSelectorWidget(
             on_selected=_on_selected,
@@ -181,8 +222,9 @@ class SubtitleTranslatorApp:
     def _on_roi_selected(self, roi: Rect) -> None:
         """Apply chosen custom ROI."""
         logger.info("Custom ROI selected: %s", roi.as_tuple())
+        self.config_manager.update(custom_roi=list(roi.as_tuple()))
         self.worker.set_custom_roi(roi)
-        self.control_center.set_roi_hint(f"Custom ROI: {roi.width}x{roi.height} at ({roi.left}, {roi.top})")
+        self.control_center.set_roi_hint(f"Custom ROI: {roi.width}x{roi.height} at ({roi.left}, {roi.top})", has_custom_roi=True)
         # Position overlay directly near selected ROI
         bounds = self.capture_driver.get_monitor_bounds(1)
         overlay_h = 140
@@ -193,6 +235,18 @@ class SubtitleTranslatorApp:
             overlay_y = max(bounds.top, roi.top - overlay_h - 10)
         self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
         self.overlay.update_text("🎯 Region locked")
+
+    def _on_reset_roi(self) -> None:
+        """Clear custom ROI and revert to full capture area."""
+        logger.info("Clearing custom ROI, reverting to full area.")
+        self.config_manager.update(custom_roi=None)
+        self.worker.set_custom_roi(None)
+        self.control_center.set_roi_hint("Full capture area active", has_custom_roi=False)
+        # Reset overlay back to default bottom center of screen
+        bounds = self.capture_driver.get_monitor_bounds(1)
+        overlay_h = 140
+        self.overlay.setGeometry(bounds.left + 150, bounds.bottom - overlay_h - 60, bounds.width - 300, overlay_h)
+        self.overlay.update_text("🔄 Full capture restored")
 
     def _on_window_selected(self, window_info: Optional[WindowInfo]) -> None:
         """Set targeted application window."""
@@ -217,6 +271,26 @@ class SubtitleTranslatorApp:
         bounds = self.capture_driver.get_monitor_bounds(1)
         overlay_h = 140
         self.overlay.setGeometry(bounds.left + 150, bounds.bottom - overlay_h - 60, bounds.width - 300, overlay_h)
+
+        # Restore saved custom ROI from config if present
+        roi_data = self.config_manager.config.custom_roi
+        saved_roi = None
+        if isinstance(roi_data, (list, tuple)) and len(roi_data) == 4:
+            try:
+                saved_roi = Rect(*(int(x) for x in roi_data))
+            except (ValueError, TypeError):
+                saved_roi = None
+
+        if saved_roi is not None:
+            self.worker.set_custom_roi(saved_roi)
+            self.control_center.set_roi_hint(f"Custom ROI: {saved_roi.width}x{saved_roi.height} at ({saved_roi.left}, {saved_roi.top})", has_custom_roi=True)
+            overlay_w = max(saved_roi.width, 400)
+            overlay_x = max(bounds.left, min(saved_roi.left + (saved_roi.width - overlay_w) // 2, bounds.right - overlay_w))
+            overlay_y = saved_roi.bottom + 10
+            if overlay_y + overlay_h > bounds.bottom:
+                overlay_y = max(bounds.top, saved_roi.top - overlay_h - 10)
+            self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
+
         logger.info("Subtitle Translator V1 initialized and ready in Menu Bar / System Tray.")
 
     def quit(self) -> None:
@@ -230,49 +304,122 @@ class SubtitleTranslatorApp:
         QApplication.quit()
 
 
-def _set_macos_activation_policy(regular: bool) -> None:
-    """Dynamically toggle macOS activation policy.
+def _setup_windows_app() -> None:
+    """Set explicit AppUserModelID on Windows so taskbar groups properly under its own icon/name."""
+    if sys.platform != "win32":
+        return
 
-    When regular=True: Shows icon in macOS Dock (when Settings window is opened).
-    When regular=False: Hides icon from macOS Dock (pure background menu-bar mode).
-    """
+    try:
+        import ctypes
+        app_id = "subtitletranslator.subtrans.desktop.1"
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+    except Exception as e:
+        logger.debug("Failed to set Windows AppUserModelID: %s", e)
+
+
+def _setup_macos_app(on_reopen: Optional[Callable[[], None]] = None) -> None:
+    """Configure macOS process name, activation policy, and Dock click handler."""
+    if sys.platform != "darwin":
+        return
+
+    try:
+        from AppKit import (
+            NSApplication,
+            NSApplicationActivationPolicyRegular,
+            NSImage,
+            NSProcessInfo,
+        )
+        import objc
+
+        # Set human-readable process name in macOS menu bar and Dock
+        process_info = NSProcessInfo.processInfo()
+        process_info.setProcessName_("Subterranean Staircase")
+
+        ns_app = NSApplication.sharedApplication()
+        if ns_app is not None:
+            # Keep Dock icon visible so user can switch/click on it
+            ns_app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+
+            # Set application icon in Dock
+            icon_path = os.path.join(os.path.dirname(__file__), "ui", "assets", "app_icon.png")
+            if os.path.exists(icon_path):
+                ns_img = NSImage.alloc().initWithContentsOfFile_(icon_path)
+                if ns_img is not None:
+                    ns_app.setApplicationIconImage_(ns_img)
+
+            if on_reopen is not None:
+                class DockReopenDelegate(objc.lookUpClass("NSObject")):
+                    def applicationShouldHandleReopen_hasVisibleWindows_(self, sender, flag):
+                        try:
+                            on_reopen()
+                        except Exception as err:
+                            logger.error("Error handling Dock reopen event: %s", err)
+                        return True
+
+                delegate = DockReopenDelegate.alloc().init()
+                ns_app.setDelegate_(delegate)
+                # Keep strong reference so delegate is not garbage collected
+                ns_app._dock_delegate = delegate
+    except Exception as e:
+        logger.debug("Failed to setup macOS app properties: %s", e)
+
+
+def _set_macos_activation_policy(regular: bool) -> None:
+    """Bring macOS app to front when regular=True."""
     if sys.platform == "darwin":
         try:
-            from AppKit import (
-                NSApp,
-                NSApplicationActivationPolicyAccessory,
-                NSApplicationActivationPolicyRegular,
-            )
-            if NSApp is not None:
-                policy = (
-                    NSApplicationActivationPolicyRegular
-                    if regular
-                    else NSApplicationActivationPolicyAccessory
-                )
-                NSApp.setActivationPolicy_(policy)
-                if regular:
-                    NSApp.activateIgnoringOtherApps_(True)
+            from AppKit import NSApp
+            if NSApp is not None and regular:
+                NSApp.activateIgnoringOtherApps_(True)
         except Exception as e:
-            logger.debug("Failed to set macOS activation policy (regular=%s): %s", regular, e)
+            logger.debug("Failed to set macOS activation policy: %s", e)
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
-    # Prevent macOS from quitting when last window is hidden
-    app.setQuitOnLastWindowClosed(False)
+    # On macOS, configure process name before creating QApplication
+    if sys.platform == "darwin":
+        try:
+            from AppKit import NSProcessInfo
+            NSProcessInfo.processInfo().setProcessName_("Subterranean Staircase")
+        except Exception:
+            pass
 
-    # Hide from macOS Dock initially (pure status item / tray app)
-    _set_macos_activation_policy(regular=False)
-
-    # Enforce single instance to prevent duplicate tray icons
+    # Enforce single instance before initializing heavy UI / Python modules
     lock_path = QDir.tempPath() + "/subtrans_single_instance.lock"
     lock_file = QLockFile(lock_path)
     if not lock_file.tryLock(100):
-        logger.warning("Another instance of Subterranean Staircase is already running. Exiting.")
+        # Already running: trigger existing instance to front on macOS, then exit quietly
+        if sys.platform == "darwin":
+            try:
+                from AppKit import NSRunningApplication
+                apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_("com.subtitle-translator.subtrans")
+                if apps:
+                    apps[0].activateWithOptions_(1 << 1)
+            except Exception:
+                pass
+        logger.info("Subterranean Staircase is already running. Focusing active instance.")
         return 0
 
+    app = QApplication(sys.argv)
+    app.setApplicationName("Subterranean Staircase")
+    app.setApplicationDisplayName("Subterranean Staircase")
+
+    # Set window icon globally for dialogs and taskbars
+    icon_path = os.path.join(os.path.dirname(__file__), "ui", "assets", "app_icon.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+
+    # Prevent macOS from quitting when last window is hidden
+    app.setQuitOnLastWindowClosed(False)
+
     translator_app = SubtitleTranslatorApp()
+
+    # Configure platform-specific taskbar/dock integration
+    _setup_windows_app()
+    _setup_macos_app(on_reopen=translator_app._show_control_center)
+
     translator_app.start()
+    translator_app._show_control_center()
 
     # Retain lock_file reference throughout app lifecycle
     app._lock_file = lock_file  # type: ignore[attr-defined]

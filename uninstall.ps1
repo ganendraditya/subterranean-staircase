@@ -61,6 +61,16 @@ if (Test-Path $StartupShortcut) {
     } catch {}
 }
 
+# Remove Start Menu & Desktop Shortcuts
+$StartMenuPrograms = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::Programs)
+$DesktopDir = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)
+foreach ($targetDir in @($StartMenuPrograms, $DesktopDir)) {
+    $lnk = Join-Path $targetDir "Subtitle Translator.lnk"
+    if (Test-Path $lnk) {
+        try { Remove-Item -Force $lnk -ErrorAction SilentlyContinue } catch {}
+    }
+}
+
 $regKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
 if ($regKey) {
     try {

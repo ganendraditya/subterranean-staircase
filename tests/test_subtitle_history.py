@@ -114,3 +114,23 @@ def test_history_tracker_reset() -> None:
 
     tracker.reset()
     assert len(tracker.update([], now=0.6)) == 0
+
+
+def test_history_tracker_only_current() -> None:
+    tracker = SubtitleHistoryTracker(expire_seconds=3.0)
+    det1 = _make_det("Line 1 from first caption")
+    det2 = _make_det("Line 2 from next caption")
+
+    # Frame 1 & 2: line 1 active
+    tracker.update([det1], now=0.0)
+    stable1 = tracker.update([det1], now=0.1, only_current=True)
+    assert len(stable1) == 1
+    assert stable1[0].text == "Line 1 from first caption"
+
+    # Frame 3 & 4: scene switches to line 2 (line 1 is no longer in detections)
+    tracker.update([det2], now=0.2, only_current=True)
+    stable2 = tracker.update([det2], now=0.3, only_current=True)
+    # With only_current=True, line 1 must not be mixed into the returned tracks
+    assert len(stable2) == 1
+    assert stable2[0].text == "Line 2 from next caption"
+

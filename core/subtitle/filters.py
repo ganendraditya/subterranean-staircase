@@ -19,11 +19,17 @@ _ARABIC = re.compile(r"[\u0600-\u06ff]")
 
 # Common subtitle timestamp and prefix noise patterns (e.g., "[00:12]", "(EN)")
 _TIMESTAMP_PREFIX = re.compile(r"^\s*\[\s*\d{1,2}:\d{2}(?::\d{2})?\s*\]\s*")
+_PLAYER_TIMESTAMP = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\s*/\s*\d{1,2}:\d{2}(?::\d{2})?\b")
+_PLAYER_CONTROLS = re.compile(
+    r"(?:^\s*|[\(\[\{]\s*)(?:jump ahead|intro|cc)(?:\s*[\)\]\}]|\s*$)",
+    re.IGNORECASE,
+)
 _LANG_PREFIX = re.compile(
     r"^\s*(?:\(\s*(?:en|id|ja|zh|ko|fr|de|es|ar)\s*\)|(?:en|id|ja|zh|ko|fr|de|es|ar)\s*:)\s*",
     re.IGNORECASE,
 )
-_REPEATED_PUNCT = re.compile(r"([!?.,])\1+")
+_REPEATED_PUNCT = re.compile(r"([!?.,\-])\1+")
+_TRAILING_DASHES = re.compile(r"[\s\-–—]+$")
 _EXCESSIVE_WHITESPACE = re.compile(r"\s+")
 
 
@@ -64,6 +70,8 @@ def clean_subtitle_text(text: str) -> str:
 
     # Remove timestamps like [01:23] or language prefixes like (EN)
     cleaned = _TIMESTAMP_PREFIX.sub("", text)
+    cleaned = _PLAYER_TIMESTAMP.sub("", cleaned)
+    cleaned = _PLAYER_CONTROLS.sub("", cleaned)
     cleaned = _LANG_PREFIX.sub("", cleaned)
 
     # Normalize multiple punctuation (e.g. "???" -> "?", "..." preserved)
@@ -75,6 +83,8 @@ def clean_subtitle_text(text: str) -> str:
         return ch
 
     cleaned = _REPEATED_PUNCT.sub(_punct_repl, cleaned)
+    # Strip stutter/hesitation trailing dashes often found in YouTube auto-captions (e.g., "service--")
+    cleaned = _TRAILING_DASHES.sub("", cleaned)
     cleaned = _EXCESSIVE_WHITESPACE.sub(" ", cleaned)
     return cleaned.strip()
 

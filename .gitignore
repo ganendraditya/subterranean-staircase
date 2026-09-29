@@ -35,6 +35,19 @@ mobileclip*.ts
 # Logs
 *.log
 
+# Developer internal scripts & audit harnesses (keep main repository consumer-clean)
+scripts/dev_trace.py
+scripts/dev_audit.py
+tests/simulated_video.py
+tests/test_e2e_audit.py
+tests/test_fullscreen_vs_window.py
+tests/test_pause_duration.py
+tests/test_long_pause_persistence.py
+tests/test_multilingual_rejection.py
+tests/test_full_audit.py
+tests/test_full_speech_data.py
+tests/test_full_video_audit.py
+
 # Local tool settings
 .ultralytics/
 .agents/
