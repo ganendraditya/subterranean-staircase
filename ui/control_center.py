@@ -314,6 +314,33 @@ class ControlCenterDialog(QDialog):
         model_status_layout.addWidget(self.model_action_btn)
 
         lang_layout.addWidget(self.model_status_frame)
+
+        # Packs Table / Manager
+        packs_header_row = QHBoxLayout()
+        packs_label = QLabel("Installed Language Packs:", lang_card)
+        packs_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #9CA3AF;")
+        packs_header_row.addWidget(packs_label)
+        packs_header_row.addStretch()
+
+        self.download_all_btn = QPushButton("Download All (~450 MB)", lang_card)
+        self.download_all_btn.setObjectName("SecondaryButton")
+        self.download_all_btn.setStyleSheet("font-size: 11px; padding: 3px 8px;")
+        self.download_all_btn.clicked.connect(self._on_download_all_clicked)
+        packs_header_row.addWidget(self.download_all_btn)
+        lang_layout.addLayout(packs_header_row)
+
+        self.packs_table = QTableWidget(lang_card)
+        self.packs_table.setColumnCount(3)
+        self.packs_table.setHorizontalHeaderLabels(["Language Pack", "Status / Size", "Action"])
+        self.packs_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.packs_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.packs_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.packs_table.verticalHeader().setVisible(False)
+        self.packs_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.packs_table.setFixedHeight(130)
+        self.packs_table.setStyleSheet("font-size: 11px;")
+        lang_layout.addWidget(self.packs_table)
+
         main_layout.addWidget(lang_card)
 
         # -------------------------------------------------------------
@@ -444,8 +471,9 @@ class ControlCenterDialog(QDialog):
         # Refresh target windows
         self._populate_windows()
 
-        # Refresh model status
+        # Refresh model status and packs table
         self._refresh_model_status()
+        self._refresh_packs_table()
 
     def _populate_windows(self) -> None:
         """Enumerate application windows and populate target combobox."""
@@ -696,6 +724,93 @@ class ControlCenterDialog(QDialog):
                 dialog = ModelDownloadProgressDialog(self.model_manager, p, self)
                 dialog.start_download()
             self._refresh_model_status()
+            self._refresh_packs_table()
+
+    def _refresh_packs_table(self) -> None:
+        """Populate the atomic language packs table with status and action buttons."""
+        packs = self.model_manager.list_packs_status()
+        self.packs_table.setRowCount(len(packs))
+
+        for row, pack in enumerate(packs):
+            pack_id = pack["pack_id"]
+            installed = pack["installed"]
+
+            name_item = QTableWidgetItem(pack["name"])
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.packs_table.setItem(row, 0, name_item)
+
+            if installed:
+                status_text = f"✔ Installed ({pack['installed_size_mb']} MB)"
+                status_item = QTableWidgetItem(status_text)
+                status_item.setForeground(QColor("#4ADE80"))
+                btn = QPushButton("Delete", self.packs_table)
+                btn.setObjectName("TableDeleteButton")
+                btn.clicked.connect(lambda _, pid=pack_id: self._on_delete_pack_clicked(pid))
+            else:
+                status_text = f"Available (~{pack['approx_size_mb']} MB)"
+                status_item = QTableWidgetItem(status_text)
+                status_item.setForeground(QColor("#9CA3AF"))
+                btn = QPushButton("Download", self.packs_table)
+                btn.setObjectName("TableDownloadButton")
+                btn.clicked.connect(lambda _, pid=pack_id: self._on_download_pack_clicked(pid))
+
+            status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.packs_table.setItem(row, 1, status_item)
+            self.packs_table.setCellWidget(row, 2, btn)
+
+    def _on_download_pack_clicked(self, pack_id: str) -> None:
+        """Download all translation pairs belonging to an atomic language pack."""
+        from core.translate.packs import ATOMIC_LANGUAGE_PACKS
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        if not pack:
+            return
+
+        for pair_id in pack.translation_pairs:
+            if not self.model_manager.is_installed(pair_id):
+                dialog = ModelDownloadProgressDialog(self.model_manager, pair_id, self)
+                dialog.start_download()
+
+        self._refresh_model_status()
+        self._refresh_packs_table()
+
+    def _on_delete_pack_clicked(self, pack_id: str) -> None:
+        """Delete an atomic language pack after user confirmation."""
+        from core.translate.packs import ATOMIC_LANGUAGE_PACKS
+        pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
+        name = pack.name if pack else pack_id
+
+        confirm = QMessageBox.question(
+            self,
+            "Delete Language Pack",
+            f"Are you sure you want to delete '{name}'?\nThis will remove local weights and free disk space.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm == QMessageBox.StandardButton.Yes:
+            self.model_manager.delete_pack(pack_id)
+            self._refresh_model_status()
+            self._refresh_packs_table()
+
+    def _on_download_all_clicked(self) -> None:
+        """Download all recommended Big 5 models for complete offline readiness."""
+        confirm = QMessageBox.question(
+            self,
+            "Download All Language Packs",
+            "Download all offline models for The Big 5 (~450 MB)?\n\n"
+            "This ensures complete offline translation coverage across all language pairs.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        for pair_id in RECOMMENDED_MODELS.keys():
+            if not self.model_manager.is_installed(pair_id):
+                dialog = ModelDownloadProgressDialog(self.model_manager, pair_id, self)
+                dialog.start_download()
+
+        self._refresh_model_status()
+        self._refresh_packs_table()
 
     def _on_language_changed(self) -> None:
         """Handle source/target language combobox changes."""
