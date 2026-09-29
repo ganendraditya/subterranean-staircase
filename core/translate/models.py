@@ -309,6 +309,8 @@ class ModelManager:
         pack = ATOMIC_LANGUAGE_PACKS.get(pack_id)
         if not pack:
             return False, f"Unknown language pack '{pack_id}'."
+        if pack.is_core:
+            return False, "Cannot delete the Core English <-> Indonesian pack."
 
         deleted_any = False
         errors = []

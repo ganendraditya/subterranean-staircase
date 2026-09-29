@@ -20,6 +20,14 @@ def test_atomic_packs_curated_catalog() -> None:
     assert set(core_pack.translation_pairs) == {"en-id", "id-en"}
 
 
+def test_core_pack_protected_from_deletion(tmp_path: Path) -> None:
+    mm = ModelManager(models_dir=tmp_path)
+    # Core pack should be protected
+    ok, msg = mm.delete_pack("core")
+    assert ok is False
+    assert "Cannot delete the Core" in msg
+
+
 def test_pack_installation_lifecycle(tmp_path: Path) -> None:
     mm = ModelManager(models_dir=tmp_path)
 
