@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 from core.autostart import AutostartManager
 from core.config import ConfigManager
 from core.translate.models import ModelManager
+from core.translate.router import BIG_5_LANGUAGES
 from core.updater import UpdateInfo, UpdateManager
 from ui.model_dialog import ModelDownloadProgressDialog
 from ui.styles import MODERN_DARK_THEME
@@ -40,17 +41,7 @@ class SettingsDialog(QDialog):
     """Configuration dialog for language pairs, overlay style, and capture settings."""
 
     # Predefined popular languages for subtitle translation
-    LANGUAGES = [
-        ("English", "en"),
-        ("Indonesian", "id"),
-        ("Japanese", "ja"),
-        ("Korean", "ko"),
-        ("Chinese", "zh"),
-        ("French", "fr"),
-        ("German", "de"),
-        ("Spanish", "es"),
-        ("Arabic", "ar"),
-    ]
+    LANGUAGES = BIG_5_LANGUAGES
 
     def __init__(
         self,

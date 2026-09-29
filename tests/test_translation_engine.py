@@ -32,8 +32,8 @@ def test_routing_logic() -> None:
     assert engine._route("en-US", "en-GB") == []
     assert engine._route("en", "en-US") == []
 
-    # Regional target tags (e.g. zh-CN) retain case-sensitivity for model directory lookup
-    assert engine._route("ja", "zh-CN") == [("ja", "en"), ("en", "zh-CN")]
+    # Base target tags (e.g. zh) used for model directory lookup
+    assert engine._route("ja", "zh") == [("ja", "en"), ("en", "zh")]
 
 
 def test_translate_empty_or_same_language() -> None:

@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.contracts import TranslationRequest, TranslationResult
 from core.storage.cache import SQLiteTranslationCache
+from core.translate.router import TranslationRouter
 
 try:
     import ctranslate2
@@ -48,46 +49,32 @@ class CTranslate2Engine(BaseTranslator):
         device: str = "cpu",
         inter_threads: int = 1,
         intra_threads: int = 2,
+        router: Optional[TranslationRouter] = None,
     ) -> None:
         self.models_dir = models_dir or get_default_models_dir()
         self.cache = cache
         self.device = device
         self.inter_threads = inter_threads
         self.intra_threads = intra_threads
+        self.router = router if router is not None else TranslationRouter()
 
         # Model and tokenizer cache: { "en-id": (translator, sp_source, sp_target) }
         self._loaded_pairs: Dict[str, Tuple[Any, Any, Any]] = {}
 
     def _route(self, source_lang: str, target_lang: str) -> List[Tuple[str, str]]:
         """Determine translation routing path (direct vs 2-hop via English)."""
-        src = source_lang.strip()
-        tgt = target_lang.strip()
+        return self.router.resolve_route(source_lang, target_lang)
 
-        if src.lower() == tgt.lower():
-            return []
-
-        src_base = src.replace("_", "-").split("-")[0].lower()
-        tgt_base = tgt.replace("_", "-").split("-")[0].lower()
-
-        # If source is English regional variant (e.g. en-US), map to standard 'en' for model resolution
-        eff_src = "en" if src_base == "en" else src
-        eff_tgt = "en" if tgt_base == "en" else tgt
-
-        if eff_src.lower() == eff_tgt.lower():
-            return []
-
-        # Direct pair if source or target base language is English
-        if src_base == "en" or tgt_base == "en":
-            return [(eff_src, eff_tgt)]
-
-        # 2-hop routing: eff_src -> en -> eff_tgt
-        return [(eff_src, "en"), ("en", eff_tgt)]
+    def _validate_lang_code(self, code: str) -> None:
+        """Validate language code for security and prevent directory traversal."""
+        valid_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        if not set(code).issubset(valid_chars) or not code:
+            raise ValueError(f"Invalid language codes: '{code}'")
 
     def _get_pair_model_path(self, src: str, tgt: str) -> Path:
         """Get filesystem directory for the specific language pair model with path-traversal protection."""
-        valid_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-        if not (set(src).issubset(valid_chars) and set(tgt).issubset(valid_chars)) or not src or not tgt:
-            raise ValueError(f"Invalid language codes: '{src}', '{tgt}'")
+        self._validate_lang_code(src)
+        self._validate_lang_code(tgt)
         return self.models_dir / f"opus-mt-{src}-{tgt}"
 
     def load_pair(self, src: str, tgt: str) -> Tuple[Any, Any, Any]:
@@ -160,6 +147,8 @@ class CTranslate2Engine(BaseTranslator):
         text = request.source_text.strip()
         src = request.source_lang.strip()
         tgt = request.target_lang.strip()
+        self._validate_lang_code(src)
+        self._validate_lang_code(tgt)
         start_time = time.perf_counter()
 
         if not text or src.lower() == tgt.lower():
