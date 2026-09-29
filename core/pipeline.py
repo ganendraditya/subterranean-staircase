@@ -77,6 +77,8 @@ class TranslationPipelineWorker(QThread):
         self.text_filter = SubtitleTextFilter(target_script=self.config_manager.config.source_language)
 
         self._last_translated_sentence: str = ""
+        self._pending_sentence: str = ""
+        self._pending_sentence_time: float = 0.0
 
     def set_target_window(self, window_id: Optional[int | str]) -> None:
         """Lock capture onto a specific window ID, or None for full screen."""
@@ -221,6 +223,18 @@ class TranslationPipelineWorker(QThread):
             self.signals.subtitle_active.emit(raw_sentence)
             return
 
+        # Progressive sentence debouncing:
+        # If words are appending rapidly (typing effect / partial line updates),
+        # debounce for 0.12s so NMT translates the finished thought rather than a half-word fragment.
+        now = time.time()
+        is_extension = raw_sentence.startswith(self._pending_sentence) and len(raw_sentence) > len(self._pending_sentence)
+        if is_extension and (now - self._pending_sentence_time) < 0.12:
+            self._pending_sentence = raw_sentence
+            self._pending_sentence_time = now
+            return
+
+        self._pending_sentence = raw_sentence
+        self._pending_sentence_time = now
         self._last_translated_sentence = raw_sentence
         logger.info("[AUDIT-STABLE] Sentence stabilized: %r", raw_sentence)
 
