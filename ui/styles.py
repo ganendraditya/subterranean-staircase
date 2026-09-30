@@ -352,6 +352,11 @@ QLabel#StatusBadgeStandby {
 }
 
 /* Scrollbars */
+QScrollArea {
+    border: none;
+    background: transparent;
+}
+
 QScrollBar:vertical {
     border: none;
     background: transparent;

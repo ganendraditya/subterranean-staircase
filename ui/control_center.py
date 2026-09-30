@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -117,6 +118,7 @@ class ControlCenterDialog(QDialog):
         self.setStyleSheet(MODERN_DARK_THEME)
         self.setWindowTitle("Subtitle Translator — Control Center")
         self.setMinimumWidth(560)
+        self.resize(580, 720)
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -129,7 +131,20 @@ class ControlCenterDialog(QDialog):
 
     def _init_ui(self) -> None:
         """Construct the unified control center UI sections."""
-        main_layout = QVBoxLayout(self)
+        dialog_layout = QVBoxLayout(self)
+        dialog_layout.setContentsMargins(0, 0, 0, 0)
+        dialog_layout.setSpacing(0)
+
+        # Scroll area wrapping all content sections
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+
+        content_widget = QWidget()
+        content_widget.setObjectName("ScrollContent")
+        main_layout = QVBoxLayout(content_widget)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(14)
 
@@ -419,6 +434,9 @@ class ControlCenterDialog(QDialog):
         footer_layout.addWidget(self.close_btn)
 
         main_layout.addLayout(footer_layout)
+
+        self.scroll_area.setWidget(content_widget)
+        dialog_layout.addWidget(self.scroll_area)
 
     def set_active(self, active: bool) -> None:
         """Update live translation status appearance."""
