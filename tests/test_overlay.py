@@ -121,3 +121,24 @@ def test_overlay_click_through_toggle_preserves_visibility(qapp) -> None:
     assert overlay.isVisible()
     assert not overlay._interactive_mode
     overlay.hide()
+
+
+def test_overlay_macos_fullscreen_spaces_configuration(qapp) -> None:
+    import sys
+    overlay = SubtitleOverlayWindow()
+    overlay.show()
+    if sys.platform == "darwin":
+        import objc
+        from AppKit import (
+            NSWindowCollectionBehaviorCanJoinAllSpaces,
+            NSWindowCollectionBehaviorFullScreenAuxiliary,
+            NSScreenSaverWindowLevel,
+        )
+        view = objc.objc_object(c_void_p=int(overlay.winId()))
+        nswindow = view.window()
+        assert nswindow is not None
+        behavior = nswindow.collectionBehavior()
+        assert behavior & NSWindowCollectionBehaviorCanJoinAllSpaces
+        assert behavior & NSWindowCollectionBehaviorFullScreenAuxiliary
+        assert nswindow.level() >= NSScreenSaverWindowLevel
+    overlay.hide()

@@ -8,6 +8,7 @@ Adheres strictly to Anti-Slop WCAG AA contrast standards:
 
 from __future__ import annotations
 
+import sys
 import time
 from typing import Optional
 
@@ -53,6 +54,33 @@ class SubtitleOverlayWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
         self.set_click_through(True)
+        self._configure_fullscreen_spaces()
+
+    def _configure_fullscreen_spaces(self) -> None:
+        """Configure native macOS window attributes to float over fullscreen video spaces."""
+        if sys.platform != "darwin":
+            return
+        try:
+            import objc
+            from AppKit import (
+                NSWindowCollectionBehaviorCanJoinAllSpaces,
+                NSWindowCollectionBehaviorFullScreenAuxiliary,
+                NSWindowCollectionBehaviorStationary,
+                NSScreenSaverWindowLevel,
+            )
+
+            view = objc.objc_object(c_void_p=int(self.winId()))
+            nswindow = view.window()
+            if nswindow is not None:
+                behavior = (
+                    NSWindowCollectionBehaviorCanJoinAllSpaces
+                    | NSWindowCollectionBehaviorFullScreenAuxiliary
+                    | NSWindowCollectionBehaviorStationary
+                )
+                nswindow.setCollectionBehavior_(behavior)
+                nswindow.setLevel_(NSScreenSaverWindowLevel)
+        except Exception:
+            pass
 
     def set_click_through(self, enabled: bool) -> None:
         """Toggle mouse click-through behavior while preserving window visibility."""
@@ -69,6 +97,7 @@ class SubtitleOverlayWindow(QWidget):
 
         if was_visible:
             self.show()
+            self._configure_fullscreen_spaces()
 
     def update_text(self, text: str) -> None:
         """Display newly translated subtitle text, resetting fade-out timer."""
