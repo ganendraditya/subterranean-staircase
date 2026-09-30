@@ -96,6 +96,32 @@ class MacOSWindowCapture(BaseCapture):
         """Capture monitor screen via the underlying screen capture driver."""
         return self._screen_capture.grab_screen(monitor_index, crop_rect)
 
+    def bring_window_to_front(self, window_id: int | str) -> bool:
+        """Bring targeted macOS application window to front using NSWorkspace."""
+        if not HAS_QUARTZ:
+            return False
+        try:
+            from AppKit import NSApplicationActivateIgnoringOtherApps, NSWorkspace
+            win_id = int(window_id)
+            info_list = Quartz.CGWindowListCopyWindowInfo(
+                Quartz.kCGWindowListOptionIncludingWindow,
+                win_id,
+            )
+            if not info_list:
+                return False
+            pid = info_list[0].get(Quartz.kCGWindowOwnerPID)
+            if not pid:
+                return False
+
+            ws = NSWorkspace.sharedWorkspace()
+            for app in ws.runningApplications():
+                if app.processIdentifier() == pid:
+                    app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+                    return True
+        except Exception as e:
+            logger.debug("Failed bringing window %s to front: %s", window_id, e)
+        return False
+
     def close(self) -> None:
         """Release screen capture resources and display connections."""
         if hasattr(self._screen_capture, "close"):

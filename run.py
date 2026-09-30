@@ -241,10 +241,17 @@ class SubtitleTranslatorApp:
     def _open_roi_selector(self) -> None:
         """Open interactive screen region selector."""
         logger.info("Opening custom ROI selector...")
+
+        # If a target window is locked, bring it to front before overlaying ROI selector
+        if self._current_target_window is not None:
+            self.capture_driver.bring_window_to_front(self._current_target_window.window_id)
+
         _set_macos_activation_policy(regular=True)
 
         def _cleanup() -> None:
-            pass
+            if self.region_selector is not None:
+                self.region_selector.deleteLater()
+                self.region_selector = None
 
         def _on_selected(roi: Rect) -> None:
             _cleanup()
