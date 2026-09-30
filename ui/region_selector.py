@@ -50,7 +50,6 @@ class RegionSelectorWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.grabKeyboard()
 
     def _get_selection_rect(self) -> Optional[QRect]:
         """Compute normalized QRect between start and current drag positions."""
@@ -135,7 +134,6 @@ class RegionSelectorWidget(QWidget):
             self._current_pos = event.position().toPoint()
             selection = self._get_selection_rect()
 
-            self.releaseKeyboard()
             self.hide()
             # If user clicked once or dragged a tiny box (< 15x8), treat as intentional dismiss/cancel
             if selection is not None and selection.width() >= 15 and selection.height() >= 8:
@@ -155,7 +153,6 @@ class RegionSelectorWidget(QWidget):
         """Handle Escape key to cancel selection."""
         if event.key() == Qt.Key.Key_Escape:
             self._is_selecting = False
-            self.releaseKeyboard()
             self.hide()
             self.selection_cancelled.emit()
             event.accept()

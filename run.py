@@ -274,6 +274,7 @@ class SubtitleTranslatorApp:
         self.region_selector.show()
         self.region_selector.raise_()
         self.region_selector.activateWindow()
+        self.region_selector.setFocus()
 
     def _on_roi_selected(self, roi: Rect) -> None:
         """Apply chosen custom ROI."""
