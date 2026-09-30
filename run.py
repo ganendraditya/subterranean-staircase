@@ -153,7 +153,8 @@ class SubtitleTranslatorApp:
 
     def _on_control_center_finished(self, result: int) -> None:
         """Called when Control Center is dismissed."""
-        pass
+        # Revert to accessory mode so overlay can float over native fullscreen spaces
+        _set_macos_activation_policy(regular=False)
 
     def _on_settings_saved(self) -> None:
         """Apply live visual updates when preferences are saved."""
@@ -217,10 +218,13 @@ class SubtitleTranslatorApp:
                     self.control_center.set_active(False)
                     return
 
+            # Revert to accessory mode on macOS so overlay can float over fullscreen spaces
+            _set_macos_activation_policy(regular=False)
             logger.info("Starting translation overlay...")
             self.tray.set_active(True)
             self.control_center.set_active(True)
             self.overlay.show()
+            self.overlay.raise_front()
             self.overlay.update_text("⚡ Subtitle Translator Active")
             if not self.worker.isRunning():
                 self.worker.start()
@@ -383,6 +387,7 @@ def _setup_macos_app(on_reopen: Optional[Callable[[], None]] = None) -> None:
     try:
         from AppKit import (
             NSApplication,
+            NSApplicationActivationPolicyAccessory,
             NSApplicationActivationPolicyRegular,
             NSImage,
             NSProcessInfo,
@@ -395,15 +400,15 @@ def _setup_macos_app(on_reopen: Optional[Callable[[], None]] = None) -> None:
 
         ns_app = NSApplication.sharedApplication()
         if ns_app is not None:
-            # Keep Dock icon visible so user can switch/click on it
-            ns_app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
-
             # Set application icon in Dock
             icon_path = os.path.join(os.path.dirname(__file__), "ui", "assets", "app_icon.png")
             if os.path.exists(icon_path):
                 ns_img = NSImage.alloc().initWithContentsOfFile_(icon_path)
                 if ns_img is not None:
                     ns_app.setApplicationIconImage_(ns_img)
+
+            # Start in accessory mode to enable auxiliary floating overlay across spaces
+            ns_app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
 
             if on_reopen is not None:
                 class DockReopenDelegate(objc.lookUpClass("NSObject")):
@@ -423,14 +428,26 @@ def _setup_macos_app(on_reopen: Optional[Callable[[], None]] = None) -> None:
 
 
 def _set_macos_activation_policy(regular: bool) -> None:
-    """Bring macOS app to front when regular=True."""
+    """Dynamically toggle macOS activation policy between Regular (Dock visible) and Accessory (floating overlay)."""
     if sys.platform == "darwin":
         try:
-            from AppKit import NSApp
-            if NSApp is not None and regular:
-                NSApp.activateIgnoringOtherApps_(True)
+            from AppKit import (
+                NSApp,
+                NSApplicationActivationPolicyAccessory,
+                NSApplicationActivationPolicyRegular,
+            )
+            if NSApp is not None:
+                target_policy = (
+                    NSApplicationActivationPolicyRegular
+                    if regular
+                    else NSApplicationActivationPolicyAccessory
+                )
+                if NSApp.activationPolicy() != target_policy:
+                    NSApp.setActivationPolicy_(target_policy)
+                if regular:
+                    NSApp.activateIgnoringOtherApps_(True)
         except Exception as e:
-            logger.debug("Failed to set macOS activation policy: %s", e)
+            logger.debug("Failed to set macOS activation policy (regular=%s): %s", regular, e)
 
 
 def main() -> int:

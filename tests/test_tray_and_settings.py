@@ -149,4 +149,23 @@ def test_tray_controller_set_active(qapp, tmp_path: Path) -> None:
     tray.close()
 
 
+def test_macos_activation_policy_toggle() -> None:
+    import sys
+    from run import _set_macos_activation_policy
+    if sys.platform == "darwin":
+        from AppKit import (
+            NSApp,
+            NSApplicationActivationPolicyAccessory,
+            NSApplicationActivationPolicyRegular,
+        )
+        if NSApp is not None:
+            _set_macos_activation_policy(regular=False)
+            assert NSApp.activationPolicy() == NSApplicationActivationPolicyAccessory
+            _set_macos_activation_policy(regular=True)
+            assert NSApp.activationPolicy() == NSApplicationActivationPolicyRegular
+            _set_macos_activation_policy(regular=False)
+            assert NSApp.activationPolicy() == NSApplicationActivationPolicyAccessory
+
+
+
 

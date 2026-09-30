@@ -8,6 +8,7 @@ Adheres strictly to Anti-Slop WCAG AA contrast standards:
 
 from __future__ import annotations
 
+from ctypes import c_void_p
 import sys
 import time
 from typing import Optional
@@ -55,6 +56,45 @@ class SubtitleOverlayWindow(QWidget):
 
         self.set_click_through(True)
         self._configure_fullscreen_spaces()
+        self._setup_space_listener()
+
+    def _setup_space_listener(self) -> None:
+        """Register macOS NSWorkspaceActiveSpaceDidChangeNotification listener to keep overlay front."""
+        if sys.platform != "darwin":
+            return
+        try:
+            import weakref
+            import objc
+            from AppKit import NSWorkspace, NSWorkspaceActiveSpaceDidChangeNotification
+
+            try:
+                observer_cls = objc.lookUpClass("SubtitleOverlaySpaceObserver")
+            except (objc.nosuchclass_error, AttributeError, Exception):
+                class SubtitleOverlaySpaceObserver(objc.lookUpClass("NSObject")):
+                    def spaceChanged_(self, notification):
+                        try:
+                            ref = getattr(self, "_overlay_ref", None)
+                            overlay = ref() if ref is not None else None
+                            if overlay and overlay.isVisible():
+                                overlay._configure_fullscreen_spaces()
+                                overlay.raise_front()
+                        except Exception:
+                            pass
+
+                observer_cls = SubtitleOverlaySpaceObserver
+
+            observer = observer_cls.alloc().init()
+            observer._overlay_ref = weakref.ref(self)
+            ws = NSWorkspace.sharedWorkspace()
+            ws.notificationCenter().addObserver_selector_name_object_(
+                observer,
+                "spaceChanged:",
+                NSWorkspaceActiveSpaceDidChangeNotification,
+                None,
+            )
+            self._space_observer = observer
+        except Exception:
+            pass
 
     def _configure_fullscreen_spaces(self) -> None:
         """Configure native macOS window attributes to float over fullscreen video spaces."""
@@ -79,8 +119,40 @@ class SubtitleOverlayWindow(QWidget):
                 )
                 nswindow.setCollectionBehavior_(behavior)
                 nswindow.setLevel_(NSScreenSaverWindowLevel)
+                nswindow.setHidesOnDeactivate_(False)
+                nswindow.orderFrontRegardless()
         except Exception:
             pass
+
+    def raise_front(self) -> None:
+        """Order overlay to front across spaces and above fullscreen spaces."""
+        self.raise_()
+        if sys.platform == "darwin":
+            try:
+                import objc
+                view = objc.objc_object(c_void_p=int(self.winId()))
+                nswindow = view.window()
+                if nswindow is not None:
+                    nswindow.orderFrontRegardless()
+            except Exception:
+                pass
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        """Re-assert fullscreen space configuration and window hierarchy when shown."""
+        super().showEvent(event)
+        self._configure_fullscreen_spaces()
+        self.raise_front()
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        """Clean up macOS workspace observer and resources on close."""
+        if sys.platform == "darwin" and hasattr(self, "_space_observer"):
+            try:
+                from AppKit import NSWorkspace
+                ws = NSWorkspace.sharedWorkspace()
+                ws.notificationCenter().removeObserver_(self._space_observer)
+            except Exception:
+                pass
+        super().closeEvent(event)
 
     def set_click_through(self, enabled: bool) -> None:
         """Toggle mouse click-through behavior while preserving window visibility."""
@@ -106,6 +178,8 @@ class SubtitleOverlayWindow(QWidget):
             self._current_text = cleaned
             self._last_update_time = time.time()
             self.update()
+            if cleaned:
+                self.raise_front()
 
     def touch(self) -> None:
         """Keep current subtitle alive while still detected on screen (prevents premature fade-out)."""

@@ -124,9 +124,11 @@ def test_overlay_click_through_toggle_preserves_visibility(qapp) -> None:
 
 
 def test_overlay_macos_fullscreen_spaces_configuration(qapp) -> None:
+    from ctypes import c_void_p
     import sys
     overlay = SubtitleOverlayWindow()
     overlay.show()
+    overlay.update_text("Floating Text")
     if sys.platform == "darwin":
         import objc
         from AppKit import (
@@ -141,4 +143,7 @@ def test_overlay_macos_fullscreen_spaces_configuration(qapp) -> None:
         assert behavior & NSWindowCollectionBehaviorCanJoinAllSpaces
         assert behavior & NSWindowCollectionBehaviorFullScreenAuxiliary
         assert nswindow.level() >= NSScreenSaverWindowLevel
-    overlay.hide()
+        assert not nswindow.hidesOnDeactivate()
+        assert hasattr(overlay, "_space_observer")
+        overlay.raise_front()
+    overlay.close()
