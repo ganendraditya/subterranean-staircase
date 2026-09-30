@@ -125,6 +125,7 @@ class CTranslate2Engine(BaseTranslator):
 
         results = translator.translate_batch(
             [tokens],
+            beam_size=3,
             max_decoding_length=128,
             repetition_penalty=1.2,
             no_repeat_ngram_size=3,
