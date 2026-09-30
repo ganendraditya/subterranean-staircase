@@ -194,6 +194,21 @@ class WindowsWindowCapture(BaseCapture):
         """Capture monitor screen via the underlying screen capture driver."""
         return self._screen_capture.grab_screen(monitor_index, crop_rect)
 
+    def bring_window_to_front(self, window_id: int | str) -> bool:
+        """Bring targeted Windows application window to front using SetForegroundWindow."""
+        if not HAS_WIN32:
+            return False
+        try:
+            hwnd = int(window_id)
+            if _user32.IsWindow(hwnd):
+                if _user32.IsIconic(hwnd):
+                    _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                _user32.SetForegroundWindow(hwnd)
+                return True
+        except Exception:
+            pass
+        return False
+
     def grab_window(
         self,
         window_id: int | str,

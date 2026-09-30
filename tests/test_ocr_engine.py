@@ -71,17 +71,24 @@ def test_rapidocr_skips_malformed_boxes() -> None:
 def test_rapidocr_initialization_parameters() -> None:
     with patch("core.ocr.engine.RapidOCR") as mock_rapid:
         _ = RapidOCREngine()
-        mock_rapid.assert_called_once_with(use_cls=False, det_unclip_ratio=2.0)
+        mock_rapid.assert_called_once_with(
+            use_cls=False,
+            det_unclip_ratio=2.0,
+            det_limit_type="max",
+            det_limit_side_len=720,
+        )
 
 
 def test_rapidocr_real_instance_unclip_ratio() -> None:
-    """Verify that det_unclip_ratio actually reaches DBPostProcess in the real RapidOCR engine."""
+    """Verify that det_unclip_ratio and detection limits reach the real RapidOCR engine."""
     from core.ocr.engine import HAS_RAPIDOCR
     if not HAS_RAPIDOCR:
         pytest.skip("rapidocr-onnxruntime not installed")
     engine = RapidOCREngine()
     # Confirm DBPostProcess postprocessor has active unclip_ratio == 2.0
     assert engine._engine.text_det.postprocess_op.unclip_ratio == 2.0
+    assert engine._engine.text_det.limit_type == "max"
+    assert engine._engine.text_det.limit_side_len == 720
 
 
 def test_rapidocr_adaptive_strip_cropping() -> None:

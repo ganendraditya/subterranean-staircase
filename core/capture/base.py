@@ -46,3 +46,7 @@ class BaseCapture(ABC):
     def get_monitor_bounds(self, monitor_index: int = 1) -> Rect:
         """Get geometry rectangle for the specified monitor."""
         pass
+
+    def bring_window_to_front(self, window_id: int | str) -> bool:
+        """Attempt to activate and bring the targeted window to the foreground."""
+        return False

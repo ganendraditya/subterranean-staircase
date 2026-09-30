@@ -135,7 +135,8 @@ class RegionSelectorWidget(QWidget):
             selection = self._get_selection_rect()
 
             self.hide()
-            if selection is not None and selection.width() >= 20 and selection.height() >= 10:
+            # If user clicked once or dragged a tiny box (< 15x8), treat as intentional dismiss/cancel
+            if selection is not None and selection.width() >= 15 and selection.height() >= 8:
                 # Convert to domain Rect contract
                 chosen_rect = Rect(
                     left=selection.left(),

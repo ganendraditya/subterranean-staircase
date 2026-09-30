@@ -476,20 +476,31 @@ class ControlCenterDialog(QDialog):
         self._refresh_packs_table()
 
     def _populate_windows(self) -> None:
-        """Enumerate application windows and populate target combobox."""
+        """Enumerate application windows and populate target combobox, preserving active selection."""
+        # Save previous selected window ID / identity
+        prev_data = self.window_combo.currentData()
+        prev_win_id = getattr(prev_data, "window_id", None) if prev_data is not None else None
+
         self.window_combo.blockSignals(True)
         self.window_combo.clear()
         self.window_combo.addItem("Entire Screen (Full Display)", None)
 
+        matched_index = 0
         if self.capture_driver is not None:
             try:
                 self._available_windows = self.capture_driver.list_windows()
-                for win in self._available_windows[:15]:
+                for idx, win in enumerate(self._available_windows[:15], start=1):
                     title = win.title.strip() or win.owner_name
                     label = f"{win.owner_name}: {title[:32]}"
                     self.window_combo.addItem(label, win)
+                    if prev_win_id is not None and getattr(win, "window_id", None) == prev_win_id:
+                        matched_index = idx
             except Exception as e:
                 logger.debug("Failed to list windows: %s", e)
+
+        # Restore previously selected window if it is still open
+        if matched_index > 0:
+            self.window_combo.setCurrentIndex(matched_index)
 
         self.window_combo.blockSignals(False)
 

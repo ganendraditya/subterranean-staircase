@@ -96,6 +96,38 @@ def test_region_selector_cancel_via_escape(qapp) -> None:
     assert cancelled[0] is True
 
 
+def test_region_selector_single_click_cancels(qapp) -> None:
+    cancelled: list[bool] = []
+    selected: list[Rect] = []
+
+    selector = RegionSelectorWidget(
+        on_selected=selected.append,
+        on_cancelled=lambda: cancelled.append(True),
+    )
+    from PyQt6.QtCore import QPointF
+    # Single click in place (no drag / 0x0 size)
+    press = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(200.0, 300.0),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    release = QMouseEvent(
+        QMouseEvent.Type.MouseButtonRelease,
+        QPointF(200.0, 300.0),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    selector.mousePressEvent(press)
+    selector.mouseReleaseEvent(release)
+
+    assert len(selected) == 0
+    assert len(cancelled) == 1
+    assert cancelled[0] is True
+
+
 def test_region_selector_paint_render(qapp) -> None:
     selector = RegionSelectorWidget()
     selector.resize(800, 600)
