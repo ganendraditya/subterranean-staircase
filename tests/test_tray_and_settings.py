@@ -131,6 +131,12 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     cc.font_size_spin.setValue(32)
     assert config_mgr.config.overlay.font_size == 32
 
+    # 6. Verify scroll area containment
+    assert hasattr(cc, "scroll_area")
+    assert cc.scroll_area.widgetResizable()
+    assert cc.scroll_area.widget() is not None
+    assert cc.scroll_area.widget().layout().count() >= 5
+
     cc.close()
 
 
