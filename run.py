@@ -102,6 +102,7 @@ class SubtitleTranslatorApp:
             router=self.router,
         )
         self.region_selector: Optional[RegionSelectorWidget] = None
+        self._current_target_window: Optional[WindowInfo] = None
 
         # Background Worker with injected router and cache
         cache = SQLiteTranslationCache()
@@ -305,6 +306,7 @@ class SubtitleTranslatorApp:
 
     def _on_window_selected(self, window_info: Optional[WindowInfo]) -> None:
         """Set targeted application window."""
+        self._current_target_window = window_info
         if window_info is not None:
             logger.info("Target window locked: %s (ID: %s)", window_info.title, window_info.window_id)
             self.worker.set_target_window(window_info.window_id)
