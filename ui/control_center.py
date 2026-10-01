@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import List, Optional
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, pyqtSignal
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -34,6 +36,7 @@ from core.autostart import AutostartManager
 from core.capture.base import BaseCapture
 from core.config import ConfigManager
 from core.contracts import Rect, WindowInfo
+from core.storage.history import SessionHistoryRecorder
 from core.translate.languages import BIG_5_LANGUAGES
 from core.translate.models import RECOMMENDED_MODELS, ModelManager
 from core.translate.router import TranslationRouter, normalize_lang_code
@@ -85,6 +88,7 @@ class ControlCenterDialog(QDialog):
         config_manager: ConfigManager,
         capture_driver: Optional[BaseCapture] = None,
         router: Optional[TranslationRouter] = None,
+        history_recorder: Optional[SessionHistoryRecorder] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -94,6 +98,7 @@ class ControlCenterDialog(QDialog):
         self.model_manager = ModelManager()
         self.autostart_manager = AutostartManager()
         self.update_manager = UpdateManager()
+        self.history_recorder = history_recorder or SessionHistoryRecorder()
 
         self._is_active: bool = False
         self._available_windows: List[WindowInfo] = []
@@ -417,7 +422,49 @@ class ControlCenterDialog(QDialog):
         main_layout.addWidget(settings_card)
 
         # -------------------------------------------------------------
-        # Section 5: Footer Actions
+        # Section 5: Session History & Subtitle Export (.srt / .vtt)
+        # -------------------------------------------------------------
+        history_card = QFrame(self)
+        history_card.setObjectName("CardPanel")
+        history_layout = QVBoxLayout(history_card)
+        history_layout.setSpacing(10)
+
+        history_header = QLabel("Session History & Export", history_card)
+        history_header.setObjectName("SectionHeader")
+        history_layout.addWidget(history_header)
+
+        self.history_info_label = QLabel("Recorded subtitles: 0 lines", history_card)
+        self.history_info_label.setObjectName("SubtleHint")
+        history_layout.addWidget(self.history_info_label)
+
+        export_btn_row = QHBoxLayout()
+        export_btn_row.setSpacing(8)
+
+        self.export_srt_btn = QPushButton("📄 Export .SRT", history_card)
+        self.export_srt_btn.setObjectName("SecondaryButton")
+        self.export_srt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.export_srt_btn.clicked.connect(lambda: self._export_subtitles("srt"))
+        export_btn_row.addWidget(self.export_srt_btn)
+
+        self.export_vtt_btn = QPushButton("📄 Export .VTT", history_card)
+        self.export_vtt_btn.setObjectName("SecondaryButton")
+        self.export_vtt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.export_vtt_btn.clicked.connect(lambda: self._export_subtitles("vtt"))
+        export_btn_row.addWidget(self.export_vtt_btn)
+
+        self.clear_history_btn = QPushButton("🗑 Clear History", history_card)
+        self.clear_history_btn.setObjectName("SecondaryButton")
+        self.clear_history_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_history_btn.clicked.connect(self._on_clear_history_clicked)
+        export_btn_row.addWidget(self.clear_history_btn)
+
+        export_btn_row.addStretch()
+        history_layout.addLayout(export_btn_row)
+
+        main_layout.addWidget(history_card)
+
+        # -------------------------------------------------------------
+        # Section 6: Footer Actions
         # -------------------------------------------------------------
         footer_layout = QHBoxLayout()
 
@@ -493,6 +540,80 @@ class ControlCenterDialog(QDialog):
         self._refresh_model_status()
         self._refresh_packs_table()
 
+        # Refresh recorded session history count
+        self._refresh_history_status()
+
+    def _refresh_history_status(self) -> None:
+        """Update subtitle history counter label."""
+        count = self.history_recorder.count()
+        self.history_info_label.setText(f"Recorded subtitles: {count} line{'s' if count != 1 else ''}")
+        self.export_srt_btn.setEnabled(count > 0)
+        self.export_vtt_btn.setEnabled(count > 0)
+        self.clear_history_btn.setEnabled(count > 0)
+
+    def _export_subtitles(self, fmt: str) -> None:
+        """Export session history to chosen subtitle format (.srt or .vtt)."""
+        count = self.history_recorder.count()
+        if count == 0:
+            QMessageBox.information(
+                self,
+                "No History Available",
+                "There are no recorded subtitles in history to export yet.",
+            )
+            return
+
+        ext = f".{fmt.lower()}"
+        filter_str = "SubRip Subtitles (*.srt)" if fmt == "srt" else "WebVTT Subtitles (*.vtt)"
+        default_name = f"subtitles_{int(time.time())}{ext}"
+        filepath, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export Subtitles ({ext.upper()})",
+            default_name,
+            f"{filter_str};;All Files (*)",
+        )
+
+        if not filepath:
+            return
+
+        try:
+            content = (
+                self.history_recorder.export_srt()
+                if fmt == "srt"
+                else self.history_recorder.export_vtt()
+            )
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            QMessageBox.information(
+                self,
+                "Export Successful",
+                f"Successfully exported {count} subtitle cues to:\n{filepath}",
+            )
+        except Exception as e:
+            logger.error("Failed to export subtitles: %s", e)
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to write subtitle file:\n{e}",
+            )
+
+    def _on_clear_history_clicked(self) -> None:
+        """Prompt user confirmation and wipe recorded subtitle history."""
+        count = self.history_recorder.count()
+        if count == 0:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Clear History",
+            f"Are you sure you want to clear all {count} recorded subtitle cues?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.history_recorder.clear()
+            self._refresh_history_status()
+
     def _populate_windows(self) -> None:
         """Enumerate application windows and populate target combobox, preserving active selection."""
         # Save previous selected window ID / identity
@@ -523,8 +644,9 @@ class ControlCenterDialog(QDialog):
         self.window_combo.blockSignals(False)
 
     def showEvent(self, event) -> None:
-        """Start preview timer and take immediate frame when window opens."""
+        """Start preview timer, refresh history status, and take immediate frame when window opens."""
         super().showEvent(event)
+        self._refresh_history_status()
         self._preview_timer.start()
         self._on_preview_timer_tick()
 

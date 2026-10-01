@@ -19,6 +19,7 @@ from core.config import AppConfig, ConfigManager
 from core.contracts import Frame, Rect, TranslationRequest
 from core.ocr.engine import BaseOCR, RapidOCREngine
 from core.storage.cache import SQLiteTranslationCache
+from core.storage.history import SessionHistoryRecorder
 from core.subtitle.filters import SubtitleTextFilter
 from core.subtitle.history import SubtitleHistoryTracker
 from core.subtitle.spatial import DualBandSpatialFilter
@@ -48,6 +49,7 @@ class TranslationPipelineWorker(QThread):
         capture_driver: Optional[BaseCapture] = None,
         ocr_engine: Optional[BaseOCR] = None,
         translator_engine: Optional[BaseTranslator] = None,
+        history_recorder: Optional[SessionHistoryRecorder] = None,
         parent: Optional[QObject] = None,
     ) -> None:
         super().__init__(parent)
@@ -58,6 +60,11 @@ class TranslationPipelineWorker(QThread):
         self._target_window_id: Optional[int | str] = None
         self._target_roi: Optional[Rect] = None
         self._state_lock = threading.Lock()
+
+        # Session tracking for subtitle history recording
+        self.history_recorder = history_recorder or SessionHistoryRecorder()
+        self._session_id: str = f"session_{int(time.time())}"
+        self._last_record_id: Optional[int] = None
 
         # Core engines (injected or default)
         self.capture_driver = capture_driver or create_capture_driver()
@@ -101,6 +108,14 @@ class TranslationPipelineWorker(QThread):
             self._pending_sentence = ""
             self._pending_sentence_time = 0.0
         logger.info("[AUDIT-ROI] Custom ROI updated: %s", roi.as_tuple() if roi is not None else "Full Area")
+
+    def start_new_session(self, session_id: Optional[str] = None) -> str:
+        """Start a new session ID for history recording."""
+        with self._state_lock:
+            self._session_id = session_id or f"session_{int(time.time())}"
+            self._last_record_id = None
+        logger.info("[AUDIT-SESSION] New session started: %s", self._session_id)
+        return self._session_id
 
     def stop(self, timeout_ms: int = 3000) -> bool:
         """Signal thread to cleanly terminate loop and wait for completion."""
@@ -232,15 +247,21 @@ class TranslationPipelineWorker(QThread):
         if not raw_sentence:
             return
 
+        now = time.time()
+
         # If sentence is unchanged, keep subtitle alive on overlay (prevent premature fade-out during pause / long lines)
         if raw_sentence == self._last_translated_sentence:
             self.signals.subtitle_active.emit(raw_sentence)
+            with self._state_lock:
+                last_rec_id = self._last_record_id
+                session_id = self._session_id
+            if last_rec_id is not None:
+                self.history_recorder.update_last_end_time(session_id, now + 1.5)
             return
 
         # Progressive sentence debouncing:
         # If words are appending rapidly (typing effect / partial line updates),
         # debounce for 0.12s so NMT translates the finished thought rather than a half-word fragment.
-        now = time.time()
         is_extension = (
             bool(self._pending_sentence)
             and raw_sentence.startswith(self._pending_sentence)
@@ -272,6 +293,22 @@ class TranslationPipelineWorker(QThread):
                 e2e_ms = max(0.0, (time.time() - frame.timestamp) * 1000.0) if frame.timestamp > 0 else (t_ocr_ms + t_trans_ms)
                 logger.info("[AUDIT-TRANS] (OCR: %.1fms | Trans: %.1fms | Total E2E: %.1fms) %r ➔ %r", t_ocr_ms, t_trans_ms, e2e_ms, raw_sentence, result.translated_text)
                 self.signals.subtitle_ready.emit(result.translated_text)
+                # Record to persistent session history
+                with self._state_lock:
+                    session_id = self._session_id
+                rec_id = self.history_recorder.record(
+                    session_id=session_id,
+                    start_time=frame.timestamp if frame.timestamp > 0 else now,
+                    end_time=now + 2.0,
+                    source_lang=cfg.source_language,
+                    target_lang=cfg.target_language,
+                    source_text=raw_sentence,
+                    translated_text=result.translated_text,
+                )
+                if rec_id is not None:
+                    with self._state_lock:
+                        if self._session_id == session_id:
+                            self._last_record_id = rec_id
         except Exception as e:
             logger.warning("[AUDIT-TRANS-ERR] Translation failed: %s", e)
             self.signals.error_occurred.emit(f"Translation failed: {e}")

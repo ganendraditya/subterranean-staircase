@@ -96,11 +96,6 @@ class SubtitleTranslatorApp:
             config_manager=self.config_manager,
             capture_driver=self.capture_driver,
         )
-        self.control_center = ControlCenterDialog(
-            config_manager=self.config_manager,
-            capture_driver=self.capture_driver,
-            router=self.router,
-        )
         self.region_selector: Optional[RegionSelectorWidget] = None
         self._current_target_window: Optional[WindowInfo] = None
 
@@ -114,12 +109,20 @@ class SubtitleTranslatorApp:
             translator_engine=translator_engine,
         )
 
+        self.control_center = ControlCenterDialog(
+            config_manager=self.config_manager,
+            capture_driver=self.capture_driver,
+            router=self.router,
+            history_recorder=self.worker.history_recorder,
+        )
+
         self._connect_signals()
 
     def _connect_signals(self) -> None:
         """Connect inter-component event listeners."""
-        # Pipeline -> Overlay & Logging
+        # Pipeline -> Overlay & Logging & History
         self.signals.subtitle_ready.connect(self.overlay.update_text)
+        self.signals.subtitle_ready.connect(lambda _: self.control_center._refresh_history_status())
         self.signals.subtitle_active.connect(lambda _: self.overlay.touch())
         self.signals.subtitle_cleared.connect(self.overlay.clear_text)
         self.signals.error_occurred.connect(self._on_pipeline_error)
@@ -226,6 +229,7 @@ class SubtitleTranslatorApp:
             self.overlay.show()
             self.overlay.raise_front()
             self.overlay.update_text("⚡ Subtitle Translator Active")
+            self.worker.start_new_session()
             if not self.worker.isRunning():
                 self.worker.start()
         else:
@@ -360,6 +364,8 @@ class SubtitleTranslatorApp:
         logger.info("Shutting down Subtitle Translator V1...")
         if self.worker.isRunning():
             self.worker.stop()
+        if hasattr(self.worker, "history_recorder"):
+            self.worker.history_recorder.close()
         self.control_center.close()
         self.overlay.close()
         self.tray.hide()

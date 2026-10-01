@@ -137,6 +137,12 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     assert cc.scroll_area.widget() is not None
     assert cc.scroll_area.widget().layout().count() >= 5
 
+    # 7. Check session history UI controls
+    assert hasattr(cc, "export_srt_btn")
+    assert hasattr(cc, "export_vtt_btn")
+    assert hasattr(cc, "clear_history_btn")
+    assert cc.history_info_label.text().startswith("Recorded subtitles:")
+
     cc.close()
 
 
