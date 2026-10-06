@@ -236,3 +236,20 @@ Standalone release binaries bundle all Python runtimes, C++ dynamic libraries, a
 * **CI/CD Integrity Smoke Verification:**
   - macOS runners verify DMG integrity using `hdiutil verify` and validate Mach-O binary architecture using `lipo -info`.
   - Windows runners verify non-zero byte artifacts and executables before uploading to GitHub Releases.
+
+---
+
+## 8. Uninstallation & Data Purge Protocols (0-Byte Hygiene)
+
+Subterranean Staircase implements zero-byte data purge workflows across all supported platforms to ensure complete privacy and prevent orphan disk bloat:
+
+* **Windows GUI Uninstaller (`scripts/installer.iss`):**
+  - Features an interactive Pascal Script callback during uninstallation (`CurUninstallStepChanged`).
+  - Prompts the user: *"Do you also want to completely delete all downloaded translation models, caches, and user configurations?"*
+  - When confirmed, recursively deletes `%LOCALAPPDATA%\SubtitleTranslator`, `%APPDATA%\subtitle-translator`, `~/.config/subtitle-translator`, and `~/.cache/subtitle-translator` using `DelTree`.
+* **macOS GUI Clean Wipe (Control Center Factory Reset):**
+  - Features a dedicated **"Factory Reset..."** button in Control Center under Appearance & Preferences.
+  - Upon confirmation, halts active background pipelines, closes SQLite connections, and wipes `~/.cache/subtitle-translator` (including all MarianMT quantized models and databases) and `~/.config/subtitle-translator/config.json`, resetting in-memory state to factory defaults.
+* **Terminal CLI Uninstaller (`uninstall.sh` / `uninstall.ps1`):**
+  - Canonical `subtrans uninstall` command provides interactive prompt to retain or purge data.
+  - `subtrans uninstall --purge` performs non-interactive 100% removal down to 0 bytes.

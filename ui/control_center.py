@@ -100,6 +100,7 @@ class ControlCenterDialog(QDialog):
     window_selected = pyqtSignal(object)  # WindowInfo or None
     reposition_overlay_toggled = pyqtSignal(bool)  # Interactive drag mode toggle
     reset_overlay_position_requested = pyqtSignal()
+    factory_reset_requested = pyqtSignal()
     settings_saved = pyqtSignal()
     quit_requested = pyqtSignal()
 
@@ -552,6 +553,22 @@ class ControlCenterDialog(QDialog):
         updates_row.addWidget(self.check_now_btn)
         settings_layout.addLayout(updates_row)
 
+        # System Maintenance / Factory Reset
+        reset_row = QHBoxLayout()
+        reset_row.setSpacing(8)
+        self.factory_reset_btn = QPushButton("Factory Reset...", settings_card)
+        self.factory_reset_btn.setObjectName("TableDeleteButton")
+        self.factory_reset_btn.setToolTip("Wipe all downloaded models, caches, and reset settings to default state")
+        self.factory_reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.factory_reset_btn.clicked.connect(self._on_factory_reset_clicked)
+        reset_row.addWidget(self.factory_reset_btn)
+
+        self.factory_reset_hint = QLabel("Purges all models and caches to 0 bytes", settings_card)
+        self.factory_reset_hint.setObjectName("SubtleHint")
+        reset_row.addWidget(self.factory_reset_hint)
+        reset_row.addStretch()
+        settings_layout.addLayout(reset_row)
+
         main_layout.addWidget(settings_card)
 
         # -------------------------------------------------------------
@@ -744,6 +761,19 @@ class ControlCenterDialog(QDialog):
             self.reposition_overlay_toggled.emit(False)
         self.reset_overlay_position_requested.emit()
         self.refresh_reposition_hint()
+
+    def _on_factory_reset_clicked(self) -> None:
+        """Prompt confirmation and request factory reset of all data."""
+        reply = QMessageBox.question(
+            self,
+            "Factory Reset",
+            "This will permanently delete all downloaded offline models, translation caches, and saved preferences.\n\n"
+            "Are you sure you want to proceed with a complete reset?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.factory_reset_requested.emit()
 
     def _populate_windows(self) -> None:
         """Enumerate application windows and populate target combobox, preserving active selection."""

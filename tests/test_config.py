@@ -94,3 +94,30 @@ def test_config_backward_compatibility_with_extra_fields() -> None:
     assert config.hotkeys.toggle_translation == "Ctrl+Shift+T"
     assert config.overlay.font_size == 28
     # Extra fields ignored gracefully without raising TypeError
+
+
+def test_config_manager_purge_user_data(tmp_path: Path, monkeypatch) -> None:
+    config_file = tmp_path / "test_config.json"
+    fake_cache_dir = tmp_path / "cache" / "subtitle-translator"
+    fake_cache_dir.mkdir(parents=True)
+    (fake_cache_dir / "test_model.bin").write_text("dummy model data", encoding="utf-8")
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+
+    manager = ConfigManager(config_path=config_file)
+    manager.update(source_language="ja", target_language="zh")
+    assert config_file.exists()
+    assert fake_cache_dir.exists()
+
+    manager.purge_user_data()
+
+    assert config_file.exists()
+    assert not fake_cache_dir.exists()
+    assert manager.config.source_language == "en"
+    assert manager.config.target_language == "id"
+    # Verify persisted clean defaults
+    with open(config_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert data["source_language"] == "en"
+    assert data["target_language"] == "id"
+

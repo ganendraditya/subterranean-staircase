@@ -187,3 +187,18 @@ class ConfigManager:
                 else:
                     setattr(self.config, key, value)
         self.save()
+
+    def purge_user_data(self) -> None:
+        """Purge all caches, downloaded models, and configuration files, resetting state to defaults."""
+        from core.storage.cache import get_default_cache_db_path
+        import shutil
+
+        cache_dir = get_default_cache_db_path().parent
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir, ignore_errors=True)
+
+        if self.config_path.exists():
+            self.config_path.unlink(missing_ok=True)
+
+        self.config = AppConfig()
+        self.save()
