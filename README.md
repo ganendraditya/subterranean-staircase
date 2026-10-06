@@ -46,6 +46,35 @@ irm https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/
 ```
 Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
 
+---
+
+### 3. Manual Development Setup (From Source)
+
+For contributing, debugging, or running from local source:
+```bash
+# Clone the repository
+git clone https://github.com/ganendraditya/subterranean-staircase.git
+cd subterranean-staircase
+
+# Setup Python 3.10+ virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Run test suite
+pytest tests/
+
+# Launch desktop app
+python run.py
+```
+
+---
+
+## Usage & Management
+
 ### Running & Auto-Start
 - **Auto-Start on Boot:** If enabled during installation (or toggled anytime in **Settings → System & Autostart**), Subterranean Staircase runs silently in your background menu bar / system tray whenever your computer boots.
 - **Manual Launch:** You can also launch the app from terminal anytime:
@@ -116,30 +145,6 @@ subtitle-translator/
 ├── AGENTS.md               # Karpathy engineering rules & Anti-Slop guidelines
 ├── requirements.txt        # Cross-platform dependencies
 └── run.py                  # Application launcher
-```
-
----
-
-## Manual Development Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/ganendraditya/subterranean-staircase.git
-cd subterranean-staircase
-
-# Setup Python 3.10+ virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Run test suite
-pytest tests/
-
-# Launch desktop app
-python run.py
 ```
 
 ---
