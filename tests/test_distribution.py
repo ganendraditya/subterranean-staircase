@@ -243,4 +243,14 @@ def test_technical_stack_documentation_exists() -> None:
     assert "OpenAI-Compatible" in content
 
 
+def test_readme_contains_direct_download_links() -> None:
+    readme = (_root() / "README.md").read_text(encoding="utf-8")
+    assert "Subterranean-Staircase-macos-arm64.dmg" in readme
+    assert "Subterranean-Staircase-macos-x86_64.dmg" in readme
+    assert "Subterranean-Staircase-windows-x64-Setup.exe" in readme
+    assert "Subterranean-Staircase-windows-x64-portable.zip" in readme
+    assert "TECHNICAL_STACK_AND_PIPELINES.md" in readme
+
+
+
 
