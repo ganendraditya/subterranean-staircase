@@ -9,23 +9,41 @@ Watch foreign films, anime, livestreams, or video courses without language barri
 
 ---
 
-## Quick Install (Terminal)
+## Download & Installation
 
-### macOS / Linux
+### 1. Graphical Desktop Installers (Recommended)
+
+Download the prebuilt, standalone installer for your operating system (no Python, terminal, or compiler required):
+
+| Platform | Architecture / Device | Installer Type | Direct Download Link |
+| :--- | :--- | :--- | :--- |
+| **macOS** | **Apple Silicon** (M1 / M2 / M3 / M4) | Standalone `.dmg` | [**Download `.dmg` (Apple Silicon)**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-macos-arm64.dmg) |
+| **macOS** | **Intel** (Core i5 / i7 / i9) | Standalone `.dmg` | [**Download `.dmg` (Intel)**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-macos-x86_64.dmg) |
+| **Windows** | **64-bit** (Windows 10 / 11) | Setup Wizard (`.exe`) | [**Download `Setup.exe` (Windows)**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-windows-x64-Setup.exe) |
+| **Windows** | **64-bit** (Windows 10 / 11) | Portable Archive (`.zip`) | [**Download Portable `.zip`**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-windows-x64-portable.zip) |
+
+* On macOS: Open the downloaded `.dmg` and drag **Subterranean Staircase** into your `Applications` folder.
+* On Windows: Run `Subterranean-Staircase-windows-x64-Setup.exe` and follow the guided setup wizard.
+
+---
+
+### 2. Developer / CLI Installation (One-Liner)
+
+For developers and power users who prefer running directly from an isolated Python virtual environment:
+
+#### macOS / Linux
 Run in your terminal:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/install.sh | bash
 ```
-
 Installs to `~/.local/share/subtitle-translator` and creates a launcher at `~/.local/bin/subtrans`.  
-On macOS, the installer will optionally configure a **LaunchAgent** (`~/Library/LaunchAgents/com.subtitle-translator.subtrans.plist`) to auto-start subtrans at login.
+On macOS, the installer configures a native `.app` bundle and an optional **LaunchAgent** (`~/Library/LaunchAgents/com.subtitle-translator.subtrans.plist`) to auto-start at login.
 
-### Windows (PowerShell)
+#### Windows (PowerShell)
 Run in PowerShell:
 ```powershell
 irm https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/install.ps1 | iex
 ```
-
 Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
 
 ### Running & Auto-Start
@@ -35,14 +53,15 @@ Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCA
 subtrans
 ```
 
-### Model Management
-Manage on-device offline translation models directly in **Settings → Offline Translation Models**:
-- Download language pairs (e.g. Japanese → English, Korean → English, English → Indonesian, Chinese → English) on-demand with progress tracking.
-- Delete unused models anytime to free up disk space.
+### Model & Translation Engine Management
+Manage translation settings directly in **Control Center → Language & Translation Model**:
+- **Offline Mode:** Download Big 5 language packs (English, Indonesian, Japanese, Korean, Chinese) on-demand with 1-click downloads.
+- **Universal Cloud LLM (BYOK):** Switch to OpenAI-compatible mode and configure your API key for Groq (`llama-3.3-70b-versatile`), DeepSeek, OpenAI, or local self-hosted instances (Ollama, vLLM).
+- **Draggable Positioning:** Click **"✋ Move Subtitles"** in Control Center to reposition the overlay anywhere on your screen.
 
 ### Updates
 - **In-App (1-Click):** When an update is available, a notification and tray banner `✨ Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
-- **Settings Dialog:** You can also toggle automatic checks or manually click **"Check for Updates Now"** under Settings.
+- **Control Center:** You can also toggle automatic checks or manually click **"Check Now"** under Control Center.
 
 ### Uninstalling
 To uninstall cleanly from your system:
@@ -63,9 +82,11 @@ subtrans uninstall --purge
 - **Screen & Window Capture:** Modular backend supporting macOS (ScreenCaptureKit / Quartz) and Windows (DirectX / Win32) with universal fallback via `mss`.
 - **Vision & OCR:** RapidOCR (ONNX Runtime, CoreML/DirectML/CPU) with perceptual frame-diff short-circuiting to minimize CPU/GPU usage when scenes are static.
 - **Subtitle Intelligence:** Dual-band spatial scanning (top & bottom priority), Jaccard similarity temporal tracking, and multi-language script filtering.
-- **Translation:** CTranslate2 offline INT8 quantized MarianMT models with SQLite WAL caching for sub-millisecond repeated phrase retrieval.
-- **UI & Overlay:** Hardware-accelerated PyQt6 transparent, click-through frameless overlay adhering to Anti-Slop WCAG AA contrast standards.
-- **Distribution:** Lightweight CLI launcher (`subtrans`) and tray daemon.
+- **Translation Engine:** CTranslate2 offline INT8 quantized MarianMT models with SQLite WAL caching + Universal OpenAI-Compatible Cloud LLM provider with fail-safe local fallback.
+- **UI & Overlay:** Hardware-accelerated PyQt6 transparent, click-through frameless overlay adhering to Anti-Slop WCAG AA contrast standards, anchored at bottom-center.
+- **Distribution:** Standalone `.dmg` (macOS arm64/x86_64), `Setup.exe` (Windows), and lightweight CLI installer.
+
+> 📖 **Deep Technical Specifications:** For full mathematical formulas, DBNet unclip scaling, NMT beam tuning benchmarks, and macOS WindowServer Spaces privilege specifications, see [`docs/TECHNICAL_STACK_AND_PIPELINES.md`](docs/TECHNICAL_STACK_AND_PIPELINES.md).
 
 ---
 
@@ -79,12 +100,15 @@ subtitle-translator/
 │   ├── vision/             # Frame difference hashing and image processing
 │   ├── ocr/                # RapidOCR ONNX wrapper
 │   ├── subtitle/           # Temporal stabilization and spatial filters
-│   ├── translate/          # CTranslate2 engine & language routing
+│   ├── translate/          # CTranslate2 engine, LLM engine & language routing
 │   ├── storage/            # SQLite WAL cache & history storage
 │   ├── pipeline.py         # Event-driven background orchestrator
 │   └── config.py           # Configuration schema and manager
-├── ui/                     # PyQt6 overlay, ROI selector, tray, and settings
+├── ui/                     # PyQt6 overlay, ROI selector, tray, and control center
+├── docs/                   # Architectural specifications and pipeline formulas
+├── scripts/                # Packaging, evaluation benchmarks, and installer builders
 ├── tests/                  # Unit and integration test suite
+├── subtrans.spec           # Cross-platform PyInstaller standalone spec
 ├── install.sh              # Single-line installer (macOS/Linux)
 ├── uninstall.sh            # Clean uninstaller (macOS/Linux)
 ├── install.ps1             # Single-line installer (Windows)
