@@ -15,18 +15,29 @@ concurrency:
 
 jobs:
   build-macos:
-    name: Build macOS (Apple Silicon - .dmg arm64)
+    name: Build macOS (${{ matrix.target }} - .dmg ${{ matrix.arch }})
     runs-on: macos-14
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: Apple Silicon
+            python-arch: arm64
+          - arch: x86_64
+            target: Intel
+            python-arch: x64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.10 (${{ matrix.python-arch }})
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+          architecture: ${{ matrix.python-arch }}
           cache: "pip"
 
       - name: Install dependencies
@@ -43,18 +54,20 @@ jobs:
 
       - name: Verify DMG & Binary Integrity
         shell: bash
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          dmg_file="dist/Subterranean-Staircase-macos-arm64.dmg"
+          dmg_file="dist/Subterranean-Staircase-macos-${MATRIX_ARCH}.dmg"
           echo "Verifying DMG: $dmg_file"
           test -s "$dmg_file"
           hdiutil verify "$dmg_file"
-          lipo -info "dist/Subterranean Staircase.app/Contents/MacOS/Subterranean Staircase" | grep "arm64"
+          lipo -info "dist/Subterranean Staircase.app/Contents/MacOS/Subterranean Staircase" | grep "${MATRIX_ARCH}"
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Subterranean-Staircase-macos-arm64
+          name: Subterranean-Staircase-macos-${{ matrix.arch }}
           path: dist/*.dmg
           if-no-files-found: error
 
