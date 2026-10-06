@@ -129,6 +129,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -136,8 +139,9 @@ jobs:
           merge-multiple: true
 
       - name: Publish GitHub Release Assets
-        uses: softprops/action-gh-release@c952df4f26d373a62d844ef7b815f7161a8a0a08 # v2.0.8
-        with:
-          files: release-assets/*
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" release-assets/* \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes
