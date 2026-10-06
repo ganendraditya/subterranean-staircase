@@ -93,9 +93,9 @@ class ModelDownloadProgressDialog(QDialog):
     def _on_finished(self, success: bool, message: str) -> None:
         self.close_btn.setEnabled(True)
         if success:
-            self.status_label.setText("✔ Model downloaded successfully!")
+            self.status_label.setText("Model downloaded successfully.")
             self.progress_bar.setValue(100)
             self.accept()
         else:
-            self.status_label.setText(f"❌ {message}")
+            self.status_label.setText(f"Failed: {message}")
             QMessageBox.critical(self, "Download Failed", message)

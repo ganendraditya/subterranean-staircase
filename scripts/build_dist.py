@@ -46,7 +46,7 @@ def build_distribution(output_dir: Path) -> Path:
         shutil.rmtree(stage_dir)
     stage_dir.mkdir(parents=True)
 
-    print(f"📦 Staging distribution for target: {target_triple}...")
+    print(f"Staging distribution for target: {target_triple}...")
 
     # 1. Copy core codebase & essentials
     for item in ["core", "ui", "run.py", "requirements.txt", "uninstall.sh", "uninstall.ps1", "README.md"]:
@@ -60,7 +60,7 @@ def build_distribution(output_dir: Path) -> Path:
     # 2. Package into tar.gz (macOS/Linux) or zip (Windows)
     if platform.system().lower() == "windows":
         archive_path = output_dir / f"{dist_name}.zip"
-        print(f"🗜 Compressing {archive_path.name}...")
+        print(f"Compressing {archive_path.name}...")
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, _, files in os.walk(stage_dir):
                 for f in files:
@@ -69,12 +69,12 @@ def build_distribution(output_dir: Path) -> Path:
                     zf.write(full_p, arcname=f"{dist_name}/{rel_p}")
     else:
         archive_path = output_dir / f"{dist_name}.tar.gz"
-        print(f"🗜 Compressing {archive_path.name}...")
+        print(f"Compressing {archive_path.name}...")
         with tarfile.open(archive_path, "w:gz") as tf:
             tf.add(stage_dir, arcname=dist_name)
 
     shutil.rmtree(stage_dir)
-    print(f"✔ Distribution build complete: {archive_path} ({round(archive_path.stat().st_size / (1024*1024), 2)} MB)")
+    print(f"Distribution build complete: {archive_path} ({round(archive_path.stat().st_size / (1024*1024), 2)} MB)")
     return archive_path
 
 

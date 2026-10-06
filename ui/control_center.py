@@ -192,7 +192,7 @@ class ControlCenterDialog(QDialog):
         title_label.setObjectName("SectionHeader")
         status_left.addWidget(title_label)
 
-        self.status_badge = QLabel("○ STANDBY", status_card)
+        self.status_badge = QLabel("STANDBY", status_card)
         self.status_badge.setObjectName("StatusBadgeStandby")
         status_left.addWidget(self.status_badge)
 
@@ -249,13 +249,13 @@ class ControlCenterDialog(QDialog):
         capture_layout.addLayout(target_row)
 
         roi_row = QHBoxLayout()
-        self.roi_btn = QPushButton("🎯 Select Region (ROI)...", capture_card)
+        self.roi_btn = QPushButton("Select Region (ROI)...", capture_card)
         self.roi_btn.setObjectName("SecondaryButton")
         self.roi_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.roi_btn.clicked.connect(self._on_roi_clicked)
         roi_row.addWidget(self.roi_btn)
 
-        self.reset_roi_btn = QPushButton("✕ Reset", capture_card)
+        self.reset_roi_btn = QPushButton("Reset", capture_card)
         self.reset_roi_btn.setObjectName("SecondaryButton")
         self.reset_roi_btn.setToolTip("Clear custom ROI and return to full capture area")
         self.reset_roi_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -456,7 +456,7 @@ class ControlCenterDialog(QDialog):
         llm_action_row.addWidget(self.llm_fallback_cb)
         llm_action_row.addStretch()
 
-        self.llm_test_btn = QPushButton("🔌 Test Connection", self.llm_widget)
+        self.llm_test_btn = QPushButton("Test Connection", self.llm_widget)
         self.llm_test_btn.setObjectName("SecondaryButton")
         self.llm_test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.llm_test_btn.setStyleSheet("font-size: 11px; padding: 4px 10px;")
@@ -512,13 +512,13 @@ class ControlCenterDialog(QDialog):
         reposition_row = QHBoxLayout()
         reposition_row.setSpacing(8)
 
-        self.reposition_btn = QPushButton("✋ Move Subtitles", settings_card)
+        self.reposition_btn = QPushButton("Move Subtitles", settings_card)
         self.reposition_btn.setObjectName("SecondaryButton")
         self.reposition_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.reposition_btn.clicked.connect(self._on_toggle_reposition_clicked)
         reposition_row.addWidget(self.reposition_btn)
 
-        self.reset_pos_btn = QPushButton("✕ Reset Position", settings_card)
+        self.reset_pos_btn = QPushButton("Reset Position", settings_card)
         self.reset_pos_btn.setObjectName("SecondaryButton")
         self.reset_pos_btn.setToolTip("Revert to automatic bottom-center placement")
         self.reset_pos_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -580,12 +580,12 @@ class ControlCenterDialog(QDialog):
         """Update live translation status appearance."""
         self._is_active = active
         if active:
-            self.status_badge.setText("● TRANSLATING")
+            self.status_badge.setText("TRANSLATING")
             self.status_badge.setObjectName("StatusBadgeActive")
             self.toggle_btn.setText("Pause Translation")
             self.toggle_btn.setObjectName("PauseButton")
         else:
-            self.status_badge.setText("○ STANDBY")
+            self.status_badge.setText("STANDBY")
             self.status_badge.setObjectName("StatusBadgeStandby")
             self.toggle_btn.setText("Start Translation")
             self.toggle_btn.setObjectName("StartButton")
@@ -700,10 +700,10 @@ class ControlCenterDialog(QDialog):
         """Handle completed background connection test result."""
         self.llm_test_btn.setEnabled(True)
         if ok:
-            self.llm_status_label.setText(f"🟢 {msg}")
+            self.llm_status_label.setText(f"Connected: {msg}")
             self.llm_status_label.setStyleSheet("font-size: 11px; color: #10B981;")
         else:
-            self.llm_status_label.setText(f"🔴 {msg}")
+            self.llm_status_label.setText(f"Failed: {msg}")
             self.llm_status_label.setStyleSheet("font-size: 11px; color: #EF4444;")
 
     def refresh_reposition_hint(self) -> None:
@@ -720,11 +720,11 @@ class ControlCenterDialog(QDialog):
         """Update reposition button visual state."""
         self._is_repositioning_overlay = active
         if active:
-            self.reposition_btn.setText("🔒 Lock Position")
+            self.reposition_btn.setText("Lock Position")
             self.reposition_btn.setObjectName("PrimaryButton")
             self.reposition_hint.setText("Drag overlay on screen...")
         else:
-            self.reposition_btn.setText("✋ Move Subtitles")
+            self.reposition_btn.setText("Move Subtitles")
             self.reposition_btn.setObjectName("SecondaryButton")
             self.refresh_reposition_hint()
 
@@ -915,21 +915,21 @@ class ControlCenterDialog(QDialog):
             meta = RECOMMENDED_MODELS.get(hop_pair)
 
             if meta is None and not installed:
-                self.model_status_label.setText(f"⚠ Direct model '{hop_pair}' not available in catalog")
+                self.model_status_label.setText(f"Direct model '{hop_pair}' not available in catalog")
                 self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
                 self.model_action_btn.setEnabled(False)
                 self.model_action_btn.setText("Unavailable")
                 self.model_action_btn.setObjectName("SecondaryButton")
             elif installed:
                 disk_mb = self.model_manager.get_disk_size_mb(hop_pair)
-                self.model_status_label.setText(f"✔ Ready: Direct {hop_pair} ({disk_mb} MB on disk)")
+                self.model_status_label.setText(f"Ready: Direct {hop_pair} ({disk_mb} MB on disk)")
                 self.model_status_label.setStyleSheet("color: #4ADE80; font-weight: 500;")
                 self.model_action_btn.setEnabled(True)
                 self.model_action_btn.setText("Delete")
                 self.model_action_btn.setObjectName("TableDeleteButton")
             else:
                 size_str = f"~{meta.approx_size_mb} MB" if meta else ""
-                self.model_status_label.setText(f"⚠ Model not downloaded ({size_str})")
+                self.model_status_label.setText(f"Model not downloaded ({size_str})")
                 self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
                 self.model_action_btn.setEnabled(True)
                 self.model_action_btn.setText("Download")
@@ -943,7 +943,7 @@ class ControlCenterDialog(QDialog):
 
             if h1_installed and h2_installed:
                 total_mb = round(self.model_manager.get_disk_size_mb(hop1_pair) + self.model_manager.get_disk_size_mb(hop2_pair), 2)
-                self.model_status_label.setText(f"✔ Ready: Pivot ({hop1_pair} + {hop2_pair}, {total_mb} MB)")
+                self.model_status_label.setText(f"Ready: Pivot ({hop1_pair} + {hop2_pair}, {total_mb} MB)")
                 self.model_status_label.setStyleSheet("color: #4ADE80; font-weight: 500;")
                 self.model_action_btn.setEnabled(True)
                 self.model_action_btn.setText("Delete All")
@@ -952,13 +952,13 @@ class ControlCenterDialog(QDialog):
                 missing = [p for p in needed_pairs if not self.model_manager.is_installed(p)]
                 unobtainable = [p for p in missing if p not in RECOMMENDED_MODELS]
                 if unobtainable:
-                    self.model_status_label.setText(f"⚠ Missing model(s): {', '.join(unobtainable)}")
+                    self.model_status_label.setText(f"Missing model(s): {', '.join(unobtainable)}")
                     self.model_status_label.setStyleSheet("color: #F87171; font-weight: 500;")
                     self.model_action_btn.setEnabled(False)
                     self.model_action_btn.setText("Unavailable")
                     self.model_action_btn.setObjectName("SecondaryButton")
                 else:
-                    self.model_status_label.setText(f"⚠ Pivot requires: {', '.join(missing)}")
+                    self.model_status_label.setText(f"Pivot requires: {', '.join(missing)}")
                     self.model_status_label.setStyleSheet("color: #FBBF24; font-weight: 500;")
                     self.model_action_btn.setEnabled(True)
                     self.model_action_btn.setText("Download")
@@ -1023,7 +1023,7 @@ class ControlCenterDialog(QDialog):
             self.packs_table.setItem(row, 0, name_item)
 
             if installed:
-                status_text = f"✔ Installed ({pack['installed_size_mb']} MB)"
+                status_text = f"Installed ({pack['installed_size_mb']} MB)"
                 status_item = QTableWidgetItem(status_text)
                 status_item.setForeground(QColor("#4ADE80"))
                 btn = QPushButton("Delete", self.packs_table)
@@ -1034,7 +1034,7 @@ class ControlCenterDialog(QDialog):
                 else:
                     btn.clicked.connect(lambda _, pid=pack_id: self._on_delete_pack_clicked(pid))
             elif partially_installed:
-                status_text = f"⚠ Incomplete ({pack['installed_size_mb']} MB)"
+                status_text = f"Incomplete ({pack['installed_size_mb']} MB)"
                 status_item = QTableWidgetItem(status_text)
                 status_item.setForeground(QColor("#FBBF24"))
                 btn = QPushButton("Fix / Resume", self.packs_table)
