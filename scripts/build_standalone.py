@@ -27,9 +27,10 @@ def get_platform_target() -> str:
         arch = "arm64" if "arm" in machine or "aarch64" in machine else "x86_64"
         return f"macos-{arch}"
     elif sys_name == "windows":
-        if "arm" in machine or "aarch64" in machine:
+        proc_arch = os.environ.get("PROCESSOR_ARCHITEW6432") or os.environ.get("PROCESSOR_ARCHITECTURE", "")
+        if "arm" in machine or "aarch64" in machine or "arm" in proc_arch.lower():
             arch = "arm64"
-        elif "64" in machine:
+        elif "64" in machine or "64" in proc_arch:
             arch = "x64"
         else:
             arch = "x86"
@@ -131,10 +132,10 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
         resolved_out = output_dir.resolve()
         resolved_app = app_dir.resolve()
         # /O overrides OutputDir= in installer.iss, /DAppSourceDir overrides source files
-        cmd = [iscc_bin, f'/O"{resolved_out}"', f'/DAppSourceDir="{resolved_app}"', str(iss_path)]
+        cmd = [iscc_bin, f"/O{resolved_out}", f"/DAppSourceDir={resolved_app}", str(iss_path)]
         subprocess.run(cmd, check=True)
 
-        exe_candidates = list(output_dir.glob("*-Setup.exe"))
+        exe_candidates = sorted(output_dir.glob("*-Setup.exe"), key=lambda p: p.stat().st_mtime, reverse=True)
         if exe_candidates:
             setup_exe = exe_candidates[0]
             print(f"✔ Created Windows Setup installer: {setup_exe} ({setup_exe.stat().st_size / (1024 * 1024):.1f} MB)")

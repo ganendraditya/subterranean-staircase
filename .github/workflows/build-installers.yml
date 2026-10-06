@@ -110,6 +110,10 @@ jobs:
               exit 1
           }
           foreach ($art in $artifacts) {
+              if ($art.Length -eq 0) {
+                  Write-Error "Artifact is empty (0 bytes): $($art.FullName)"
+                  exit 1
+              }
               Write-Host "Found artifact: $($art.FullName) ($([math]::Round($art.Length / 1MB, 2)) MB)"
           }
 
@@ -126,7 +130,7 @@ jobs:
     name: Publish Artifacts to GitHub Release
     needs: [build-macos, build-windows-x64]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
