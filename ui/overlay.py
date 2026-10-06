@@ -250,7 +250,7 @@ class SubtitleOverlayWindow(QWidget):
         rect = self.rect()
         metrics = QFontMetrics(font)
 
-        display_text = self._current_text or ("✋ Drag to Reposition Subtitles" if self._interactive_mode else "")
+        display_text = self._current_text or ("Drag to Reposition Subtitles" if self._interactive_mode else "")
 
         # Draw interactive positioning guidelines and dashed border
         if self._interactive_mode:
@@ -266,7 +266,7 @@ class SubtitleOverlayWindow(QWidget):
             painter.drawText(
                 rect.adjusted(10, 8, -10, -8),
                 int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
-                "⚓ Anchored at Bottom-Center • Drag anywhere to move",
+                "Anchored at Bottom-Center • Drag anywhere to move",
             )
             # Revert font for main text
             painter.setFont(font)

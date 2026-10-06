@@ -61,10 +61,10 @@ subtrans
 Manage translation settings directly in **Control Center → Language & Translation Model**:
 - **Offline Mode:** Download Big 5 language packs (English, Indonesian, Japanese, Korean, Chinese) on-demand with 1-click downloads.
 - **Universal Cloud LLM (BYOK):** Switch to OpenAI-compatible mode and configure your API key for Groq (`llama-3.3-70b-versatile`), DeepSeek, OpenAI, or local self-hosted instances (Ollama, vLLM).
-- **Draggable Positioning:** Click **"✋ Move Subtitles"** in Control Center to reposition the overlay anywhere on your screen.
+- **Draggable Positioning:** Click **"Move Subtitles"** in Control Center to reposition the overlay anywhere on your screen.
 
 ### Updates
-- **In-App (1-Click):** When an update is available, a notification and tray banner `✨ Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
+- **In-App (1-Click):** When an update is available, a notification and tray banner `Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
 - **Control Center:** You can also toggle automatic checks or manually click **"Check Now"** under Control Center.
 
 ### Uninstalling
@@ -96,7 +96,7 @@ subtrans uninstall --purge
 - **UI & Overlay:** Hardware-accelerated PyQt6 transparent, click-through frameless overlay adhering to Anti-Slop WCAG AA contrast standards, anchored at bottom-center.
 - **Distribution:** Standalone `.dmg` (macOS arm64/x86_64), `Setup.exe` (Windows), and lightweight CLI installer.
 
-> 📖 **Deep Technical Specifications:** For full mathematical formulas, DBNet unclip scaling, NMT beam tuning benchmarks, and macOS WindowServer Spaces privilege specifications, see [`docs/TECHNICAL_STACK_AND_PIPELINES.md`](docs/TECHNICAL_STACK_AND_PIPELINES.md).
+> **Deep Technical Specifications:** For full mathematical formulas, DBNet unclip scaling, NMT beam tuning benchmarks, and macOS WindowServer Spaces privilege specifications, see [`docs/TECHNICAL_STACK_AND_PIPELINES.md`](docs/TECHNICAL_STACK_AND_PIPELINES.md).
 
 ---
 

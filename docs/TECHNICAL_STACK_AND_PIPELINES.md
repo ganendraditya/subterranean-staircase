@@ -215,7 +215,7 @@ When video players (such as YouTube in Safari/Firefox) enter native macOS Fullsc
   - Subtitle text renders aligned to the **bottom boundary** (`AlignBottom`).
   - As dialogue grows from 1 line to 3 lines, text naturally **expands upwards** like standard cinema/Netflix subtitles, while the baseline anchor remains rock solid.
 * **Interactive Repositioning Mode:**
-  - Control Center toggle `✋ Move Subtitles` temporarily disables `WindowTransparentForInput`.
+  - Control Center toggle `Move Subtitles` temporarily disables `WindowTransparentForInput`.
   - Displays an elegant cyan dashed outline (`#00E5FF`) with `SizeAllCursor`.
   - While dragging, coordinates update in memory; upon mouse release (`mouseReleaseEvent`), final `(center_x, bottom_y)` coordinates are atomically persisted to `config.json`.
 

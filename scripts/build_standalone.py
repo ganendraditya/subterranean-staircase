@@ -49,7 +49,7 @@ def run_pyinstaller(spec_path: Path, output_dir: Path) -> Path:
         str(output_dir),
         "--noconfirm",
     ]
-    print(f"🔨 Running PyInstaller: {' '.join(cmd)}...")
+    print(f"Running PyInstaller: {' '.join(cmd)}...")
     subprocess.run(cmd, check=True)
     return output_dir
 
@@ -64,7 +64,7 @@ def package_macos_dmg(app_path: Path, output_dmg_path: Path, volume_name: str = 
     try:
         # 1. Copy .app into staging directory
         staged_app = staging_dir / app_path.name
-        print(f"📦 Staging {app_path.name}...")
+        print(f"Staging {app_path.name}...")
         shutil.copytree(app_path, staged_app, symlinks=True)
 
         # 2. Create symlink to /Applications for drag-and-drop
@@ -88,11 +88,11 @@ def package_macos_dmg(app_path: Path, output_dmg_path: Path, volume_name: str = 
             "UDZO",
             str(output_dmg_path),
         ]
-        print(f"🗜 Creating DMG image: {' '.join(cmd)}...")
+        print(f"Creating DMG image: {' '.join(cmd)}...")
         subprocess.run(cmd, check=True)
 
         size_mb = output_dmg_path.stat().st_size / (1024 * 1024)
-        print(f"✔ Successfully created macOS DMG: {output_dmg_path} ({size_mb:.1f} MB)")
+        print(f"Successfully created macOS DMG: {output_dmg_path} ({size_mb:.1f} MB)")
         return output_dmg_path
     finally:
         if staging_dir.exists():
@@ -106,7 +106,7 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
 
     # 1. Portable .zip archive
     zip_path = output_dir / f"Subterranean-Staircase-{target}-portable.zip"
-    print(f"🗜 Compressing portable Windows ZIP: {zip_path.name}...")
+    print(f"Compressing portable Windows ZIP: {zip_path.name}...")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(app_dir):
             for file in files:
@@ -114,7 +114,7 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
                 rel_p = full_p.relative_to(app_dir)
                 zf.write(full_p, arcname=f"Subterranean Staircase/{rel_p.as_posix()}")
     artifacts.append(zip_path)
-    print(f"✔ Created portable ZIP: {zip_path} ({zip_path.stat().st_size / (1024 * 1024):.1f} MB)")
+    print(f"Created portable ZIP: {zip_path} ({zip_path.stat().st_size / (1024 * 1024):.1f} MB)")
 
     # 2. Inno Setup installer if iscc is found
     iscc_bin = shutil.which("iscc") or shutil.which("ISCC")
@@ -124,11 +124,11 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
             iscc_bin = str(default_inno)
 
     if not iscc_bin:
-        print("ℹ Inno Setup compiler (ISCC) not found; skipping Setup.exe creation.")
+        print("Inno Setup compiler (ISCC) not found; skipping Setup.exe creation.")
     elif not iss_path.exists():
-        print(f"ℹ Inno Setup script not found at {iss_path}; skipping Setup.exe creation.")
+        print(f"Inno Setup script not found at {iss_path}; skipping Setup.exe creation.")
     else:
-        print(f"🔨 Compiling Inno Setup installer using {iscc_bin}...")
+        print(f"Compiling Inno Setup installer using {iscc_bin}...")
         resolved_out = output_dir.resolve()
         resolved_app = app_dir.resolve()
         # Snapshot existing installers before compiling to detect newly built artifact
@@ -141,7 +141,7 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
         new_exes = [p for p in output_dir.glob("*-Setup.exe") if p not in existing_exes]
         if new_exes:
             setup_exe = new_exes[0]
-            print(f"✔ Created Windows Setup installer: {setup_exe} ({setup_exe.stat().st_size / (1024 * 1024):.1f} MB)")
+            print(f"Created Windows Setup installer: {setup_exe} ({setup_exe.stat().st_size / (1024 * 1024):.1f} MB)")
             artifacts.append(setup_exe)
         else:
             # Fallback check if existing was overwritten
@@ -149,7 +149,7 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
             if not fallback_exe.exists():
                 fallback_exe = output_dir / "Subterranean-Staircase-windows-x64-Setup.exe"
             if fallback_exe.exists():
-                print(f"✔ Created Windows Setup installer: {fallback_exe} ({fallback_exe.stat().st_size / (1024 * 1024):.1f} MB)")
+                print(f"Created Windows Setup installer: {fallback_exe} ({fallback_exe.stat().st_size / (1024 * 1024):.1f} MB)")
                 artifacts.append(fallback_exe)
             else:
                 raise FileNotFoundError(f"Inno Setup compiled successfully but no *-Setup.exe was found in {output_dir}")
@@ -161,7 +161,7 @@ def build_all(output_dir: Path, spec_path: Path, iss_path: Path, skip_dmg: bool 
     """Full end-to-end build pipeline for the current platform."""
     output_dir.mkdir(parents=True, exist_ok=True)
     target = get_platform_target()
-    print(f"🚀 Starting standalone build for target platform: {target}...")
+    print(f"Starting standalone build for target platform: {target}...")
 
     # Run PyInstaller
     run_pyinstaller(spec_path, output_dir)
@@ -198,7 +198,7 @@ def main() -> int:
     args = parser.parse_args()
 
     artifacts = build_all(args.output, args.spec, args.iss, skip_dmg=args.skip_dmg)
-    print("\n📦 Built Artifacts:")
+    print("\nBuilt Artifacts:")
     for art in artifacts:
         print(f"  • {art}")
     return 0

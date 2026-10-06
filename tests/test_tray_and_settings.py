@@ -141,7 +141,7 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     assert hasattr(cc, "reposition_btn")
     assert hasattr(cc, "reset_pos_btn")
     assert hasattr(cc, "reposition_hint")
-    assert cc.reposition_btn.text() == "✋ Move Subtitles"
+    assert cc.reposition_btn.text() == "Move Subtitles"
     assert cc.reposition_hint.text() == "Auto bottom-center"
     assert not cc.reset_pos_btn.isVisible()
 
@@ -150,14 +150,14 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     cc.reposition_btn.click()
     assert len(reposition_signals) == 1
     assert reposition_signals[0] is True
-    assert cc.reposition_btn.text() == "🔒 Lock Position"
+    assert cc.reposition_btn.text() == "Lock Position"
 
     # Reset position signal
     reset_signals = []
     cc.reset_overlay_position_requested.connect(lambda: reset_signals.append(True))
     cc.reset_pos_btn.click()
     assert len(reset_signals) == 1
-    assert cc.reposition_btn.text() == "✋ Move Subtitles"
+    assert cc.reposition_btn.text() == "Move Subtitles"
 
     # 8. Check Universal OpenAI-Compatible LLM engine controls
     assert hasattr(cc, "engine_combo")

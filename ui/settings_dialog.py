@@ -224,7 +224,7 @@ class SettingsDialog(QDialog):
             self.models_table.setItem(row, 1, desc_item)
 
             if item["installed"]:
-                status_text = f"✔ Ready ({item['installed_size_mb']} MB)"
+                status_text = f"Ready ({item['installed_size_mb']} MB)"
                 status_item = QTableWidgetItem(status_text)
                 btn = QPushButton("Delete")
                 btn.setObjectName("TableDeleteButton")

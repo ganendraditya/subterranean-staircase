@@ -98,7 +98,7 @@ class UpdateProgressDialog(QDialog):
         self.progress_bar.setValue(100 if success else 0)
 
         if success:
-            self.status_label.setText("✔ Update complete! Restarting application...")
+            self.status_label.setText("Update complete. Restarting application...")
             # Automatically restart application
             QMessageBox.information(
                 self,
@@ -107,5 +107,5 @@ class UpdateProgressDialog(QDialog):
             )
             self.update_manager.restart_app()
         else:
-            self.status_label.setText(f"❌ {message}")
+            self.status_label.setText(f"Failed: {message}")
             self.close_btn.setEnabled(True)

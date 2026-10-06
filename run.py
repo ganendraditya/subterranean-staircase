@@ -249,7 +249,7 @@ class SubtitleTranslatorApp:
             self.control_center.set_active(True)
             self.overlay.show()
             self.overlay.raise_front()
-            self.overlay.update_text("⚡ Subtitle Translator Active")
+            self.overlay.update_text("Subtitle Translator Active")
             if not self.worker.isRunning():
                 self.worker.start()
         else:
@@ -311,7 +311,7 @@ class SubtitleTranslatorApp:
         self.worker.set_custom_roi(roi)
         self.control_center.set_roi_hint(f"Custom ROI: {roi.width}x{roi.height} at ({roi.left}, {roi.top})", has_custom_roi=True)
         self._apply_overlay_geometry()
-        self.overlay.update_text("🎯 Region locked")
+        self.overlay.update_text("Region locked")
 
     def _on_reset_roi(self) -> None:
         """Clear custom ROI and revert to full capture area."""
@@ -320,7 +320,7 @@ class SubtitleTranslatorApp:
         self.worker.set_custom_roi(None)
         self.control_center.set_roi_hint("Full capture area active", has_custom_roi=False)
         self._apply_overlay_geometry()
-        self.overlay.update_text("🔄 Full capture restored")
+        self.overlay.update_text("Full capture restored")
 
     def _apply_overlay_geometry(self) -> None:
         """Position overlay respecting saved custom position, target window, or ROI."""
@@ -403,7 +403,7 @@ class SubtitleTranslatorApp:
         logger.info("Resetting overlay position to auto.")
         self.config_manager.update(custom_overlay_position=None)
         self._apply_overlay_geometry()
-        self.overlay.update_text("🔄 Position reset to auto")
+        self.overlay.update_text("Position reset to auto")
 
     def _on_window_selected(self, window_info: Optional[WindowInfo]) -> None:
         """Set targeted application window."""

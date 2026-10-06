@@ -132,8 +132,8 @@ When conducting AI Code Reviews (via `ocr review`, dual LLM evaluations, or manu
 
 ### 5. Reporting Format to User
 Always report findings structured clearly into distinct sections before asking for merge/commit permission:
-1. `### 1. Temuan False Positive / Ditolak (Hallucinated Findings) ❌` (with reproduction proof of why it's rejected).
-2. `### 2. Temuan Nyata & Sudah Diperbaiki Secara Bedah (Confirmed Real Issues & Fixed) ✅` (with scenario, reproduction proof, and surgical fix).
+1. `### 1. Temuan False Positive / Ditolak (Hallucinated Findings)` (with reproduction proof of why it's rejected).
+2. `### 2. Temuan Nyata & Sudah Diperbaiki Secara Bedah (Confirmed Real Issues & Fixed)` (with scenario, reproduction proof, and surgical fix).
 3. `### 3. Verifikasi Pasca-Perbaikan (Orthogonality Check)` (with test pass status).
 
 ### 6. Execution & Timeout Vigilance
