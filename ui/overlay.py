@@ -11,9 +11,9 @@ from __future__ import annotations
 from ctypes import c_void_p
 import sys
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
-from PyQt6.QtCore import QPoint, QPointF, Qt, QTimer
+from PyQt6.QtCore import QPoint, QPointF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen, QTextLayout
 from PyQt6.QtWidgets import QWidget
 
@@ -22,6 +22,12 @@ from core.config import OverlayStyleConfig
 
 class SubtitleOverlayWindow(QWidget):
     """Transparent, frameless, and click-through floating overlay widget for subtitles."""
+
+    position_changed = pyqtSignal(int, int)  # Emits (bottom_center_x, bottom_center_y) during move
+    position_locked = pyqtSignal(int, int)   # Emits final (bottom_center_x, bottom_center_y) on mouse release for persistence
+
+    CANVAS_WIDTH = 800
+    CANVAS_HEIGHT = 160
 
     def __init__(
         self,
@@ -34,6 +40,7 @@ class SubtitleOverlayWindow(QWidget):
         self._last_update_time: float = 0.0
         self._interactive_mode: bool = False
         self._drag_pos: Optional[QPoint] = None
+        self._custom_bottom_center: Optional[Tuple[int, int]] = None
 
         self._init_window_flags()
 
@@ -154,6 +161,31 @@ class SubtitleOverlayWindow(QWidget):
                 pass
         super().closeEvent(event)
 
+    def set_bottom_center(self, center_x: int, bottom_y: int, canvas_width: int = CANVAS_WIDTH, canvas_height: int = CANVAS_HEIGHT) -> None:
+        """Position window using bottom-center anchor coordinates (x: center, y: baseline)."""
+        top_left_x = int(round(center_x - (canvas_width / 2.0)))
+        top_left_y = int(round(bottom_y - canvas_height))
+        self._custom_bottom_center = (center_x, bottom_y)
+        self.setGeometry(top_left_x, top_left_y, canvas_width, canvas_height)
+
+    def get_bottom_center(self) -> Tuple[int, int]:
+        """Return current bottom-center coordinates (center_x, bottom_y)."""
+        geom = self.geometry()
+        center_x = geom.x() + (geom.width() // 2)
+        bottom_y = geom.y() + geom.height()
+        return (center_x, bottom_y)
+
+    def set_interactive_mode(self, enabled: bool) -> None:
+        """Enable interactive moving mode: turns off click-through and shows dashed border."""
+        self.set_click_through(not enabled)
+        if enabled:
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+            self.show()
+            self.raise_front()
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.update()
+
     def set_click_through(self, enabled: bool) -> None:
         """Toggle mouse click-through behavior while preserving window visibility."""
         self._interactive_mode = not enabled
@@ -218,12 +250,33 @@ class SubtitleOverlayWindow(QWidget):
         rect = self.rect()
         metrics = QFontMetrics(font)
 
-        display_text = self._current_text or "Subtitle Translation Overlay (Drag to move)"
+        display_text = self._current_text or ("✋ Drag to Reposition Subtitles" if self._interactive_mode else "")
+
+        # Draw interactive positioning guidelines and dashed border
+        if self._interactive_mode:
+            dashed_pen = QPen(QColor("#00E5FF"), 2.0, Qt.PenStyle.DashLine)
+            painter.setPen(dashed_pen)
+            painter.setBrush(QColor(0, 0, 0, 110))
+            painter.drawRoundedRect(rect.adjusted(2, 2, -2, -2), 8.0, 8.0)
+
+            # Draw top helper hint
+            hint_font = QFont("Arial", 11)
+            painter.setFont(hint_font)
+            painter.setPen(QColor("#00E5FF"))
+            painter.drawText(
+                rect.adjusted(10, 8, -10, -8),
+                int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
+                "⚓ Anchored at Bottom-Center • Drag anywhere to move",
+            )
+            # Revert font for main text
+            painter.setFont(font)
 
         # Calculate bounding box for text
+        # Align vertically to bottom of canvas for natural upward subtitle growth
+        avail_rect = rect.adjusted(20, 30 if self._interactive_mode else 10, -20, -10)
         text_rect = metrics.boundingRect(
-            rect.adjusted(20, 10, -20, -10),
-            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap),
+            avail_rect,
+            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom | Qt.TextFlag.TextWordWrap),
             display_text,
         )
 
@@ -289,10 +342,19 @@ class SubtitleOverlayWindow(QWidget):
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         if self._interactive_mode and self._drag_pos is not None and event.buttons() == Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            new_top_left = event.globalPosition().toPoint() - self._drag_pos
+            self.move(new_top_left)
+            center_x, bottom_y = self.get_bottom_center()
+            self._custom_bottom_center = (center_x, bottom_y)
+            self.position_changed.emit(center_x, bottom_y)
             event.accept()
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        if self._interactive_mode:
+        if self._interactive_mode and event.button() == Qt.MouseButton.LeftButton:
+            was_dragging = self._drag_pos is not None
             self._drag_pos = None
+            if was_dragging:
+                center_x, bottom_y = self.get_bottom_center()
+                self._custom_bottom_center = (center_x, bottom_y)
+                self.position_locked.emit(center_x, bottom_y)
             event.accept()

@@ -52,6 +52,7 @@ class AppConfig:
     capture_mode: str = CaptureMode.FULL_SCREEN.value
     target_window_title: Optional[str] = None
     custom_roi: Optional[Tuple[int, int, int, int]] = None  # (left, top, width, height)
+    custom_overlay_position: Optional[Tuple[int, int]] = None  # (bottom_center_x, bottom_center_y)
     fps_limit: int = 10
     frame_diff_threshold: float = 0.015  # 1.5% pixel variance threshold to trigger OCR
     check_updates: bool = True
@@ -89,6 +90,14 @@ class AppConfig:
             except (ValueError, TypeError):
                 validated_roi = None
 
+        raw_pos = data.get("custom_overlay_position")
+        validated_pos: Optional[Tuple[int, int]] = None
+        if isinstance(raw_pos, (list, tuple)) and len(raw_pos) == 2:
+            try:
+                validated_pos = (int(raw_pos[0]), int(raw_pos[1]))
+            except (ValueError, TypeError):
+                validated_pos = None
+
         return cls(
             version=data.get("version", "1.0.0"),
             source_language=data.get("source_language", "en"),
@@ -96,6 +105,7 @@ class AppConfig:
             capture_mode=data.get("capture_mode", CaptureMode.FULL_SCREEN.value),
             target_window_title=data.get("target_window_title"),
             custom_roi=validated_roi,
+            custom_overlay_position=validated_pos,
             fps_limit=data.get("fps_limit", 10),
             frame_diff_threshold=data.get("frame_diff_threshold", 0.015),
             check_updates=bool(data.get("check_updates", True)),

@@ -135,9 +135,15 @@ class SubtitleTranslatorApp:
         self.control_center.select_roi_requested.connect(self._open_roi_selector)
         self.control_center.reset_roi_requested.connect(self._on_reset_roi)
         self.control_center.window_selected.connect(self._on_window_selected)
+        self.control_center.reposition_overlay_toggled.connect(self._on_reposition_overlay_toggled)
+        self.control_center.reset_overlay_position_requested.connect(self._on_reset_overlay_position)
         self.control_center.settings_saved.connect(self._on_settings_saved)
         self.control_center.quit_requested.connect(self.quit)
         self.control_center.finished.connect(self._on_control_center_finished)
+
+        # Overlay position changed by user dragging (real-time UI hint update + disk persistence on lock/release)
+        self.overlay.position_changed.connect(self._on_overlay_dragged)
+        self.overlay.position_locked.connect(self._on_overlay_position_persisted)
 
     def _on_pipeline_error(self, error: str) -> None:
         """Handle background pipeline errors."""
@@ -286,15 +292,7 @@ class SubtitleTranslatorApp:
         self.config_manager.update(custom_roi=list(roi.as_tuple()))
         self.worker.set_custom_roi(roi)
         self.control_center.set_roi_hint(f"Custom ROI: {roi.width}x{roi.height} at ({roi.left}, {roi.top})", has_custom_roi=True)
-        # Position overlay directly near selected ROI
-        bounds = self.capture_driver.get_monitor_bounds(1)
-        overlay_h = 140
-        overlay_w = max(roi.width, 400)
-        overlay_x = max(bounds.left, min(roi.left + (roi.width - overlay_w) // 2, bounds.right - overlay_w))
-        overlay_y = roi.bottom + 10
-        if overlay_y + overlay_h > bounds.bottom:
-            overlay_y = max(bounds.top, roi.top - overlay_h - 10)
-        self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
+        self._apply_overlay_geometry()
         self.overlay.update_text("🎯 Region locked")
 
     def _on_reset_roi(self) -> None:
@@ -303,11 +301,91 @@ class SubtitleTranslatorApp:
         self.config_manager.update(custom_roi=None)
         self.worker.set_custom_roi(None)
         self.control_center.set_roi_hint("Full capture area active", has_custom_roi=False)
-        # Reset overlay back to default bottom center of screen
-        bounds = self.capture_driver.get_monitor_bounds(1)
-        overlay_h = 140
-        self.overlay.setGeometry(bounds.left + 150, bounds.bottom - overlay_h - 60, bounds.width - 300, overlay_h)
+        self._apply_overlay_geometry()
         self.overlay.update_text("🔄 Full capture restored")
+
+    def _apply_overlay_geometry(self) -> None:
+        """Position overlay respecting saved custom position, target window, or ROI."""
+        bounds = self.capture_driver.get_monitor_bounds(1)
+        custom_pos = self.config_manager.config.custom_overlay_position
+
+        # 1. Custom user-dragged position takes precedence
+        if custom_pos is not None:
+            cx, by = custom_pos
+            # Clamp inside screen bounds
+            cx = max(bounds.left + 200, min(cx, bounds.right - 200))
+            by = max(bounds.top + 100, min(by, bounds.bottom - 10))
+            self.overlay.set_bottom_center(cx, by)
+            return
+
+        # 2. Custom ROI positioning
+        saved_roi = None
+        roi_data = self.config_manager.config.custom_roi
+        if isinstance(roi_data, (list, tuple)) and len(roi_data) == 4:
+            try:
+                saved_roi = Rect(*(int(x) for x in roi_data))
+            except (ValueError, TypeError):
+                saved_roi = None
+
+        if saved_roi is not None:
+            overlay_h = 140
+            overlay_w = max(saved_roi.width, 400)
+            overlay_x = max(bounds.left, min(saved_roi.left + (saved_roi.width - overlay_w) // 2, bounds.right - overlay_w))
+            overlay_y = saved_roi.bottom + 10
+            if overlay_y + overlay_h > bounds.bottom:
+                overlay_y = max(bounds.top, saved_roi.top - overlay_h - 10)
+            self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
+            return
+
+        # 3. Target window positioning
+        if self._current_target_window is not None:
+            r = self._current_target_window.rect
+            overlay_h = 140
+            self.overlay.setGeometry(r.left, r.bottom - overlay_h - 20, r.width, overlay_h)
+            return
+
+        # 4. Default auto bottom-center of primary screen
+        overlay_h = 140
+        overlay_w = min(800, bounds.width - 300)
+        overlay_x = bounds.left + (bounds.width - overlay_w) // 2
+        overlay_y = bounds.bottom - overlay_h - 60
+        self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
+
+    def _on_reposition_overlay_toggled(self, active: bool) -> None:
+        """Handle interactive dragging mode toggle."""
+        if active:
+            logger.info("Enabling interactive overlay repositioning mode...")
+            _set_macos_activation_policy(regular=True)
+            self._apply_overlay_geometry()
+            self.overlay.set_interactive_mode(True)
+        else:
+            logger.info("Locking overlay repositioning mode...")
+            self.overlay.set_interactive_mode(False)
+            if not self.control_center.isVisible():
+                _set_macos_activation_policy(regular=False)
+
+    def _on_overlay_dragged(self, center_x: int, bottom_y: int) -> None:
+        """Update in-memory coordinates during mouse drag without disk write thrashing."""
+        bounds = self.capture_driver.get_monitor_bounds(1)
+        cx = max(bounds.left + 200, min(center_x, bounds.right - 200))
+        by = max(bounds.top + 100, min(bottom_y, bounds.bottom - 10))
+        self.config_manager.config.custom_overlay_position = (cx, by)
+        self.control_center.refresh_reposition_hint()
+
+    def _on_overlay_position_persisted(self, center_x: int, bottom_y: int) -> None:
+        """Persist finalized coordinates to disk upon drag release."""
+        bounds = self.capture_driver.get_monitor_bounds(1)
+        cx = max(bounds.left + 200, min(center_x, bounds.right - 200))
+        by = max(bounds.top + 100, min(bottom_y, bounds.bottom - 10))
+        self.config_manager.update(custom_overlay_position=[cx, by])
+        self.control_center.refresh_reposition_hint()
+
+    def _on_reset_overlay_position(self) -> None:
+        """Revert overlay positioning to automatic bottom-center."""
+        logger.info("Resetting overlay position to auto.")
+        self.config_manager.update(custom_overlay_position=None)
+        self._apply_overlay_geometry()
+        self.overlay.update_text("🔄 Position reset to auto")
 
     def _on_window_selected(self, window_info: Optional[WindowInfo]) -> None:
         """Set targeted application window."""
@@ -315,24 +393,14 @@ class SubtitleTranslatorApp:
         if window_info is not None:
             logger.info("Target window locked: %s (ID: %s)", window_info.title, window_info.window_id)
             self.worker.set_target_window(window_info.window_id)
-            # Center overlay over target window
-            r = window_info.rect
-            overlay_h = 140
-            self.overlay.setGeometry(r.left, r.bottom - overlay_h - 20, r.width, overlay_h)
         else:
             logger.info("Resetting target to entire screen.")
             self.worker.set_target_window(None)
-            bounds = self.capture_driver.get_monitor_bounds(1)
-            overlay_h = 150
-            self.overlay.setGeometry(bounds.left + 100, bounds.bottom - overlay_h - 50, bounds.width - 200, overlay_h)
+        self._apply_overlay_geometry()
 
     def start(self) -> None:
         """Display system tray and initialize geometry."""
         self.tray.show()
-        # Default overlay position at bottom center of primary screen
-        bounds = self.capture_driver.get_monitor_bounds(1)
-        overlay_h = 140
-        self.overlay.setGeometry(bounds.left + 150, bounds.bottom - overlay_h - 60, bounds.width - 300, overlay_h)
 
         # Restore saved custom ROI from config if present
         roi_data = self.config_manager.config.custom_roi
@@ -346,12 +414,8 @@ class SubtitleTranslatorApp:
         if saved_roi is not None:
             self.worker.set_custom_roi(saved_roi)
             self.control_center.set_roi_hint(f"Custom ROI: {saved_roi.width}x{saved_roi.height} at ({saved_roi.left}, {saved_roi.top})", has_custom_roi=True)
-            overlay_w = max(saved_roi.width, 400)
-            overlay_x = max(bounds.left, min(saved_roi.left + (saved_roi.width - overlay_w) // 2, bounds.right - overlay_w))
-            overlay_y = saved_roi.bottom + 10
-            if overlay_y + overlay_h > bounds.bottom:
-                overlay_y = max(bounds.top, saved_roi.top - overlay_h - 10)
-            self.overlay.setGeometry(overlay_x, overlay_y, overlay_w, overlay_h)
+
+        self._apply_overlay_geometry()
 
         logger.info("Subtitle Translator V1 initialized and ready in Menu Bar / System Tray.")
 

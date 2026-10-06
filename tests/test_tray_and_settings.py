@@ -137,6 +137,28 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     assert cc.scroll_area.widget() is not None
     assert cc.scroll_area.widget().layout().count() >= 5
 
+    # 7. Check draggable repositioning controls
+    assert hasattr(cc, "reposition_btn")
+    assert hasattr(cc, "reset_pos_btn")
+    assert hasattr(cc, "reposition_hint")
+    assert cc.reposition_btn.text() == "✋ Move Subtitles"
+    assert cc.reposition_hint.text() == "Auto bottom-center"
+    assert not cc.reset_pos_btn.isVisible()
+
+    reposition_signals = []
+    cc.reposition_overlay_toggled.connect(reposition_signals.append)
+    cc.reposition_btn.click()
+    assert len(reposition_signals) == 1
+    assert reposition_signals[0] is True
+    assert cc.reposition_btn.text() == "🔒 Lock Position"
+
+    # Reset position signal
+    reset_signals = []
+    cc.reset_overlay_position_requested.connect(lambda: reset_signals.append(True))
+    cc.reset_pos_btn.click()
+    assert len(reset_signals) == 1
+    assert cc.reposition_btn.text() == "✋ Move Subtitles"
+
     cc.close()
 
 
