@@ -234,10 +234,7 @@ def test_github_actions_workflow_installers_configuration() -> None:
     assert "build-windows-x64" in jobs
     assert "publish-release" in jobs
 
-    matrix = jobs["build-macos"]["strategy"]["matrix"]["include"]
-    archs = [item["arch"] for item in matrix]
-    assert "arm64" in archs
-    assert "x86_64" in archs
+    assert jobs["build-macos"]["runs-on"] == "macos-14"
     assert jobs["build-windows-x64"]["runs-on"] in ("windows-2022", "windows-latest")
 
 
@@ -256,7 +253,6 @@ def test_technical_stack_documentation_exists() -> None:
 def test_readme_contains_direct_download_links() -> None:
     readme = (_root() / "README.md").read_text(encoding="utf-8")
     assert "Subterranean-Staircase-macos-arm64.dmg" in readme
-    assert "Subterranean-Staircase-macos-x86_64.dmg" in readme
     assert "Subterranean-Staircase-windows-x64-Setup.exe" in readme
     assert "Subterranean-Staircase-windows-x64-portable.zip" in readme
     assert "TECHNICAL_STACK_AND_PIPELINES.md" in readme
