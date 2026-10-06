@@ -45,19 +45,15 @@ Manage on-device offline translation models directly in **Settings → Offline T
 - **Settings Dialog:** You can also toggle automatic checks or manually click **"Check for Updates Now"** under Settings.
 
 ### Uninstalling
-Remove the app cleanly (keeps your configs and cached models):
+To uninstall cleanly from your system:
 ```bash
 subtrans uninstall
 ```
+An interactive prompt will ask whether you want to preserve your configurations and cached offline models or remove them.
 
-To also remove all translation caches and config files:
+To bypass the prompt and completely remove all files and cached models non-interactively:
 ```bash
 subtrans uninstall --purge
-```
-
-On Windows (PowerShell):
-```powershell
-subtrans uninstall -RemoveAllData
 ```
 
 ---
