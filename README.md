@@ -11,7 +11,7 @@ Watch foreign films, anime, livestreams, or video courses without language barri
 
 ## Download & Installation
 
-### 1. Graphical Desktop Installers (Recommended)
+### 1. Standalone Desktop Installers (Recommended)
 
 Download the prebuilt, standalone installer for your operating system (no Python, terminal, or compiler required):
 
@@ -27,9 +27,9 @@ Download the prebuilt, standalone installer for your operating system (no Python
 
 ---
 
-### 2. Developer / CLI Installation (One-Liner)
+### 2. Terminal Installation (One-Liner)
 
-For developers and power users who prefer running directly from an isolated Python virtual environment:
+For users who prefer installing directly via terminal without manually downloading files in a browser:
 
 #### macOS / Linux
 Run in your terminal:
@@ -48,35 +48,10 @@ Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCA
 
 ---
 
-### 3. Manual Development Setup (From Source)
-
-For contributing, debugging, or running from local source:
-```bash
-# Clone the repository
-git clone https://github.com/ganendraditya/subterranean-staircase.git
-cd subterranean-staircase
-
-# Setup Python 3.10+ virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Run test suite
-pytest tests/
-
-# Launch desktop app
-python run.py
-```
-
----
-
 ## Usage & Management
 
 ### Running & Auto-Start
-- **Auto-Start on Boot:** If enabled during installation (or toggled anytime in **Settings → System & Autostart**), Subterranean Staircase runs silently in your background menu bar / system tray whenever your computer boots.
+- **Auto-Start on Boot:** If enabled during installation (or toggled anytime in **Control Center → System & Autostart**), Subterranean Staircase runs silently in your background menu bar / system tray whenever your computer boots.
 - **Manual Launch:** You can also launch the app from terminal anytime:
 ```bash
 subtrans
@@ -93,7 +68,13 @@ Manage translation settings directly in **Control Center → Language & Translat
 - **Control Center:** You can also toggle automatic checks or manually click **"Check Now"** under Control Center.
 
 ### Uninstalling
-To uninstall cleanly from your system:
+
+#### Standalone Applications
+- **macOS:** Drag `Subterranean Staircase.app` from your `/Applications` folder to Trash.
+- **Windows:** Go to **Windows Settings → Apps → Installed apps**, locate **Subterranean Staircase**, and click **Uninstall**.
+
+#### Terminal Installations
+To uninstall cleanly from terminal:
 ```bash
 subtrans uninstall
 ```
@@ -145,6 +126,32 @@ subtitle-translator/
 ├── AGENTS.md               # Karpathy engineering rules & Anti-Slop guidelines
 ├── requirements.txt        # Cross-platform dependencies
 └── run.py                  # Application launcher
+```
+
+---
+
+## Contributing & Local Development
+
+For developers contributing to the codebase, testing bug fixes, or running from local source:
+
+```bash
+# Clone the repository
+git clone https://github.com/ganendraditya/subterranean-staircase.git
+cd subterranean-staircase
+
+# Setup Python 3.10+ virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Run full test suite
+pytest tests/
+
+# Launch application
+python run.py
 ```
 
 ---
