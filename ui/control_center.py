@@ -75,6 +75,8 @@ class ControlCenterDialog(QDialog):
     select_roi_requested = pyqtSignal()
     reset_roi_requested = pyqtSignal()
     window_selected = pyqtSignal(object)  # WindowInfo or None
+    reposition_overlay_toggled = pyqtSignal(bool)  # Interactive drag mode toggle
+    reset_overlay_position_requested = pyqtSignal()
     settings_saved = pyqtSignal()
     quit_requested = pyqtSignal()
 
@@ -103,6 +105,7 @@ class ControlCenterDialog(QDialog):
         self._standby_signals = StandbyCaptureSignals()
         self._standby_signals.frame_ready.connect(self._on_standby_frame_received)
         self._standby_busy: bool = False
+        self._is_repositioning_overlay: bool = False
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(200)  # Smooth 5 FPS standby preview off main thread
@@ -394,6 +397,30 @@ class ControlCenterDialog(QDialog):
 
         settings_layout.addLayout(sliders_row)
 
+        # Draggable Repositioning Controls
+        reposition_row = QHBoxLayout()
+        reposition_row.setSpacing(8)
+
+        self.reposition_btn = QPushButton("✋ Move Subtitles", settings_card)
+        self.reposition_btn.setObjectName("SecondaryButton")
+        self.reposition_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reposition_btn.clicked.connect(self._on_toggle_reposition_clicked)
+        reposition_row.addWidget(self.reposition_btn)
+
+        self.reset_pos_btn = QPushButton("✕ Reset Position", settings_card)
+        self.reset_pos_btn.setObjectName("SecondaryButton")
+        self.reset_pos_btn.setToolTip("Revert to automatic bottom-center placement")
+        self.reset_pos_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reset_pos_btn.clicked.connect(self._on_reset_position_clicked)
+        reposition_row.addWidget(self.reset_pos_btn)
+
+        self.reposition_hint = QLabel("Auto bottom-center", settings_card)
+        self.reposition_hint.setObjectName("SubtleHint")
+        reposition_row.addWidget(self.reposition_hint)
+        reposition_row.addStretch()
+
+        settings_layout.addLayout(reposition_row)
+
         # Autostart & Updates
         self.autostart_cb = QCheckBox("Start automatically on system login", settings_card)
         self.autostart_cb.setChecked(
@@ -492,6 +519,48 @@ class ControlCenterDialog(QDialog):
         # Refresh model status and packs table
         self._refresh_model_status()
         self._refresh_packs_table()
+
+        # Refresh overlay position hint
+        self.refresh_reposition_hint()
+
+    def refresh_reposition_hint(self) -> None:
+        """Update positioning status label and reset button state."""
+        custom_pos = self.config_manager.config.custom_overlay_position
+        if custom_pos is not None:
+            self.reposition_hint.setText(f"Locked at ({custom_pos[0]}, {custom_pos[1]})")
+            self.reset_pos_btn.setVisible(True)
+        else:
+            self.reposition_hint.setText("Auto bottom-center")
+            self.reset_pos_btn.setVisible(False)
+
+    def set_reposition_mode(self, active: bool) -> None:
+        """Update reposition button visual state."""
+        self._is_repositioning_overlay = active
+        if active:
+            self.reposition_btn.setText("🔒 Lock Position")
+            self.reposition_btn.setObjectName("PrimaryButton")
+            self.reposition_hint.setText("Drag overlay on screen...")
+        else:
+            self.reposition_btn.setText("✋ Move Subtitles")
+            self.reposition_btn.setObjectName("SecondaryButton")
+            self.refresh_reposition_hint()
+
+        self.reposition_btn.style().unpolish(self.reposition_btn)
+        self.reposition_btn.style().polish(self.reposition_btn)
+
+    def _on_toggle_reposition_clicked(self) -> None:
+        """Toggle interactive overlay dragging mode."""
+        new_state = not self._is_repositioning_overlay
+        self.set_reposition_mode(new_state)
+        self.reposition_overlay_toggled.emit(new_state)
+
+    def _on_reset_position_clicked(self) -> None:
+        """Revert overlay positioning to automatic bottom-center."""
+        if self._is_repositioning_overlay:
+            self.set_reposition_mode(False)
+            self.reposition_overlay_toggled.emit(False)
+        self.reset_overlay_position_requested.emit()
+        self.refresh_reposition_hint()
 
     def _populate_windows(self) -> None:
         """Enumerate application windows and populate target combobox, preserving active selection."""
