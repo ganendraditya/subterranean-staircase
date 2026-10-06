@@ -4,9 +4,6 @@ Real-time, on-device screen subtitle translator for macOS and Windows.
 
 Watch foreign films, anime, livestreams, or video courses without language barriers. The app runs quietly in your menu bar / system tray, reads on-screen hardcoded or soft subtitles directly from your media player (e.g. VLC, MPV, Browser, YouTube), translates them in real-time on-device, and renders a crisp, click-through overlay on top of your video.
 
-> **Status:** Active rewrite (V1 Architecture).  
-> The legacy monolithic Windows prototype is archived in the [`legacy/v0-windows-prealpha`](https://github.com/ganendraditya/subterranean-staircase/tree/legacy/v0-windows-prealpha) branch and [`v0.1.0-prealpha`](https://github.com/ganendraditya/subterranean-staircase/releases/tag/v0.1.0-prealpha) release.
-
 ---
 
 ## Download & Installation
