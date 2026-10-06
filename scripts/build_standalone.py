@@ -131,17 +131,28 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
         print(f"🔨 Compiling Inno Setup installer using {iscc_bin}...")
         resolved_out = output_dir.resolve()
         resolved_app = app_dir.resolve()
+        # Snapshot existing installers before compiling to detect newly built artifact
+        existing_exes = set(output_dir.glob("*-Setup.exe"))
+
         # /O overrides OutputDir= in installer.iss, /DAppSourceDir overrides source files
         cmd = [iscc_bin, f"/O{resolved_out}", f"/DAppSourceDir={resolved_app}", str(iss_path)]
         subprocess.run(cmd, check=True)
 
-        exe_candidates = sorted(output_dir.glob("*-Setup.exe"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if exe_candidates:
-            setup_exe = exe_candidates[0]
+        new_exes = [p for p in output_dir.glob("*-Setup.exe") if p not in existing_exes]
+        if new_exes:
+            setup_exe = new_exes[0]
             print(f"✔ Created Windows Setup installer: {setup_exe} ({setup_exe.stat().st_size / (1024 * 1024):.1f} MB)")
             artifacts.append(setup_exe)
         else:
-            raise FileNotFoundError(f"Inno Setup compiled successfully but no *-Setup.exe was found in {output_dir}")
+            # Fallback check if existing was overwritten
+            fallback_exe = output_dir / f"Subterranean-Staircase-{target}-Setup.exe"
+            if not fallback_exe.exists():
+                fallback_exe = output_dir / "Subterranean-Staircase-windows-x64-Setup.exe"
+            if fallback_exe.exists():
+                print(f"✔ Created Windows Setup installer: {fallback_exe} ({fallback_exe.stat().st_size / (1024 * 1024):.1f} MB)")
+                artifacts.append(fallback_exe)
+            else:
+                raise FileNotFoundError(f"Inno Setup compiled successfully but no *-Setup.exe was found in {output_dir}")
 
     return artifacts
 
@@ -172,6 +183,8 @@ def build_all(output_dir: Path, spec_path: Path, iss_path: Path, skip_dmg: bool 
             raise FileNotFoundError(f"PyInstaller failed to output {app_dir}")
         win_artifacts = package_windows_installer(app_dir, output_dir, iss_path)
         results.extend(win_artifacts)
+    else:
+        print(f"ℹ Standalone GUI installer packaging is only supported on macOS and Windows (current: {sys.platform}).")
 
     return results
 

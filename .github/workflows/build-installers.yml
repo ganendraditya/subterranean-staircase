@@ -48,6 +48,7 @@ jobs:
       - name: Build Standalone App & DMG
         shell: bash
         run: |
+          set -euo pipefail
           python scripts/build_standalone.py --output dist
 
       - name: Verify DMG & Binary Integrity
@@ -60,7 +61,7 @@ jobs:
           echo "Verifying DMG: $dmg_file"
           test -s "$dmg_file"
           hdiutil verify "$dmg_file"
-          file "dist/Subterranean Staircase.app/Contents/MacOS/Subterranean Staircase" | grep "${MATRIX_ARCH}"
+          lipo -info "dist/Subterranean Staircase.app/Contents/MacOS/Subterranean Staircase" | grep "${MATRIX_ARCH}"
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
