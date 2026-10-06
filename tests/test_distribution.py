@@ -256,6 +256,9 @@ def test_technical_stack_documentation_exists() -> None:
 
 def test_readme_contains_direct_download_links() -> None:
     readme = (_root() / "README.md").read_text(encoding="utf-8")
+    assert "Option 1: Standalone Desktop Installers" in readme
+    assert "Option 2: Terminal Installation" in readme
+    assert "Option 3: Local Clone & Development Setup" in readme
     assert "Subterranean-Staircase-macos-arm64.dmg" in readme
     assert "Subterranean-Staircase-macos-x86_64.dmg" in readme
     assert "Subterranean-Staircase-windows-x64-Setup.exe" in readme

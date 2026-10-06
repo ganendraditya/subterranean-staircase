@@ -11,7 +11,7 @@ Watch foreign films, anime, livestreams, or video courses without language barri
 
 ## Download & Installation
 
-### 1. Standalone Desktop Installers (Recommended)
+### Option 1: Standalone Desktop Installers (Recommended for End-Users)
 
 Download the prebuilt, standalone installer for your operating system (no Python, terminal, or compiler required):
 
@@ -27,7 +27,7 @@ Download the prebuilt, standalone installer for your operating system (no Python
 
 ---
 
-### 2. Terminal Installation (One-Liner)
+### Option 2: Terminal Installation (One-Liner)
 
 For users who prefer installing directly via terminal without manually downloading files in a browser:
 
@@ -45,6 +45,32 @@ Run in PowerShell:
 irm https://raw.githubusercontent.com/ganendraditya/subterranean-staircase/main/install.ps1 | iex
 ```
 Installs to `%LOCALAPPDATA%\SubtitleTranslator` and creates a launcher at `%LOCALAPPDATA%\Programs\SubtitleTranslator\subtrans.cmd`, added to your user `PATH` automatically.
+
+---
+
+### Option 3: Local Clone & Development Setup (For Contributors)
+
+For developers contributing to the codebase, testing bug fixes, or running from local source:
+
+```bash
+# Clone the repository
+git clone https://github.com/ganendraditya/subterranean-staircase.git
+cd subterranean-staircase
+
+# Setup Python 3.10+ virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Run full test suite
+pytest tests/
+
+# Launch application
+python run.py
+```
 
 ---
 
@@ -126,32 +152,6 @@ subtitle-translator/
 ├── AGENTS.md               # Karpathy engineering rules & Anti-Slop guidelines
 ├── requirements.txt        # Cross-platform dependencies
 └── run.py                  # Application launcher
-```
-
----
-
-## Contributing & Local Development
-
-For developers contributing to the codebase, testing bug fixes, or running from local source:
-
-```bash
-# Clone the repository
-git clone https://github.com/ganendraditya/subterranean-staircase.git
-cd subterranean-staircase
-
-# Setup Python 3.10+ virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Run full test suite
-pytest tests/
-
-# Launch application
-python run.py
 ```
 
 ---
