@@ -159,6 +159,26 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     assert len(reset_signals) == 1
     assert cc.reposition_btn.text() == "✋ Move Subtitles"
 
+    # 8. Check Universal OpenAI-Compatible LLM engine controls
+    assert hasattr(cc, "engine_combo")
+    assert cc.engine_combo.count() == 2
+    assert hasattr(cc, "llm_widget")
+    assert hasattr(cc, "local_models_widget")
+    assert hasattr(cc, "llm_url_input")
+    assert hasattr(cc, "llm_model_input")
+    assert hasattr(cc, "llm_key_input")
+
+    # Switch to Cloud LLM
+    cc.engine_combo.setCurrentIndex(1)
+    assert config_mgr.config.llm.enabled is True
+    assert not cc.llm_widget.isHidden()
+    assert cc.local_models_widget.isHidden()
+
+    # Change LLM inputs
+    cc.llm_model_input.setText("deepseek-chat")
+    cc._save_llm_preferences()
+    assert config_mgr.config.llm.model_name == "deepseek-chat"
+
     cc.close()
 
 

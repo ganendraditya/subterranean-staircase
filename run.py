@@ -106,12 +106,14 @@ class SubtitleTranslatorApp:
 
         # Background Worker with injected router and cache
         cache = SQLiteTranslationCache()
-        translator_engine = CTranslate2Engine(cache=cache, router=self.router)
+        self.cache = cache
+        self.local_engine = CTranslate2Engine(cache=cache, router=self.router)
+        active_engine = self._build_active_engine()
         self.worker = TranslationPipelineWorker(
             config_manager=self.config_manager,
             signals=self.signals,
             capture_driver=self.capture_driver,
-            translator_engine=translator_engine,
+            translator_engine=active_engine,
         )
 
         self._connect_signals()
@@ -162,67 +164,83 @@ class SubtitleTranslatorApp:
         # Revert to accessory mode so overlay can float over native fullscreen spaces
         _set_macos_activation_policy(regular=False)
 
+    def _build_active_engine(self):
+        """Construct active translation engine based on current configuration."""
+        if self.config_manager.config.llm.enabled:
+            from core.translate.llm import OpenAICompatibleTranslator
+            return OpenAICompatibleTranslator(
+                config=self.config_manager.config.llm,
+                cache=self.cache,
+                fallback_engine=self.local_engine,
+            )
+        return self.local_engine
+
     def _on_settings_saved(self) -> None:
-        """Apply live visual updates when preferences are saved."""
+        """Apply live visual and translation engine updates when preferences are saved."""
         self.overlay.style_config = self.config_manager.config.overlay
         self.overlay.update()
+        active_engine = self._build_active_engine()
+        self.worker.set_translator_engine(active_engine)
 
     def _on_translation_toggled(self, active: bool) -> None:
         """Start or pause translation worker."""
         if active:
             src = self.config_manager.config.source_language
             tgt = self.config_manager.config.target_language
+            is_llm = self.config_manager.config.llm.enabled
 
-            # 1. Resolve required models via router
-            needed_pairs = self.router.required_pairs(src, tgt)
-            if not needed_pairs:
-                _set_macos_activation_policy(regular=True)
-                QMessageBox.warning(
-                    self.control_center if self.control_center.isVisible() else None,
-                    "Translation Route Unavailable",
-                    f"No offline translation route is available for '{src}' ➔ '{tgt}'.\n"
-                    "Please select a supported language pair in Control Center.",
-                )
-                self.tray.set_active(False)
-                self.control_center.set_active(False)
-                return
-
-            from core.translate.models import ModelManager, RECOMMENDED_MODELS
-            mm = ModelManager()
-            missing_pairs = [p for p in needed_pairs if not mm.is_installed(p)]
-
-            if missing_pairs:
-                _set_macos_activation_policy(regular=True)
-                # Format name and approximate size for missing legs
-                size_total = sum(RECOMMENDED_MODELS[p].approx_size_mb for p in missing_pairs if p in RECOMMENDED_MODELS)
-                desc = ", ".join(f"'{p}'" for p in missing_pairs)
-                reply = QMessageBox.question(
-                    self.control_center if self.control_center.isVisible() else None,
-                    "Translation Model(s) Required",
-                    f"The offline translation model(s) for {desc} are not downloaded yet (~{size_total} MB).\n\n"
-                    "Would you like to download them now?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes,
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    from ui.model_dialog import ModelDownloadProgressDialog
-                    for p in missing_pairs:
-                        if p not in RECOMMENDED_MODELS:
-                            continue
-                        dialog = ModelDownloadProgressDialog(
-                            mm, p, parent=self.control_center if self.control_center.isVisible() else None
-                        )
-                        dialog.start_download()
-
-                    # Re-verify all required pairs are installed
-                    if not all(mm.is_installed(p) for p in needed_pairs):
-                        self.tray.set_active(False)
-                        self.control_center.set_active(False)
-                        return
-                else:
+            # Only check/prompt offline model downloads if using local CTranslate2 engine
+            if not is_llm:
+                # 1. Resolve required models via router
+                needed_pairs = self.router.required_pairs(src, tgt)
+                if not needed_pairs:
+                    _set_macos_activation_policy(regular=True)
+                    QMessageBox.warning(
+                        self.control_center if self.control_center.isVisible() else None,
+                        "Translation Route Unavailable",
+                        f"No offline translation route is available for '{src}' ➔ '{tgt}'.\n"
+                        "Please select a supported language pair in Control Center.",
+                    )
                     self.tray.set_active(False)
                     self.control_center.set_active(False)
                     return
+
+                from core.translate.models import ModelManager, RECOMMENDED_MODELS
+                mm = ModelManager()
+                missing_pairs = [p for p in needed_pairs if not mm.is_installed(p)]
+
+                if missing_pairs:
+                    _set_macos_activation_policy(regular=True)
+                    # Format name and approximate size for missing legs
+                    size_total = sum(RECOMMENDED_MODELS[p].approx_size_mb for p in missing_pairs if p in RECOMMENDED_MODELS)
+                    desc = ", ".join(f"'{p}'" for p in missing_pairs)
+                    reply = QMessageBox.question(
+                        self.control_center if self.control_center.isVisible() else None,
+                        "Translation Model(s) Required",
+                        f"The offline translation model(s) for {desc} are not downloaded yet (~{size_total} MB).\n\n"
+                        "Would you like to download them now?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.Yes,
+                    )
+                    if reply == QMessageBox.StandardButton.Yes:
+                        from ui.model_dialog import ModelDownloadProgressDialog
+                        for p in missing_pairs:
+                            if p not in RECOMMENDED_MODELS:
+                                continue
+                            dialog = ModelDownloadProgressDialog(
+                                mm, p, parent=self.control_center if self.control_center.isVisible() else None
+                            )
+                            dialog.start_download()
+
+                        # Re-verify all required pairs are installed
+                        if not all(mm.is_installed(p) for p in needed_pairs):
+                            self.tray.set_active(False)
+                            self.control_center.set_active(False)
+                            return
+                    else:
+                        self.tray.set_active(False)
+                        self.control_center.set_active(False)
+                        return
 
             # Revert to accessory mode on macOS so overlay can float over fullscreen spaces
             _set_macos_activation_policy(regular=False)

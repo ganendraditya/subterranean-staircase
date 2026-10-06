@@ -102,6 +102,12 @@ class TranslationPipelineWorker(QThread):
             self._pending_sentence_time = 0.0
         logger.info("[AUDIT-ROI] Custom ROI updated: %s", roi.as_tuple() if roi is not None else "Full Area")
 
+    def set_translator_engine(self, engine: BaseTranslator) -> None:
+        """Dynamically swap or update translation engine (e.g. CTranslate2 vs LLM)."""
+        with self._state_lock:
+            self.translator_engine = engine
+        logger.info("[AUDIT-ENGINE] Translation engine updated: %s", type(engine).__name__)
+
     def stop(self, timeout_ms: int = 3000) -> bool:
         """Signal thread to cleanly terminate loop and wait for completion."""
         self._running = False
@@ -265,8 +271,10 @@ class TranslationPipelineWorker(QThread):
         )
 
         try:
+            with self._state_lock:
+                engine = self.translator_engine
             t_trans0 = time.perf_counter()
-            result = self.translator_engine.translate(req)
+            result = engine.translate(req)
             t_trans_ms = (time.perf_counter() - t_trans0) * 1000.0
             if result.translated_text:
                 e2e_ms = max(0.0, (time.time() - frame.timestamp) * 1000.0) if frame.timestamp > 0 else (t_ocr_ms + t_trans_ms)

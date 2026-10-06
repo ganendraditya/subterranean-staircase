@@ -91,15 +91,30 @@ Whenever building or refining the UI (PyQt6 Overlay, Settings, Dialogs):
 
 ---
 
-## Part 4: Code Review Scientific Verification Protocol (Anti-Hallucinated Findings)
+## Part 4: Code Review Scientific Verification Protocol & Git Merge Discipline
 
-When conducting AI Code Reviews (via `ocr review`, dual LLM evaluations, or manual diff inspection), the agent **MUST NOT ACCEPT REVIEWER FINDINGS AT FACE VALUE OR ACT AS A SYCOPHANT TO REVIEW BOTS**. Follow this mandatory, evidence-backed verification protocol before touching any code:
+When conducting AI Code Reviews (via `ocr review`, dual LLM evaluations, or manual diff inspection) and managing git branches, the agent **MUST NOT ACCEPT REVIEWER FINDINGS AT FACE VALUE OR ACT AS A SYCOPHANT TO REVIEW BOTS**, and must strictly obey git authorization invariants:
 
-### 1. Mandatory User Presentation Before Applying Changes
+### 1. Strict Git Invariant: FORBIDDEN AUTO-COMMIT / AUTO-PUSH / AUTO-MERGE
+- **Strict User Authorization Gate:** The agent is **STRICTLY FORBIDDEN** from running `git commit`, `git push`, creating tags, or merging branches autonomously without an **explicit instruction** from the user ("commit now", "push now", "ok commit", "merge", etc.).
+- **Mandatory Pull Request Lifecycle (No Naked Merges into `main`):**
+  - Every non-trivial feature, refactor, or bugfix **MUST** transition through a formal GitHub Pull Request (`gh pr create`) before being merged into `main`. Direct or naked branch merges into `main` without an associated PR are strictly forbidden, even on personal projects.
+  - **Standard Engineering Lifecycle:**
+    1. **Branch & Implement:** Develop on an isolated branch (`feat/<name>-#<id>`, `fix/<name>-#<id>`).
+    2. **Local Verification:** Run test suites (`./.venv/bin/pytest`).
+    3. **Push & Open PR:** Push the feature branch and open a PR via `gh pr create` linking the relevant issue (`Closes #<id>`).
+    4. **AI Code Review on PR:** Execute `ocr review --audience agent --from main --to <branch>` to review the PR diff cleanly.
+    5. **Dialectical Verification & Scorecard:** Present findings to the user (Confirmed Bugs vs False Positives). Apply verified fixes surgically.
+    6. **User Authorization Gate:** Present the clean PR status and await explicit user instruction to merge.
+    7. **Merge:** Merge via `gh pr merge --merge` (or `--delete-branch`) only after explicit user approval.
+- **Report Status First:** Upon task completion, present a concise summary of changes, test suite results, and linter status, and await user instruction. Inquiring for confirmation ("Would you like to commit / merge?") is permitted, but executing commit/push/merge without explicit confirmation is prohibited.
+- **Strict English Consistency Across Repository Artefacts:** All documentation files (`*.md`), technical specifications, GitHub Issues, Pull Request descriptions, Git commit messages, and GitHub Release notes **MUST BE WRITTEN EXCLUSIVELY IN CLEAR, CONCISE ENGLISH**. Maintain strict language consistency across all repository artefacts for international open-source parity.
+
+### 2. Mandatory User Presentation Before Applying Changes
 - The agent is **STRICTLY FORBIDDEN** from unilaterally modifying code, committing, or merging fixes immediately after receiving automated review comments without first presenting the findings dialectically to the user.
 - Present a structured scorecard: categorize items into **Hard Blockers / Confirmed Bugs** vs **False Positives / Rejected Claims** vs **Architectural Optimizations**, complete with reproduction proof.
 
-### 2. Step 1: Problem Validity Verification (Is this a genuine defect or a hallucination/misunderstanding?)
+### 3. Step 1: Problem Validity Verification (Is this a genuine defect or a hallucination/misunderstanding?)
 - **Never Assume Validity:** Treat reviewer comments with healthy skepticism. LLM reviewers frequently misread token-truncated code, misunderstand project conventions, or flag stylistic non-issues as critical bugs.
 - **Define the Concrete Failure Scenario:** *"Under what exact inputs, window bounds, display coordinates, or concurrency state does this failure occur, and what is the exact stack trace or measurable impact?"*
 - **Execute an Empirical Reproduction Script:** Run a minimal terminal script, synthetic frame injection, or test assertion (`./.venv/bin/pytest`) to test the failure hypothesis.
@@ -107,20 +122,20 @@ When conducting AI Code Reviews (via `ocr review`, dual LLM evaluations, or manu
   - If reproduction confirms an actual error, crash, memory leak, or measurable accuracy degradation: classify as **CONFIRMED REAL ISSUE** with log/terminal evidence.
   - If reproduction passes cleanly, or the claim is based on truncated files, obsolete syntax, or false assumptions: reject the finding dialectically with proof as **FALSE POSITIVE / REJECTED**. Do not modify code for rejected items.
 
-### 3. Step 2: Solution Validity & Orthogonality Verification
+### 4. Step 2: Solution Validity & Orthogonality Verification
 - **Never Blindly Apply Suggested Diff:** Review bot fix suggestions are often naive, incomplete, or break neighboring invariants. Critically evaluate whether the suggested fix genuinely addresses the root cause or just silences a linter.
 - **Surgical Implementation:** Apply the verified solution with minimal footprint.
 - **Dual Verification:**
   1. Re-run the reproduction script from Step 1 to verify the defect is genuinely eliminated.
   2. Run full test suites (`./.venv/bin/pytest`) to verify zero regressions across neighboring systems (orthogonality).
 
-### 4. Reporting Format to User
+### 5. Reporting Format to User
 Always report findings structured clearly into distinct sections before asking for merge/commit permission:
 1. `### 1. Temuan False Positive / Ditolak (Hallucinated Findings) ❌` (with reproduction proof of why it's rejected).
 2. `### 2. Temuan Nyata & Sudah Diperbaiki Secara Bedah (Confirmed Real Issues & Fixed) ✅` (with scenario, reproduction proof, and surgical fix).
 3. `### 3. Verifikasi Pasca-Perbaikan (Orthogonality Check)` (with test pass status).
 
-### 5. Execution, Timeouts & Branch Hygiene
+### 6. Execution & Timeout Vigilance
 - **Harness Shell Timeout Vigilance:** When invoking `ocr review`, test suites, or benchmarks, **explicitly pass `timeout: 300000` to `600000` (5–10 minutes)**. Never let default 120s cutoff waste tokens or interrupt reasoning mid-stream.
 - **Stay on the branch:** Never auto-merge PRs immediately without presenting the verification scorecard and receiving explicit user approval.
 

@@ -44,6 +44,17 @@ class OverlayStyleConfig:
 
 
 @dataclass
+class LLMTranslationConfig:
+    """Settings for Universal OpenAI-Compatible Cloud LLM translation."""
+    enabled: bool = False
+    base_url: str = "https://api.groq.com/openai/v1"
+    api_key: str = ""
+    model_name: str = "llama-3.3-70b-versatile"
+    timeout_seconds: float = 3.0
+    fallback_to_local: bool = True
+
+
+@dataclass
 class AppConfig:
     """Root application configuration schema."""
     version: str = "1.0.0"
@@ -60,6 +71,7 @@ class AppConfig:
     autostart_on_boot: bool = False
     hotkeys: HotkeyConfig = field(default_factory=HotkeyConfig)
     overlay: OverlayStyleConfig = field(default_factory=OverlayStyleConfig)
+    llm: LLMTranslationConfig = field(default_factory=LLMTranslationConfig)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config dataclass to dictionary."""
@@ -81,6 +93,13 @@ class AppConfig:
             overlay = OverlayStyleConfig(**{k: v for k, v in overlay_data.items() if k in valid_keys})
         else:
             overlay = OverlayStyleConfig()
+
+        llm_data = data.get("llm")
+        if isinstance(llm_data, dict):
+            valid_keys = LLMTranslationConfig.__dataclass_fields__
+            llm = LLMTranslationConfig(**{k: v for k, v in llm_data.items() if k in valid_keys})
+        else:
+            llm = LLMTranslationConfig()
 
         raw_roi = data.get("custom_roi")
         validated_roi: Optional[Tuple[int, int, int, int]] = None
@@ -113,6 +132,7 @@ class AppConfig:
             autostart_on_boot=bool(data.get("autostart_on_boot", False)),
             hotkeys=hotkeys,
             overlay=overlay,
+            llm=llm,
         )
 
 
