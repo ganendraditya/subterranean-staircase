@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -32,7 +33,7 @@ from PyQt6.QtWidgets import (
 
 from core.autostart import AutostartManager
 from core.capture.base import BaseCapture
-from core.config import ConfigManager
+from core.config import ConfigManager, LLMTranslationConfig
 from core.contracts import Rect, WindowInfo
 from core.translate.languages import BIG_5_LANGUAGES
 from core.translate.models import RECOMMENDED_MODELS, ModelManager
@@ -66,6 +67,28 @@ class StandbyCaptureTask(QRunnable):
         except Exception as e:
             logger.debug("Standby background capture failed: %s", e)
             self.signals.frame_ready.emit(None)
+
+
+class LLMTestConnectionSignals(QObject):
+    """Signals for background LLM endpoint testing."""
+
+    finished = pyqtSignal(bool, str)
+
+
+class LLMTestConnectionTask(QRunnable):
+    """Off-thread task to test LLM connectivity without freezing GUI."""
+
+    def __init__(self, translator, signals: LLMTestConnectionSignals) -> None:
+        super().__init__()
+        self.translator = translator
+        self.signals = signals
+
+    def run(self) -> None:
+        try:
+            ok, msg = self.translator.test_connection()
+            self.signals.finished.emit(ok, msg)
+        except Exception as exc:
+            self.signals.finished.emit(False, str(exc))
 
 
 class ControlCenterDialog(QDialog):
@@ -106,6 +129,9 @@ class ControlCenterDialog(QDialog):
         self._standby_signals.frame_ready.connect(self._on_standby_frame_received)
         self._standby_busy: bool = False
         self._is_repositioning_overlay: bool = False
+
+        self._llm_test_signals = LLMTestConnectionSignals()
+        self._llm_test_signals.finished.connect(self._on_llm_test_finished)
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(200)  # Smooth 5 FPS standby preview off main thread
@@ -317,8 +343,27 @@ class ControlCenterDialog(QDialog):
 
         lang_layout.addLayout(lang_select_row)
 
+        # Engine Mode Selector (Local Offline vs Cloud LLM)
+        engine_row = QHBoxLayout()
+        engine_label = QLabel("Engine:", lang_card)
+        engine_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #9CA3AF;")
+        engine_label.setFixedWidth(55)
+        self.engine_combo = QComboBox(lang_card)
+        self.engine_combo.addItem("Offline Local (CTranslate2 MarianMT)", "local")
+        self.engine_combo.addItem("Cloud / Custom LLM (OpenAI-Compatible)", "llm")
+        self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
+        engine_row.addWidget(engine_label)
+        engine_row.addWidget(self.engine_combo, stretch=1)
+        lang_layout.addLayout(engine_row)
+
+        # Container: Local Offline Models
+        self.local_models_widget = QWidget(lang_card)
+        local_models_layout = QVBoxLayout(self.local_models_widget)
+        local_models_layout.setContentsMargins(0, 0, 0, 0)
+        local_models_layout.setSpacing(10)
+
         # Model Status Row
-        self.model_status_frame = QFrame(lang_card)
+        self.model_status_frame = QFrame(self.local_models_widget)
         self.model_status_frame.setStyleSheet("background-color: #27272A; border-radius: 6px; padding: 6px 10px;")
         model_status_layout = QHBoxLayout(self.model_status_frame)
         model_status_layout.setContentsMargins(6, 4, 6, 4)
@@ -331,23 +376,23 @@ class ControlCenterDialog(QDialog):
         self.model_action_btn.clicked.connect(self._on_current_model_action_clicked)
         model_status_layout.addWidget(self.model_action_btn)
 
-        lang_layout.addWidget(self.model_status_frame)
+        local_models_layout.addWidget(self.model_status_frame)
 
         # Packs Table / Manager
         packs_header_row = QHBoxLayout()
-        packs_label = QLabel("Installed Language Packs:", lang_card)
+        packs_label = QLabel("Installed Language Packs:", self.local_models_widget)
         packs_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #9CA3AF;")
         packs_header_row.addWidget(packs_label)
         packs_header_row.addStretch()
 
-        self.download_all_btn = QPushButton("Download All (~450 MB)", lang_card)
+        self.download_all_btn = QPushButton("Download All (~450 MB)", self.local_models_widget)
         self.download_all_btn.setObjectName("SecondaryButton")
         self.download_all_btn.setStyleSheet("font-size: 11px; padding: 3px 8px;")
         self.download_all_btn.clicked.connect(self._on_download_all_clicked)
         packs_header_row.addWidget(self.download_all_btn)
-        lang_layout.addLayout(packs_header_row)
+        local_models_layout.addLayout(packs_header_row)
 
-        self.packs_table = QTableWidget(lang_card)
+        self.packs_table = QTableWidget(self.local_models_widget)
         self.packs_table.setColumnCount(3)
         self.packs_table.setHorizontalHeaderLabels(["Language Pack", "Status / Size", "Action"])
         self.packs_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -357,7 +402,73 @@ class ControlCenterDialog(QDialog):
         self.packs_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.packs_table.setFixedHeight(130)
         self.packs_table.setStyleSheet("font-size: 11px;")
-        lang_layout.addWidget(self.packs_table)
+        local_models_layout.addWidget(self.packs_table)
+
+        lang_layout.addWidget(self.local_models_widget)
+
+        # Container: Universal OpenAI-Compatible Cloud LLM
+        self.llm_widget = QWidget(lang_card)
+        llm_layout = QVBoxLayout(self.llm_widget)
+        llm_layout.setContentsMargins(0, 0, 0, 0)
+        llm_layout.setSpacing(8)
+
+        # Base URL
+        url_row = QHBoxLayout()
+        url_label = QLabel("Base URL:", self.llm_widget)
+        url_label.setFixedWidth(75)
+        url_label.setStyleSheet("font-size: 12px; color: #D1D5DB;")
+        self.llm_url_input = QLineEdit(self.llm_widget)
+        self.llm_url_input.setPlaceholderText("https://api.groq.com/openai/v1 or http://localhost:11434/v1")
+        self.llm_url_input.editingFinished.connect(self._save_llm_preferences)
+        url_row.addWidget(url_label)
+        url_row.addWidget(self.llm_url_input)
+        llm_layout.addLayout(url_row)
+
+        # Model Name
+        model_row = QHBoxLayout()
+        model_label = QLabel("Model:", self.llm_widget)
+        model_label.setFixedWidth(75)
+        model_label.setStyleSheet("font-size: 12px; color: #D1D5DB;")
+        self.llm_model_input = QLineEdit(self.llm_widget)
+        self.llm_model_input.setPlaceholderText("llama-3.3-70b-versatile, deepseek-chat, gpt-4o-mini...")
+        self.llm_model_input.editingFinished.connect(self._save_llm_preferences)
+        model_row.addWidget(model_label)
+        model_row.addWidget(self.llm_model_input)
+        llm_layout.addLayout(model_row)
+
+        # API Key
+        key_row = QHBoxLayout()
+        key_label = QLabel("API Key:", self.llm_widget)
+        key_label.setFixedWidth(75)
+        key_label.setStyleSheet("font-size: 12px; color: #D1D5DB;")
+        self.llm_key_input = QLineEdit(self.llm_widget)
+        self.llm_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.llm_key_input.setPlaceholderText("Bearer token (leave blank for local Ollama/vLLM)")
+        self.llm_key_input.editingFinished.connect(self._save_llm_preferences)
+        key_row.addWidget(key_label)
+        key_row.addWidget(self.llm_key_input)
+        llm_layout.addLayout(key_row)
+
+        # Fallback Checkbox & Test Button
+        llm_action_row = QHBoxLayout()
+        self.llm_fallback_cb = QCheckBox("Fallback to local MarianMT on network error", self.llm_widget)
+        self.llm_fallback_cb.toggled.connect(self._save_llm_preferences)
+        llm_action_row.addWidget(self.llm_fallback_cb)
+        llm_action_row.addStretch()
+
+        self.llm_test_btn = QPushButton("🔌 Test Connection", self.llm_widget)
+        self.llm_test_btn.setObjectName("SecondaryButton")
+        self.llm_test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.llm_test_btn.setStyleSheet("font-size: 11px; padding: 4px 10px;")
+        self.llm_test_btn.clicked.connect(self._test_llm_connection)
+        llm_action_row.addWidget(self.llm_test_btn)
+        llm_layout.addLayout(llm_action_row)
+
+        self.llm_status_label = QLabel("", self.llm_widget)
+        self.llm_status_label.setStyleSheet("font-size: 11px; color: #9CA3AF;")
+        llm_layout.addWidget(self.llm_status_label)
+
+        lang_layout.addWidget(self.llm_widget)
 
         main_layout.addWidget(lang_card)
 
@@ -520,8 +631,80 @@ class ControlCenterDialog(QDialog):
         self._refresh_model_status()
         self._refresh_packs_table()
 
+        # Refresh Engine Selection & LLM inputs
+        is_llm = bool(cfg.llm.enabled)
+        self.engine_combo.blockSignals(True)
+        self.engine_combo.setCurrentIndex(1 if is_llm else 0)
+        self.engine_combo.blockSignals(False)
+
+        self.local_models_widget.setVisible(not is_llm)
+        self.llm_widget.setVisible(is_llm)
+
+        self.llm_url_input.blockSignals(True)
+        self.llm_url_input.setText(cfg.llm.base_url or "")
+        self.llm_url_input.blockSignals(False)
+
+        self.llm_model_input.blockSignals(True)
+        self.llm_model_input.setText(cfg.llm.model_name or "")
+        self.llm_model_input.blockSignals(False)
+
+        self.llm_key_input.blockSignals(True)
+        self.llm_key_input.setText(cfg.llm.api_key or "")
+        self.llm_key_input.blockSignals(False)
+
+        self.llm_fallback_cb.blockSignals(True)
+        self.llm_fallback_cb.setChecked(bool(cfg.llm.fallback_to_local))
+        self.llm_fallback_cb.blockSignals(False)
+
         # Refresh overlay position hint
         self.refresh_reposition_hint()
+
+    def _on_engine_changed(self, idx: int) -> None:
+        """Toggle active engine between Local CTranslate2 and Cloud LLM."""
+        is_llm = self.engine_combo.currentData() == "llm"
+        self.local_models_widget.setVisible(not is_llm)
+        self.llm_widget.setVisible(is_llm)
+        self._save_llm_preferences()
+
+    def _save_llm_preferences(self) -> None:
+        """Save LLM endpoint, model, and authentication settings to persistent config."""
+        default_cfg = LLMTranslationConfig()
+        llm_data = {
+            "enabled": self.engine_combo.currentData() == "llm",
+            "base_url": self.llm_url_input.text().strip() or default_cfg.base_url,
+            "api_key": self.llm_key_input.text().strip(),
+            "model_name": self.llm_model_input.text().strip() or default_cfg.model_name,
+            "fallback_to_local": self.llm_fallback_cb.isChecked(),
+            "timeout_seconds": self.config_manager.config.llm.timeout_seconds,
+        }
+        self.config_manager.update(llm=llm_data)
+        self.settings_saved.emit()
+
+    def _test_llm_connection(self) -> None:
+        """Test LLM endpoint connectivity and credentials off the main thread."""
+        if not self.llm_test_btn.isEnabled():
+            return
+        self._save_llm_preferences()
+        from core.translate.llm import OpenAICompatibleTranslator
+        cfg = self.config_manager.config.llm
+        translator = OpenAICompatibleTranslator(config=cfg)
+
+        self.llm_test_btn.setEnabled(False)
+        self.llm_status_label.setText("Testing connection...")
+        self.llm_status_label.setStyleSheet("font-size: 11px; color: #EAB308;")
+
+        task = LLMTestConnectionTask(translator, self._llm_test_signals)
+        self._thread_pool.start(task)
+
+    def _on_llm_test_finished(self, ok: bool, msg: str) -> None:
+        """Handle completed background connection test result."""
+        self.llm_test_btn.setEnabled(True)
+        if ok:
+            self.llm_status_label.setText(f"🟢 {msg}")
+            self.llm_status_label.setStyleSheet("font-size: 11px; color: #10B981;")
+        else:
+            self.llm_status_label.setText(f"🔴 {msg}")
+            self.llm_status_label.setStyleSheet("font-size: 11px; color: #EF4444;")
 
     def refresh_reposition_hint(self) -> None:
         """Update positioning status label and reset button state."""

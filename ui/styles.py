@@ -155,6 +155,25 @@ QSpinBox::down-arrow {
     height: 8px;
 }
 
+/* LineEdit */
+QLineEdit {
+    background-color: #27272A;
+    color: #F3F4F6;
+    border: 1px solid #3F3F46;
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 20px;
+    font-size: 12px;
+}
+
+QLineEdit:hover {
+    border-color: #52525B;
+}
+
+QLineEdit:focus {
+    border-color: #00E5FF;
+}
+
 /* CheckBox */
 QCheckBox {
     color: #E5E7EB;
