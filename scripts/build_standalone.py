@@ -14,6 +14,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 
@@ -26,7 +27,12 @@ def get_platform_target() -> str:
         arch = "arm64" if "arm" in machine or "aarch64" in machine else "x86_64"
         return f"macos-{arch}"
     elif sys_name == "windows":
-        arch = "x64" if "64" in machine else "x86"
+        if "arm" in machine or "aarch64" in machine:
+            arch = "arm64"
+        elif "64" in machine:
+            arch = "x64"
+        else:
+            arch = "x86"
         return f"windows-{arch}"
     return f"{sys_name}-{machine}"
 
@@ -52,10 +58,7 @@ def package_macos_dmg(app_path: Path, output_dmg_path: Path, volume_name: str = 
     if not app_path.exists():
         raise FileNotFoundError(f"App bundle not found at: {app_path}")
 
-    staging_dir = app_path.parent / "dmg_staging"
-    if staging_dir.exists():
-        shutil.rmtree(staging_dir)
-    staging_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(prefix="dmg_staging_"))
 
     try:
         # 1. Copy .app into staging directory
@@ -108,7 +111,7 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
             for file in files:
                 full_p = Path(root) / file
                 rel_p = full_p.relative_to(app_dir)
-                zf.write(full_p, arcname=f"Subterranean Staircase/{rel_p}")
+                zf.write(full_p, arcname=f"Subterranean Staircase/{rel_p.as_posix()}")
     artifacts.append(zip_path)
     print(f"✔ Created portable ZIP: {zip_path} ({zip_path.stat().st_size / (1024 * 1024):.1f} MB)")
 
@@ -119,19 +122,25 @@ def package_windows_installer(app_dir: Path, output_dir: Path, iss_path: Path) -
         if default_inno.exists():
             iscc_bin = str(default_inno)
 
-    if iscc_bin and iss_path.exists():
+    if not iscc_bin:
+        print("ℹ Inno Setup compiler (ISCC) not found; skipping Setup.exe creation.")
+    elif not iss_path.exists():
+        print(f"ℹ Inno Setup script not found at {iss_path}; skipping Setup.exe creation.")
+    else:
         print(f"🔨 Compiling Inno Setup installer using {iscc_bin}...")
         resolved_out = output_dir.resolve()
-        cmd = [iscc_bin, f"/O{resolved_out}", f"/DAppSourceDir={app_dir.resolve()}", str(iss_path)]
+        resolved_app = app_dir.resolve()
+        # /O overrides OutputDir= in installer.iss, /DAppSourceDir overrides source files
+        cmd = [iscc_bin, f'/O"{resolved_out}"', f'/DAppSourceDir="{resolved_app}"', str(iss_path)]
         subprocess.run(cmd, check=True)
-        setup_exe = output_dir / f"Subterranean-Staircase-{target}-Setup.exe"
-        if not setup_exe.exists():
-            setup_exe = output_dir / "Subterranean-Staircase-windows-x64-Setup.exe"
-        if setup_exe.exists():
+
+        exe_candidates = list(output_dir.glob("*-Setup.exe"))
+        if exe_candidates:
+            setup_exe = exe_candidates[0]
             print(f"✔ Created Windows Setup installer: {setup_exe} ({setup_exe.stat().st_size / (1024 * 1024):.1f} MB)")
             artifacts.append(setup_exe)
-    else:
-        print("ℹ Inno Setup compiler (ISCC) not found; skipping Setup.exe creation.")
+        else:
+            raise FileNotFoundError(f"Inno Setup compiled successfully but no *-Setup.exe was found in {output_dir}")
 
     return artifacts
 
@@ -154,8 +163,8 @@ def build_all(output_dir: Path, spec_path: Path, iss_path: Path, skip_dmg: bool 
 
         if not skip_dmg:
             dmg_path = output_dir / f"Subterranean-Staircase-{target}.dmg"
-            package_macos_dmg(app_bundle, dmg_path)
-            results.append(dmg_path)
+            actual_dmg = package_macos_dmg(app_bundle, dmg_path)
+            results.append(actual_dmg)
     elif sys.platform == "win32":
         app_dir = output_dir / "Subterranean Staircase"
         if not app_dir.exists():

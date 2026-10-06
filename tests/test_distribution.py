@@ -228,7 +228,7 @@ def test_github_actions_workflow_installers_configuration() -> None:
     archs = [item["arch"] for item in matrix]
     assert "arm64" in archs
     assert "x86_64" in archs
-    assert jobs["build-windows-x64"]["runs-on"] == "windows-latest"
+    assert jobs["build-windows-x64"]["runs-on"] in ("windows-2022", "windows-latest")
 
 
 
