@@ -26,30 +26,19 @@ hiddenimports = [
     "PyQt6.QtWidgets",
     "numpy",
     "cv2",
-    "mss",
     "pydantic",
-    "ctranslate2",
-    "sentencepiece",
-    "rapidocr_onnxruntime",
-    "onnxruntime",
     "urllib.request",
     "urllib.error",
 ]
 
-# RapidOCR and ONNXRuntime
-d_ocr, b_ocr, h_ocr = collect_all("rapidocr_onnxruntime")
-datas += d_ocr
-binaries += b_ocr
-hiddenimports += h_ocr
-
-# CTranslate2 & SentencePiece
-d_ct2, b_ct2, h_ct2 = collect_all("ctranslate2")
-datas += d_ct2
-binaries += b_ct2
-hiddenimports += h_ct2
-
-hiddenimports += collect_submodules("sentencepiece")
-hiddenimports += collect_submodules("onnxruntime")
+for pkg in ("rapidocr_onnxruntime", "onnxruntime", "ctranslate2", "sentencepiece", "mss"):
+    try:
+        d_pkg, b_pkg, h_pkg = collect_all(pkg)
+        datas += d_pkg
+        binaries += b_pkg
+        hiddenimports += h_pkg
+    except Exception as e:
+        print(f"Warning collecting {pkg}: {e}")
 
 # 2. Add local repository assets
 assets_dir = project_root / "ui" / "assets"

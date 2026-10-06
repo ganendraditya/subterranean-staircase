@@ -165,7 +165,7 @@ def test_build_standalone_script_functions() -> None:
     assert any(target.startswith(prefix) for prefix in ("macos-", "windows-", "linux-"))
 
 
-def test_package_windows_installer_zip_creation(tmp_path: Path) -> None:
+def test_package_windows_installer_zip_creation(tmp_path: Path, monkeypatch) -> None:
     import sys
     sys.path.insert(0, str(_root()))
     from scripts.build_standalone import package_windows_installer
@@ -179,6 +179,12 @@ def test_package_windows_installer_zip_creation(tmp_path: Path) -> None:
     out_dir.mkdir()
     fake_iss = tmp_path / "installer.iss"
     fake_iss.write_text("; fake inno script", encoding="utf-8")
+
+    # Mock subprocess.run for Inno Setup compiler if iscc is found on host (e.g. CI Windows runner)
+    def mock_run(cmd, check=True):
+        (out_dir / "Subterranean-Staircase-windows-x64-Setup.exe").write_bytes(b"dummy installer")
+
+    monkeypatch.setattr("subprocess.run", mock_run)
 
     artifacts = package_windows_installer(fake_app_dir, out_dir, fake_iss)
     assert len(artifacts) >= 1
