@@ -70,8 +70,8 @@ Manage translation settings directly in **Control Center → Language & Translat
 ### Uninstalling
 
 #### Standalone Applications
-- **macOS:** Drag `Subterranean Staircase.app` from your `/Applications` folder to Trash.
-- **Windows:** Go to **Windows Settings → Apps → Installed apps**, locate **Subterranean Staircase**, and click **Uninstall**.
+- **macOS:** Open **Control Center** and click **"Factory Reset..."** to purge all downloaded models and caches down to 0 bytes, then drag `Subterranean Staircase.app` from your `/Applications` folder to Trash.
+- **Windows:** Go to **Windows Settings → Apps → Installed apps**, locate **Subterranean Staircase**, and click **Uninstall**. An interactive prompt will ask whether you also want to purge all downloaded models and user configurations.
 
 #### Terminal Installations
 To uninstall cleanly from terminal:

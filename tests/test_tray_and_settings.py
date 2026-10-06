@@ -1,9 +1,9 @@
 """Unit tests for SettingsDialog and TrayController."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from core.capture.base import BaseCapture
 from core.config import ConfigManager
@@ -178,6 +178,17 @@ def test_control_center_dialog(qapp, tmp_path: Path) -> None:
     cc.llm_model_input.setText("deepseek-chat")
     cc._save_llm_preferences()
     assert config_mgr.config.llm.model_name == "deepseek-chat"
+
+    # 9. Check factory reset controls
+    assert hasattr(cc, "factory_reset_btn")
+    assert hasattr(cc, "factory_reset_hint")
+    assert cc.factory_reset_btn.text() == "Factory Reset..."
+
+    reset_req = []
+    cc.factory_reset_requested.connect(lambda: reset_req.append(True))
+    with patch("PyQt6.QtWidgets.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
+        cc.factory_reset_btn.click()
+    assert len(reset_req) == 1
 
     cc.close()
 

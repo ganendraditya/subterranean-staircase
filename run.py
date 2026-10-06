@@ -139,6 +139,7 @@ class SubtitleTranslatorApp:
         self.control_center.window_selected.connect(self._on_window_selected)
         self.control_center.reposition_overlay_toggled.connect(self._on_reposition_overlay_toggled)
         self.control_center.reset_overlay_position_requested.connect(self._on_reset_overlay_position)
+        self.control_center.factory_reset_requested.connect(self._on_factory_reset)
         self.control_center.settings_saved.connect(self._on_settings_saved)
         self.control_center.quit_requested.connect(self.quit)
         self.control_center.finished.connect(self._on_control_center_finished)
@@ -404,6 +405,44 @@ class SubtitleTranslatorApp:
         self.config_manager.update(custom_overlay_position=None)
         self._apply_overlay_geometry()
         self.overlay.update_text("Position reset to auto")
+
+    def _on_factory_reset(self) -> None:
+        """Execute full factory reset: stop worker, purge caches & models, reset configs."""
+        logger.info("Executing application factory reset...")
+        if self.worker.isRunning():
+            self.worker.stop()
+        self.tray.set_active(False)
+        self.control_center.set_active(False)
+        if hasattr(self.capture_driver, "close"):
+            try:
+                self.capture_driver.close()
+            except Exception as e:
+                logger.debug("Failed to close capture driver: %s", e)
+        if hasattr(self, "cache") and self.cache is not None:
+            self.cache.close()
+
+        # Purge all user data and reset config to factory defaults
+        self.config_manager.purge_user_data()
+
+        # Re-initialize clean translation memory & engines
+        self.cache = SQLiteTranslationCache()
+        self.local_engine = CTranslate2Engine(cache=self.cache, router=self.router)
+        self.worker.set_translator_engine(self._build_active_engine())
+        self.worker.set_custom_roi(None)
+
+        # Refresh UI
+        self._apply_overlay_geometry()
+        self.overlay.style_config = self.config_manager.config.overlay
+        self.overlay.update()
+        self.overlay.update_text("Factory reset complete")
+        self.control_center.refresh_state()
+
+        QMessageBox.information(
+            self.control_center,
+            "Factory Reset Complete",
+            "All downloaded models, translation memory, and configuration files have been completely wiped.\n\n"
+            "The application has been reset to its initial clean state.",
+        )
 
     def _on_window_selected(self, window_info: Optional[WindowInfo]) -> None:
         """Set targeted application window."""

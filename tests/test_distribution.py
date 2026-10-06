@@ -149,6 +149,10 @@ def test_inno_setup_script_configuration() -> None:
     assert "Subterranean-Staircase-windows-x64-Setup" in content
     assert "app_icon.ico" in content
     assert "compression=lzma2/ultra64" in content.lower()
+    assert "CurUninstallStepChanged" in content
+    assert "DelTree" in content
+    assert "PurgeUserData" in content
+    assert "delete all downloaded translation models" in content.lower()
 
 
 def test_build_standalone_script_functions() -> None:
