@@ -228,7 +228,6 @@ Standalone release binaries bundle all Python runtimes, C++ dynamic libraries, a
 | Platform | Runner / Architecture | Packaging Engine | Output Artifact |
 | :--- | :--- | :--- | :--- |
 | **macOS (Apple Silicon)** | `macos-14` (`arm64`) | PyInstaller + native `hdiutil` | `Subterranean-Staircase-macos-arm64.dmg` |
-| **macOS (Intel)** | `macos-13` (`x86_64`) | PyInstaller + native `hdiutil` | `Subterranean-Staircase-macos-x86_64.dmg` |
 | **Windows 64-bit** | `windows-2022` (`x64`) | PyInstaller + Inno Setup 6 | `Subterranean-Staircase-windows-x64-Setup.exe` & `.zip` |
 
 * **macOS Drag-and-Drop DMG:** Built with native `hdiutil create` using an isolated temporary staging directory, featuring a symlink to `/Applications`.

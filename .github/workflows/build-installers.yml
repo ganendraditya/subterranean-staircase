@@ -15,19 +15,9 @@ concurrency:
 
 jobs:
   build-macos:
-    name: Build macOS (${{ matrix.target }} - .dmg ${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    name: Build macOS (Apple Silicon - .dmg arm64)
+    runs-on: macos-14
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            target: Apple Silicon
-            runner: macos-14
-          - arch: x86_64
-            target: Intel
-            runner: macos-13
 
     steps:
       - name: Checkout repository
@@ -53,20 +43,18 @@ jobs:
 
       - name: Verify DMG & Binary Integrity
         shell: bash
-        env:
-          MATRIX_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          dmg_file="dist/Subterranean-Staircase-macos-${MATRIX_ARCH}.dmg"
+          dmg_file="dist/Subterranean-Staircase-macos-arm64.dmg"
           echo "Verifying DMG: $dmg_file"
           test -s "$dmg_file"
           hdiutil verify "$dmg_file"
-          lipo -info "dist/Subterranean Staircase.app/Contents/MacOS/Subterranean Staircase" | grep "${MATRIX_ARCH}"
+          lipo -info "dist/Subterranean Staircase.app/Contents/MacOS/Subterranean Staircase" | grep "arm64"
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Subterranean-Staircase-macos-${{ matrix.arch }}
+          name: Subterranean-Staircase-macos-arm64
           path: dist/*.dmg
           if-no-files-found: error
 
@@ -91,11 +79,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install Inno Setup (Windows Installer Compiler)
+      - name: Ensure Inno Setup on PATH
         shell: pwsh
         run: |
-          choco install innosetup --version 6.3.3 --no-progress
-          echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+              if (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe") {
+                  echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              } elseif (Test-Path "C:\ProgramData\Chocolatey\bin\iscc.exe") {
+                  echo "C:\ProgramData\Chocolatey\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              }
+          }
 
       - name: Build Standalone Windows Executable & Installer
         shell: pwsh
