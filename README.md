@@ -18,7 +18,7 @@ Download the prebuilt, standalone installer for your operating system (no Python
 | Platform | Architecture / Device | Installer Type | Direct Download Link |
 | :--- | :--- | :--- | :--- |
 | **macOS** | **Apple Silicon** (M1 / M2 / M3 / M4) | Standalone `.dmg` | [**Download `.dmg` (Apple Silicon)**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-macos-arm64.dmg) |
-| **macOS** | **Intel** (Legacy Core i5 / i7) | Terminal Installer | Use the [**Terminal Installation**](#2-terminal-installation-one-liner) below |
+| **macOS** | **Intel** (Core i5 / i7 / i9) | Standalone `.dmg` | [**Download `.dmg` (Intel)**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-macos-x86_64.dmg) |
 | **Windows** | **64-bit** (Windows 10 / 11) | Setup Wizard (`.exe`) | [**Download `Setup.exe` (Windows)**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-windows-x64-Setup.exe) |
 | **Windows** | **64-bit** (Windows 10 / 11) | Portable Archive (`.zip`) | [**Download Portable `.zip`**](https://github.com/ganendraditya/subterranean-staircase/releases/latest/download/Subterranean-Staircase-windows-x64-portable.zip) |
 
