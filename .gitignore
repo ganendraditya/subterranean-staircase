@@ -52,7 +52,6 @@ tests/test_full_video_audit.py
 .ultralytics/
 .agents/
 skills-lock.json
-docs/
 
 # IDE
 .vscode/

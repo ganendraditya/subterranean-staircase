@@ -108,6 +108,7 @@ When conducting AI Code Reviews (via `ocr review`, dual LLM evaluations, or manu
     6. **User Authorization Gate:** Present the clean PR status and await explicit user instruction to merge.
     7. **Merge:** Merge via `gh pr merge --merge` (or `--delete-branch`) only after explicit user approval.
 - **Report Status First:** Upon task completion, present a concise summary of changes, test suite results, and linter status, and await user instruction. Inquiring for confirmation ("Would you like to commit / merge?") is permitted, but executing commit/push/merge without explicit confirmation is prohibited.
+- **Living Architecture Specification Synchronization:** Whenever system architecture, engine dependencies, tuning parameters, or core operational workflows are committed or merged into `main`, `docs/TECHNICAL_STACK_AND_PIPELINES.md` **MUST BE SYNCHRONIZED** so the documentation remains an accurate reference for continuous study and architectural truth.
 - **Strict English Consistency Across Repository Artefacts:** All documentation files (`*.md`), technical specifications, GitHub Issues, Pull Request descriptions, Git commit messages, and GitHub Release notes **MUST BE WRITTEN EXCLUSIVELY IN CLEAR, CONCISE ENGLISH**. Maintain strict language consistency across all repository artefacts for international open-source parity.
 
 ### 2. Mandatory User Presentation Before Applying Changes

@@ -231,4 +231,16 @@ def test_github_actions_workflow_installers_configuration() -> None:
     assert jobs["build-windows-x64"]["runs-on"] in ("windows-2022", "windows-latest")
 
 
+def test_technical_stack_documentation_exists() -> None:
+    doc_path = _root() / "docs" / "TECHNICAL_STACK_AND_PIPELINES.md"
+    assert doc_path.exists(), "docs/TECHNICAL_STACK_AND_PIPELINES.md is missing"
+    content = doc_path.read_text(encoding="utf-8")
+    assert "High-Level System Architecture" in content
+    assert "RapidOCR" in content
+    assert "CTranslate2" in content
+    assert "det_limit_type='max'" in content
+    assert "beam_size=3" in content
+    assert "OpenAI-Compatible" in content
+
+
 
