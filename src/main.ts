@@ -1,17 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import { clampNumber, formatLanguagePairLabel, OverlayStyle } from "./utils";
 
 export interface SystemInfo {
   app_name: string;
   version: string;
   architecture: string;
   status: string;
-}
-
-export interface OverlayStyle {
-  font_size: number;
-  text_color: string;
-  stroke_color: string;
-  stroke_width: number;
 }
 
 export interface OverlayState {
@@ -275,10 +269,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (btnApplyStyle) {
     btnApplyStyle.addEventListener("click", async () => {
-      const rawFs = parseInt(sliderFontSize?.value || "24", 10);
-      const rawSw = parseInt(sliderStrokeWidth?.value || "2", 10);
-      const fontSize = Number.isFinite(rawFs) ? rawFs : 24;
-      const strokeWidth = Number.isFinite(rawSw) ? rawSw : 2;
+      const fontSize = clampNumber(sliderFontSize?.value, 16, 38, 24);
+      const strokeWidth = clampNumber(sliderStrokeWidth?.value, 1, 4, 2);
       const textColor = selectTextColor?.value || "#ffffff";
       const strokeColor = selectStrokeColor?.value || "#000000";
 
@@ -300,20 +292,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // 6. Translation & LLM Settings
   function updateLanguagePairUI() {
-    const langLabel: Record<string, string> = {
-      auto: "Auto",
-      ja: "JA",
-      zh: "ZH",
-      ko: "KO",
-      en: "EN",
-      id: "ID",
-    };
     const srcVal = selectSourceLang?.value || "auto";
     const tgtVal = selectTargetLang?.value || "en";
-    const src = langLabel[srcVal] ?? srcVal.toUpperCase();
-    const tgt = langLabel[tgtVal] ?? tgtVal.toUpperCase();
     if (valLangPair) {
-      valLangPair.textContent = `${src} → ${tgt}`;
+      valLangPair.textContent = formatLanguagePairLabel(srcVal, tgtVal);
     }
   }
 

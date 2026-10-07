@@ -1,16 +1,10 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { generateOverlayCssTokens, OverlayStyle, sanitizeSubtitleText } from "./utils";
 
 export interface SubtitlePayload {
   text: string;
   duration_ms?: number;
-}
-
-export interface OverlayStyle {
-  font_size: number;
-  text_color: string;
-  stroke_color: string;
-  stroke_width: number;
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -34,10 +28,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function setSubtitle(text: string, durationMs = 4000) {
+  function setSubtitle(rawText: string, durationMs = 4000) {
     if (!subtitleText) return;
     clearFadeTimers();
 
+    const text = sanitizeSubtitleText(rawText);
     subtitleText.textContent = text;
     subtitleText.classList.remove("faded");
 
@@ -77,17 +72,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   function applyStyle(style: OverlayStyle) {
     const root = document.documentElement;
-    if (style.font_size !== undefined) {
-      root.style.setProperty("--overlay-font-size", `${style.font_size}px`);
-    }
-    if (style.text_color) {
-      root.style.setProperty("--overlay-text-color", style.text_color);
-    }
-    if (style.stroke_color) {
-      root.style.setProperty("--overlay-stroke-color", style.stroke_color);
-    }
-    if (style.stroke_width !== undefined) {
-      root.style.setProperty("--overlay-stroke-width", `${style.stroke_width}px`);
+    const tokens = generateOverlayCssTokens(style);
+    for (const [key, val] of Object.entries(tokens)) {
+      root.style.setProperty(key, val);
     }
   }
 
