@@ -1,25 +1,36 @@
-import { defineConfig } from "vite";
+import { resolve } from "node:path";
 import process from "node:process";
+import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
+const DEV_PORT = 1420;
+const HMR_PORT = 1421;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
   base: "./",
   clearScreen: false,
   server: {
-    port: 1420,
+    port: DEV_PORT,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: "ws",
           host,
-          port: 1421,
+          port: HMR_PORT,
         }
       : undefined,
     watch: {
       ignored: ["**/src-tauri/**"],
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        overlay: resolve(__dirname, "overlay.html"),
+      },
     },
   },
 }));

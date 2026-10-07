@@ -290,6 +290,33 @@ def test_v2_tauri_scaffolding_manifests() -> None:
     assert "tauri = " in cargo_content
 
 
+def test_v2_dual_window_configuration() -> None:
+    root = _root()
+    overlay_html = root / "overlay.html"
+    overlay_ts = root / "src" / "overlay.ts"
+    overlay_css = root / "src" / "overlay.css"
+    tauri_conf = root / "src-tauri" / "tauri.conf.json"
+
+    assert overlay_html.is_file(), "overlay.html must exist for multi-window Vite build"
+    assert overlay_ts.is_file(), "src/overlay.ts must exist"
+    assert overlay_css.is_file(), "src/overlay.css must exist"
+
+    tauri_data = json.loads(tauri_conf.read_text(encoding="utf-8"))
+    windows = tauri_data["app"]["windows"]
+    labels = [w["label"] for w in windows]
+
+    assert "main" in labels, "main control center window must be defined"
+    assert "overlay" in labels, "overlay window must be defined"
+
+    overlay_win = next(w for w in windows if w["label"] == "overlay")
+    assert overlay_win["transparent"] is True, "Overlay window must be transparent"
+    assert overlay_win["decorations"] is False, "Overlay window must be frameless"
+    assert overlay_win["alwaysOnTop"] is True, "Overlay window must stay topmost"
+    assert overlay_win["width"] == 800
+    assert overlay_win["height"] == 160
+
+
+
 
 
 

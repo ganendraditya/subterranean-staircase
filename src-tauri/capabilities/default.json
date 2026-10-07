@@ -1,8 +1,8 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "identifier": "default",
   "description": "Default capability for Subterranean Staircase",
-  "windows": ["main"],
+  "windows": ["main", "overlay"],
   "permissions": [
     "core:default",
     "opener:default"

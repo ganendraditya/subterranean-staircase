@@ -3,52 +3,275 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Subterranean Staircase</title>
+    <title>Subterranean Staircase Control Center</title>
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
     <div class="app-container">
+      <!-- App Header -->
       <header class="app-header">
         <div class="logo-section">
           <div class="logo-badge">S</div>
           <div>
             <div class="logo-title">Subterranean Staircase</div>
+            <div class="logo-subtitle">Real-time On-Device Screen Subtitle Translator</div>
           </div>
           <span id="version-tag" class="version-tag">v2.0.0-alpha.1</span>
         </div>
         <div class="header-status">
-          <span class="status-dot"></span>
-          <span id="lbl-status">Ready</span>
+          <span id="status-dot" class="status-dot"></span>
+          <span id="lbl-status">Core Online</span>
         </div>
       </header>
 
-      <div class="grid-cards">
-        <div class="card">
-          <div class="card-title">Backend Architecture</div>
-          <div class="card-value" id="lbl-arch">Rust Native</div>
-          <div class="card-subtitle">Tauri v2 + Zero-Copy Memory</div>
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="tab-overview" role="tab">Live Overview</button>
+        <button class="tab-btn" data-tab="tab-overlay" role="tab">Subtitle Overlay</button>
+        <button class="tab-btn" data-tab="tab-translation" role="tab">Translation &amp; LLM</button>
+        <button class="tab-btn" data-tab="tab-logs" role="tab">Diagnostics &amp; Logs</button>
+      </nav>
+
+      <!-- Tab Content 1: Live Overview -->
+      <section id="tab-overview" class="tab-pane active" role="tabpanel">
+        <div class="grid-cards">
+          <div class="card">
+            <div class="card-title">Active Engine</div>
+            <div class="card-value" id="val-engine">Cloud LLM</div>
+            <div class="card-subtitle">OpenAI-Compatible BYOK Protocol</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Language Routing</div>
+            <div class="card-value" id="val-lang-pair">JA &rarr; EN</div>
+            <div class="card-subtitle">Auto-Detect Source Enabled</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Overlay Canvas</div>
+            <div class="card-value">800 &times; 160 px</div>
+            <div class="card-subtitle">Bottom-Center Anchored</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Input Passthrough</div>
+            <div class="card-value" id="val-input-mode">Click-Through</div>
+            <div class="card-subtitle">Mouse Clicks Pass to Player</div>
+          </div>
         </div>
 
-        <div class="card">
-          <div class="card-title">Vision Gating</div>
-          <div class="card-value">SIMD MAD</div>
-          <div class="card-subtitle">&lt; 0.2 ms Static Evaluator</div>
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Live Overlay Test Harness</h3>
+            <span class="settings-card-badge">Instant Verification</span>
+          </div>
+          <p class="settings-description">
+            Emit test dialogue lines directly to the floating overlay window to verify typography, positioning, and upward expansion.
+          </p>
+
+          <div class="input-group">
+            <label class="input-label" for="custom-subtitle-input">Custom Subtitle Payload</label>
+            <div class="input-action-row">
+              <input
+                id="custom-subtitle-input"
+                type="text"
+                class="text-input"
+                placeholder="Type sample subtitle text..."
+                value="Wait! Is that the subterranean staircase?"
+              />
+              <button id="btn-send-custom" class="btn btn-primary">Emit Subtitle</button>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="btn-preset-short" class="btn btn-secondary">Send Single-line</button>
+            <button id="btn-preset-multi" class="btn btn-secondary">Send Multi-line</button>
+            <button id="btn-preset-jp" class="btn btn-secondary">Send Japanese</button>
+            <button id="btn-clear-overlay" class="btn btn-secondary btn-danger-hover">Clear Subtitle</button>
+            <button id="btn-toggle-overlay-vis" class="btn btn-secondary">Hide / Show Overlay</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab Content 2: Subtitle Overlay -->
+      <section id="tab-overlay" class="tab-pane" role="tabpanel">
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Interactive Repositioning Mode</h3>
+            <span id="badge-interactive-status" class="settings-card-badge badge-locked">Locked (Click-Through)</span>
+          </div>
+          <p class="settings-description">
+            Unlock the overlay to display a dashed guideline and drag the subtitle canvas to any location on your screen. When locked, mouse clicks pass directly through to video players.
+          </p>
+          <div class="button-row">
+            <button id="btn-toggle-interactive" class="btn btn-primary">Unlock for Dragging</button>
+            <button id="btn-reset-pos" class="btn btn-secondary">Reset to Bottom-Center</button>
+          </div>
         </div>
 
-        <div class="card">
-          <div class="card-title">OCR & Translator</div>
-          <div class="card-value">ort + LLM</div>
-          <div class="card-subtitle">Zero Python Runtime</div>
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Anti-Slop WCAG AA Typography</h3>
+            <span class="settings-card-badge">High Contrast</span>
+          </div>
+          <p class="settings-description">
+            Configure font sizing and outline stroke to ensure crisp readability across both high-key bright and dark video frames.
+          </p>
+
+          <div class="settings-grid">
+            <div class="input-group">
+              <label class="input-label" for="slider-font-size">
+                Font Size: <span id="lbl-font-size-val">24px</span>
+              </label>
+              <input id="slider-font-size" type="range" min="16" max="38" value="24" class="range-slider" />
+            </div>
+
+            <div class="input-group">
+              <label class="input-label" for="slider-stroke-width">
+                Black Outline Stroke: <span id="lbl-stroke-val">2px</span>
+              </label>
+              <input id="slider-stroke-width" type="range" min="1" max="4" value="2" class="range-slider" />
+            </div>
+
+            <div class="input-group">
+              <label class="input-label" for="select-text-color">Subtitle Text Color</label>
+              <select id="select-text-color" class="select-input">
+                <option value="#ffffff" selected>Pure White (#FFFFFF)</option>
+                <option value="#fde047">Cinema Yellow (#FDE047)</option>
+                <option value="#38bdf8">High-Contrast Cyan (#38BDF8)</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label class="input-label" for="select-stroke-color">Outline Stroke Color</label>
+              <select id="select-stroke-color" class="select-input">
+                <option value="#000000" selected>Pitch Black (#000000) - WCAG AA</option>
+                <option value="#18181b">Dark Charcoal (#18181B)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="button-row mt-16">
+            <button id="btn-apply-style" class="btn btn-primary">Apply Typography Style</button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div class="action-bar">
-        <button id="btn-ping" class="btn btn-primary">Ping Rust Core</button>
-        <button id="btn-clear" class="btn btn-secondary">Clear Log</button>
-      </div>
+      <!-- Tab Content 3: Translation & LLM -->
+      <section id="tab-translation" class="tab-pane" role="tabpanel">
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Language Matrix &amp; Routing</h3>
+          </div>
+          <div class="settings-grid">
+            <div class="input-group">
+              <label class="input-label" for="select-source-lang">Source Subtitle Language</label>
+              <select id="select-source-lang" class="select-input">
+                <option value="auto" selected>Auto Detect</option>
+                <option value="ja">Japanese (日本語)</option>
+                <option value="zh">Chinese (中文)</option>
+                <option value="ko">Korean (한국어)</option>
+                <option value="en">English (English)</option>
+                <option value="id">Indonesian (Bahasa Indonesia)</option>
+              </select>
+            </div>
 
-      <div id="console-output" class="output-console"></div>
+            <div class="input-group">
+              <label class="input-label" for="select-target-lang">Target Translation Language</label>
+              <select id="select-target-lang" class="select-input">
+                <option value="en" selected>English (English)</option>
+                <option value="id">Indonesian (Bahasa Indonesia)</option>
+                <option value="ja">Japanese (日本語)</option>
+                <option value="zh">Chinese (中文)</option>
+                <option value="ko">Korean (한국어)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Universal Cloud LLM (BYOK Protocol)</h3>
+            <span class="settings-card-badge">OpenAI-Compatible</span>
+          </div>
+          <p class="settings-description">
+            Connect any OpenAI-compatible API endpoint (Groq, DeepSeek, OpenAI, Ollama, vLLM) for ultra-low latency contextual translations.
+          </p>
+
+          <div class="settings-grid">
+            <div class="input-group">
+              <label class="input-label" for="input-llm-url">API Base URL</label>
+              <input
+                id="input-llm-url"
+                type="text"
+                class="text-input"
+                placeholder="https://api.groq.com/openai/v1"
+                value="https://api.groq.com/openai/v1"
+              />
+            </div>
+
+            <div class="input-group">
+              <label class="input-label" for="input-llm-model">Model Identifier</label>
+              <input
+                id="input-llm-model"
+                type="text"
+                class="text-input"
+                placeholder="llama-3.3-70b-versatile"
+                value="llama-3.3-70b-versatile"
+              />
+            </div>
+          </div>
+
+          <div class="input-group mt-12">
+            <label class="input-label" for="input-llm-key">API Key</label>
+            <input
+              id="input-llm-key"
+              type="password"
+              class="text-input"
+              placeholder="gsk_... or sk-..."
+            />
+          </div>
+
+          <div class="button-row mt-16">
+            <button id="btn-save-llm" class="btn btn-primary">Save Translation Settings</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab Content 4: Diagnostics & Logs -->
+      <section id="tab-logs" class="tab-pane" role="tabpanel">
+        <div class="grid-cards">
+          <div class="card">
+            <div class="card-title">Host Architecture</div>
+            <div class="card-value" id="lbl-arch">Rust Native</div>
+            <div class="card-subtitle">Zero Python Runtime</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Vision Gating Engine</div>
+            <div class="card-value">SIMD MAD</div>
+            <div class="card-subtitle">&lt; 0.2 ms Static Evaluator</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Window Composition</div>
+            <div class="card-value">NSScreenSaver</div>
+            <div class="card-subtitle">Fullscreen Spaces Level 1000</div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Event Bus &amp; Diagnostic Stream</h3>
+            <div class="action-buttons-inline">
+              <button id="btn-ping" class="btn btn-secondary btn-sm">Ping Rust Core</button>
+              <button id="btn-clear-log" class="btn btn-secondary btn-sm">Clear Output</button>
+            </div>
+          </div>
+          <div id="console-output" class="output-console"></div>
+        </div>
+      </section>
     </div>
   </body>
 </html>

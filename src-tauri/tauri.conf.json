@@ -15,11 +15,25 @@
       {
         "label": "main",
         "title": "Subterranean Staircase Control Center",
-        "width": 780,
-        "height": 560,
+        "width": 820,
+        "height": 640,
         "resizable": true,
         "decorations": true,
         "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Subterranean Staircase Subtitle Overlay",
+        "url": "overlay.html",
+        "width": 800,
+        "height": 160,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": true
       }
     ],
     "security": {
