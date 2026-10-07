@@ -7,11 +7,14 @@ export interface SystemInfo {
   status: string;
 }
 
+const PING_PAYLOAD = "Hello from Vite Frontend!";
+
 window.addEventListener("DOMContentLoaded", async () => {
   const lblStatus = document.getElementById("lbl-status");
   const lblArch = document.getElementById("lbl-arch");
   const btnPing = document.getElementById("btn-ping");
   const btnClear = document.getElementById("btn-clear");
+  const versionTag = document.getElementById("version-tag");
   const consoleOutput = document.getElementById("console-output");
 
   function log(msg: string) {
@@ -28,6 +31,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const info = await invoke<SystemInfo>("get_system_info");
     if (lblStatus) lblStatus.textContent = info.status;
     if (lblArch) lblArch.textContent = info.architecture;
+    if (versionTag) versionTag.textContent = `v${info.version}`;
     log(`Connected to Rust core: ${info.app_name} (${info.version}) on ${info.architecture}`);
   } catch (err) {
     if (lblStatus) lblStatus.textContent = "Standby / Web Preview";
@@ -43,7 +47,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (btnPing) {
     btnPing.addEventListener("click", async () => {
       try {
-        const reply = await invoke<string>("ping", { message: "Hello from Vite Frontend!" });
+        const reply = await invoke<string>("ping", { message: PING_PAYLOAD });
         log(`Rust Core Reply: ${reply}`);
       } catch (err) {
         log(`Ping error: ${String(err)}`);
