@@ -146,7 +146,7 @@ subtitle-translator/
 ├── uninstall.sh            # Clean uninstaller (macOS/Linux)
 ├── install.ps1             # Single-line installer (Windows)
 ├── uninstall.ps1           # Clean uninstaller (Windows)
-├── AGENTS.md               # Karpathy engineering rules & Anti-Slop guidelines
+├── AGENTS.md               # Engineering rules & Anti-Slop guidelines
 ├── requirements.txt        # Cross-platform dependencies
 └── run.py                  # Application launcher
 ```
