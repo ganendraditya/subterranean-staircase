@@ -2,9 +2,9 @@ name: CI Matrix (macOS & Windows)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, v2-develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, v2-develop ]
 
 permissions:
   contents: read
@@ -42,3 +42,33 @@ jobs:
       - name: Run Test Suite with Coverage
         run: |
           pytest tests/ --cov=core --cov-report=term-missing
+
+  v2-check:
+    name: V2 Stack Verification (${{ matrix.os }} - Rust & Frontend)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run TypeScript & Cargo Check
+        run: npm run check
+
+      - name: Run Rust Unit Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subterranean Staircase</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <div class="app-container">
+      <header class="app-header">
+        <div class="logo-section">
+          <div class="logo-badge">S</div>
+          <div>
+            <div class="logo-title">Subterranean Staircase</div>
+          </div>
+          <span id="version-tag" class="version-tag">v2.0.0-alpha.1</span>
+        </div>
+        <div class="header-status">
+          <span class="status-dot"></span>
+          <span id="lbl-status">Ready</span>
+        </div>
+      </header>
+
+      <div class="grid-cards">
+        <div class="card">
+          <div class="card-title">Backend Architecture</div>
+          <div class="card-value" id="lbl-arch">Rust Native</div>
+          <div class="card-subtitle">Tauri v2 + Zero-Copy Memory</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Vision Gating</div>
+          <div class="card-value">SIMD MAD</div>
+          <div class="card-subtitle">&lt; 0.2 ms Static Evaluator</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">OCR & Translator</div>
+          <div class="card-value">ort + LLM</div>
+          <div class="card-subtitle">Zero Python Runtime</div>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button id="btn-ping" class="btn btn-primary">Ping Rust Core</button>
+        <button id="btn-clear" class="btn btn-secondary">Clear Log</button>
+      </div>
+
+      <div id="console-output" class="output-console"></div>
+    </div>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 """Unit tests verifying installer script syntax and presence."""
 
+import json
 from pathlib import Path
 
 
@@ -264,6 +265,30 @@ def test_readme_contains_direct_download_links() -> None:
     assert "Subterranean-Staircase-windows-x64-Setup.exe" in readme
     assert "Subterranean-Staircase-windows-x64-portable.zip" in readme
     assert "TECHNICAL_STACK_AND_PIPELINES.md" in readme
+
+
+def test_v2_tauri_scaffolding_manifests() -> None:
+    root = _root()
+    package_json = root / "package.json"
+    tauri_conf = root / "src-tauri" / "tauri.conf.json"
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+
+    assert package_json.is_file(), "package.json must exist at repository root"
+    assert tauri_conf.is_file(), "src-tauri/tauri.conf.json must exist"
+    assert cargo_toml.is_file(), "src-tauri/Cargo.toml must exist"
+
+    pkg_data = json.loads(package_json.read_text(encoding="utf-8"))
+    assert pkg_data["name"] == "subterranean-staircase"
+    assert "2.0.0" in pkg_data["version"]
+
+    tauri_data = json.loads(tauri_conf.read_text(encoding="utf-8"))
+    assert tauri_data["productName"] == "Subterranean Staircase"
+    assert tauri_data["identifier"] == "com.ganendraditya.subterranean-staircase"
+
+    cargo_content = cargo_toml.read_text(encoding="utf-8")
+    assert 'name = "subterranean_staircase"' in cargo_content
+    assert "tauri = " in cargo_content
+
 
 
 
