@@ -1,7 +1,7 @@
-# Engineering & Design Architecture (Karpathy, Anti-Slop, & Core Principles)
+# Engineering & Design Architecture (Anti-Slop & Core Principles)
 
 This project incorporates engineering discipline, architectural principles, and design standards from:
-1. **Andrej Karpathy's LLM Guidelines**
+1. **Pragmatic Engineering & Execution Guidelines**
 2. **Anti-Slop Craftsmanship Framework**
 3. **Core Software Engineering & System Architecture Principles** (derived from `koma` & `not-notebooklm`)
 
@@ -52,7 +52,7 @@ Modules must be designed to stand independently without hidden side-effects:
 
 ---
 
-## Part 2: Engineering Execution Guidelines (Karpathy)
+## Part 2: Engineering Execution Guidelines (Pragmatic Simplicity & Discipline)
 
 ### 1. Think Before Coding
 - **State assumptions explicitly.** If uncertain, ask rather than guess.
