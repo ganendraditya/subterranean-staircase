@@ -1,0 +1,26 @@
+[package]
+name = "subterranean_staircase"
+version = "2.0.0-alpha.1"
+description = "Subterranean Staircase: Real-time on-device screen subtitle translator"
+authors = ["Ganendra Aditya <ganendraditya@gmail.com>"]
+edition = "2021"
+
+[lib]
+name = "subterranean_staircase_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "=2.6.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

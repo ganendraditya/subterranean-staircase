@@ -9,6 +9,18 @@ build/
 venv/
 .python/
 
+# Rust
+/src-tauri/target/
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node / Frontend
+node_modules/
+dist-ssr/
+*.local
+src-tauri/gen/
+
 # Config
 config.json
 
