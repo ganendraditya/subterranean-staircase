@@ -4,17 +4,19 @@ version = "2.0.0-alpha.1"
 description = "Subterranean Staircase: Real-time on-device screen subtitle translator"
 authors = ["Ganendra Aditya <ganendraditya@gmail.com>"]
 edition = "2021"
+license = "MIT"
+rust-version = "1.77"
 
 [lib]
 name = "subterranean_staircase_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2" }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
-tauri-plugin-opener = "=2.6.0"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

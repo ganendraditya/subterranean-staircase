@@ -44,9 +44,13 @@ jobs:
           pytest tests/ --cov=core --cov-report=term-missing
 
   v2-check:
-    name: V2 Stack Verification (Rust & Frontend)
-    runs-on: macos-latest
+    name: V2 Stack Verification (${{ matrix.os }} - Rust & Frontend)
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

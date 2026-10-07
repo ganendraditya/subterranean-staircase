@@ -3,4 +3,5 @@
 
 fn main() {
     subterranean_staircase_lib::run()
+        .expect("error while running Subterranean Staircase Tauri application");
 }

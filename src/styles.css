@@ -191,6 +191,10 @@ body {
   font-size: 12px;
   color: var(--text-secondary);
   min-height: 80px;
+  max-height: 320px;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
   margin-top: 20px;
   white-space: pre-wrap;
 }

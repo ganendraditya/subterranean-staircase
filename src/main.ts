@@ -11,6 +11,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const lblStatus = document.getElementById("lbl-status");
   const lblArch = document.getElementById("lbl-arch");
   const btnPing = document.getElementById("btn-ping");
+  const btnClear = document.getElementById("btn-clear");
   const consoleOutput = document.getElementById("console-output");
 
   function log(msg: string) {
@@ -29,7 +30,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (lblArch) lblArch.textContent = info.architecture;
     log(`Connected to Rust core: ${info.app_name} (${info.version}) on ${info.architecture}`);
   } catch (err) {
+    if (lblStatus) lblStatus.textContent = "Standby / Web Preview";
     log(`Initial handshake: ${String(err)} (Running in standalone browser or awaiting core)`);
+  }
+
+  if (btnClear && consoleOutput) {
+    btnClear.addEventListener("click", () => {
+      consoleOutput.textContent = "";
+    });
   }
 
   if (btnPing) {
