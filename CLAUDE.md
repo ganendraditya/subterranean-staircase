@@ -79,6 +79,10 @@ Modules must be designed to stand independently without hidden side-effects:
 - Transform tasks into verifiable criteria (write test/smoke script, verify, commit).
 - Loop independently against tangible feedback before declaring done.
 
+### 5. Local Development Toolchain (Bun for JS/TS on macOS)
+- When executing JavaScript/TypeScript tasks locally on macOS (running scripts, building Vite bundles, type-checking, package management), **strictly prefer `bun`** (`bun run check`, `bun run build`, `bun test`, `bun install`) instead of npm/node for sub-second execution speeds.
+- In automated CI workflows (`.github/workflows/`), maintain standard `npm` compatibility for deterministic cross-platform parity across macOS and Windows runners.
+
 ---
 
 ## Part 3: UI & Craftsmanship Filter (Anti-Slop)

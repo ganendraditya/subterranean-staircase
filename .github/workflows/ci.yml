@@ -70,5 +70,8 @@ jobs:
       - name: Run TypeScript & Cargo Check
         run: npm run check
 
+      - name: Run Frontend Unit Tests (Vitest)
+        run: npm run test:frontend
+
       - name: Run Rust Unit Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml

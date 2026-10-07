@@ -1,0 +1,96 @@
+:root {
+  --overlay-font-size: 24px;
+  --overlay-text-color: #ffffff;
+  --overlay-stroke-color: #000000;
+  --overlay-stroke-width: 2px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body.overlay-body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: transparent !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.overlay-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 8px 16px 12px;
+  background-color: transparent;
+  transition: border-color 0.15s ease, border-width 0.15s ease, background-color 0.15s ease;
+}
+
+/* Interactive Repositioning Mode */
+.overlay-container.interactive {
+  cursor: move;
+  border: 2px dashed rgba(56, 189, 248, 0.85);
+  border-radius: 8px;
+  background-color: rgba(10, 14, 23, 0.55);
+}
+
+.reposition-badge {
+  position: absolute;
+  top: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 4px;
+  padding: 3px 8px;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}
+
+.reposition-badge.hidden {
+  display: none;
+}
+
+.subtitle-box {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Anti-Slop WCAG AA Typography: sharp stroke and drop shadow over any media background */
+.subtitle-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--overlay-font-size);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--overlay-text-color);
+  -webkit-text-stroke: var(--overlay-stroke-width) var(--overlay-stroke-color);
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.95),
+    0 0 8px rgba(0, 0, 0, 0.85);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+  display: inline-block;
+  opacity: 1;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.subtitle-text.faded {
+  opacity: 0;
+}

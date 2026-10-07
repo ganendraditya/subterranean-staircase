@@ -1,4 +1,42 @@
+pub mod overlay;
+
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+
+use overlay::{OverlayState, OverlayStyle, SubtitlePayload};
 use serde::Serialize;
+
+const OVERLAY_WIDTH: f64 = 800.0;
+const OVERLAY_HEIGHT: f64 = 160.0;
+const OVERLAY_BOTTOM_MARGIN: f64 = 60.0;
+
+fn calculate_default_overlay_position(
+    overlay: &tauri::WebviewWindow,
+) -> Result<tauri::Position, String> {
+    let monitor = overlay
+        .primary_monitor()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Failed to query primary monitor".to_string())?;
+    let size = monitor.size();
+    let scale = monitor.scale_factor();
+    let screen_w = (size.width as f64) / scale;
+    let screen_h = (size.height as f64) / scale;
+    let x = (screen_w - OVERLAY_WIDTH) / 2.0;
+    let y = screen_h - OVERLAY_HEIGHT - OVERLAY_BOTTOM_MARGIN;
+    Ok(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))
+}
+
+pub struct AppState {
+    pub overlay_state: Mutex<OverlayState>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            overlay_state: Mutex::new(OverlayState::default()),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemInfo {
@@ -27,10 +65,153 @@ fn ping(message: String) -> String {
     )
 }
 
+#[tauri::command]
+fn emit_subtitle(
+    app: tauri::AppHandle,
+    text: String,
+    duration_ms: Option<u64>,
+) -> Result<(), String> {
+    let payload = SubtitlePayload {
+        text,
+        duration_ms,
+    };
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .emit("subtitle_update", &payload)
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn clear_subtitle(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .emit("subtitle_clear", ())
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn toggle_overlay_interactive(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    interactive: bool,
+) -> Result<bool, String> {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .set_ignore_cursor_events(!interactive)
+            .map_err(|e| e.to_string())?;
+
+        let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
+        st.is_interactive = interactive;
+
+        overlay
+            .emit("overlay_interactive_changed", interactive)
+            .map_err(|e| e.to_string())?;
+
+        Ok(interactive)
+    } else {
+        Err("Overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn toggle_overlay_visibility(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    visible: bool,
+) -> Result<bool, String> {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        if visible {
+            overlay.show().map_err(|e| e.to_string())?;
+        } else {
+            overlay.hide().map_err(|e| e.to_string())?;
+        }
+
+        let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
+        st.is_visible = visible;
+
+        Ok(visible)
+    } else {
+        Err("Overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn reset_overlay_position(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let pos = calculate_default_overlay_position(&overlay)?;
+        overlay.set_position(pos).map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn update_overlay_style(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    style: OverlayStyle,
+) -> Result<(), String> {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .emit("overlay_style_changed", &style)
+            .map_err(|e| e.to_string())?;
+
+        let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
+        st.style = style;
+        Ok(())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_overlay_state(state: tauri::State<'_, AppState>) -> Result<OverlayState, String> {
+    let st = state.overlay_state.lock().map_err(|e| e.to_string())?;
+    Ok(st.clone())
+}
+
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
+        .manage(AppState::default())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_system_info, ping])
+        .setup(|app| {
+            if let Some(overlay_win) = app.get_webview_window("overlay") {
+                // By default, overlay ignores cursor events so mouse clicks pass through to video
+                let _ = overlay_win.set_ignore_cursor_events(true);
+
+                // Position overlay bottom-center of primary monitor
+                if let Ok(pos) = calculate_default_overlay_position(&overlay_win) {
+                    let _ = overlay_win.set_position(pos);
+                }
+
+                // Elevate window level above macOS native fullscreen video spaces
+                #[cfg(target_os = "macos")]
+                {
+                    if let Ok(ns_win) = overlay_win.ns_window() {
+                        overlay::configure_macos_fullscreen_overlay(ns_win);
+                    }
+                }
+            }
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            get_system_info,
+            ping,
+            emit_subtitle,
+            clear_subtitle,
+            toggle_overlay_interactive,
+            toggle_overlay_visibility,
+            reset_overlay_position,
+            update_overlay_style,
+            get_overlay_state
+        ])
         .run(tauri::generate_context!())?;
     Ok(())
 }
@@ -54,5 +235,13 @@ mod tests {
         assert!(reply.contains("Pong from Rust core!"));
         assert!(reply.contains("Hello Tauri"));
     }
-}
 
+    #[test]
+    fn test_app_state_initialization() {
+        let state = AppState::default();
+        let overlay = state.overlay_state.lock().unwrap();
+        assert!(overlay.is_visible);
+        assert!(!overlay.is_interactive);
+        assert_eq!(overlay.style.font_size, 24);
+    }
+}

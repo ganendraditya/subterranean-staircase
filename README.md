@@ -73,40 +73,34 @@ python run.py
 
 ## Usage & Management
 
-### Running & Auto-Start
-- **Auto-Start on Boot:** If enabled during installation (or toggled anytime in **Control Center → System & Autostart**), Subterranean Staircase runs silently in your background menu bar / system tray whenever your computer boots.
-- **Manual Launch:** You can also launch the app from terminal anytime:
-```bash
-subtrans
-```
+### 1. Daily Desktop Usage (GUI)
+- **Menu Bar & Tray:** Once running, Subterranean Staircase lives in your system tray / menu bar. Click the tray icon to open the **Control Center**, pause/resume capture, or adjust settings.
+- **Auto-Start on Boot:** If enabled during installation (or toggled in **Control Center → System & Autostart**), the application starts silently in the background whenever your system boots.
+- **Draggable Subtitle Positioning:** Click **"Move Subtitles"** in Control Center to unlock the overlay canvas, drag it to your desired position on screen, and lock it in place.
 
-### Model & Translation Engine Management
-Manage translation settings directly in **Control Center → Language & Translation Model**:
-- **Offline Mode:** Download Big 5 language packs (English, Indonesian, Japanese, Korean, Chinese) on-demand with 1-click downloads.
-- **Universal Cloud LLM (BYOK):** Switch to OpenAI-compatible mode and configure your API key for Groq (`llama-3.3-70b-versatile`), DeepSeek, OpenAI, or local self-hosted instances (Ollama, vLLM).
-- **Draggable Positioning:** Click **"Move Subtitles"** in Control Center to reposition the overlay anywhere on your screen.
+### 2. Translation Engine Modes (Offline & Cloud)
+Switch between translation backends anytime under **Control Center → Language & Translation**:
+- **Offline Mode:** Download Big 5 language packs (English, Indonesian, Japanese, Korean, Chinese) for zero-latency, private, and offline translation powered by quantized CTranslate2.
+- **Universal OpenAI-Compatible Mode (BYOK):** Connect any cloud API provider or self-hosted local model adhering to the standard `/v1/chat/completions` protocol (OpenAI, Groq, DeepSeek, Together AI, Ollama, vLLM, LM Studio). Simply provide your Base URL, Model Name, and API Key.
 
-### Updates
-- **In-App (1-Click):** When an update is available, a notification and tray banner `Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
-- **Control Center:** You can also toggle automatic checks or manually click **"Check Now"** under Control Center.
+### 3. Updates & Data Management
+- **1-Click Updates:** When a new release is available, an in-app banner will appear. Click to update dependencies and restart automatically.
+- **Factory Reset (0 Bytes):** Need a clean slate? Click **"Factory Reset..."** in Control Center to wipe all downloaded language models, caches, and user preferences.
 
-### Uninstalling
-
-#### Standalone Applications
-- **macOS:** Open **Control Center** and click **"Factory Reset..."** to purge all downloaded models and caches down to 0 bytes, then drag `Subterranean Staircase.app` from your `/Applications` folder to Trash.
-- **Windows:** Go to **Windows Settings → Apps → Installed apps**, locate **Subterranean Staircase**, and click **Uninstall**. An interactive prompt will ask whether you also want to purge all downloaded models and user configurations.
-
-#### Terminal Installations
-To uninstall cleanly from terminal:
-```bash
-subtrans uninstall
-```
-An interactive prompt will ask whether you want to preserve your configurations and cached offline models or remove them.
-
-To bypass the prompt and completely remove all files and cached models non-interactively:
-```bash
-subtrans uninstall --purge
-```
+### 4. Advanced CLI Usage (For Terminal Users)
+For users running from source or installed via the terminal one-liner:
+- **Launch Application:**
+  ```bash
+  subtrans
+  ```
+- **Clean Interactive Uninstall:**
+  ```bash
+  subtrans uninstall
+  ```
+- **Purge All Data Non-Interactively:**
+  ```bash
+  subtrans uninstall --purge
+  ```
 
 ---
 
@@ -126,7 +120,7 @@ subtrans uninstall --purge
 ## Project Structure
 
 ```text
-subtitle-translator/
+subterranean-staircase/
 ├── core/
 │   ├── contracts/          # Single source of truth domain data models (DIP)
 │   ├── capture/            # Screen & window grabbers (multi-OS)
