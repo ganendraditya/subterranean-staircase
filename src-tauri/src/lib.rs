@@ -6,6 +6,26 @@ use tauri::{Emitter, Manager};
 use overlay::{OverlayState, OverlayStyle, SubtitlePayload};
 use serde::Serialize;
 
+const OVERLAY_WIDTH: f64 = 800.0;
+const OVERLAY_HEIGHT: f64 = 160.0;
+const OVERLAY_BOTTOM_MARGIN: f64 = 60.0;
+
+fn calculate_default_overlay_position(
+    overlay: &tauri::WebviewWindow,
+) -> Result<tauri::Position, String> {
+    let monitor = overlay
+        .primary_monitor()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Failed to query primary monitor".to_string())?;
+    let size = monitor.size();
+    let scale = monitor.scale_factor();
+    let screen_w = (size.width as f64) / scale;
+    let screen_h = (size.height as f64) / scale;
+    let x = (screen_w - OVERLAY_WIDTH) / 2.0;
+    let y = screen_h - OVERLAY_HEIGHT - OVERLAY_BOTTOM_MARGIN;
+    Ok(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))
+}
+
 pub struct AppState {
     pub overlay_state: Mutex<OverlayState>,
 }
@@ -55,14 +75,24 @@ fn emit_subtitle(
         text,
         duration_ms,
     };
-    app.emit("subtitle_update", &payload)
-        .map_err(|e| e.to_string())
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .emit("subtitle_update", &payload)
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
 }
 
 #[tauri::command]
 fn clear_subtitle(app: tauri::AppHandle) -> Result<(), String> {
-    app.emit("subtitle_clear", ())
-        .map_err(|e| e.to_string())
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .emit("subtitle_clear", ())
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
 }
 
 #[tauri::command]
@@ -79,7 +109,8 @@ fn toggle_overlay_interactive(
         let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
         st.is_interactive = interactive;
 
-        app.emit("overlay_interactive_changed", interactive)
+        overlay
+            .emit("overlay_interactive_changed", interactive)
             .map_err(|e| e.to_string())?;
 
         Ok(interactive)
@@ -113,22 +144,9 @@ fn toggle_overlay_visibility(
 #[tauri::command]
 fn reset_overlay_position(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(overlay) = app.get_webview_window("overlay") {
-        if let Ok(Some(monitor)) = overlay.primary_monitor() {
-            let size = monitor.size();
-            let scale = monitor.scale_factor();
-            let screen_w = (size.width as f64) / scale;
-            let screen_h = (size.height as f64) / scale;
-            let canvas_w = 800.0;
-            let canvas_h = 160.0;
-            let x = (screen_w - canvas_w) / 2.0;
-            let y = screen_h - canvas_h - 60.0;
-            overlay
-                .set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))
-                .map_err(|e| e.to_string())?;
-            Ok(())
-        } else {
-            Err("Failed to query primary monitor".to_string())
-        }
+        let pos = calculate_default_overlay_position(&overlay)?;
+        overlay.set_position(pos).map_err(|e| e.to_string())?;
+        Ok(())
     } else {
         Err("Overlay window not found".to_string())
     }
@@ -140,12 +158,17 @@ fn update_overlay_style(
     state: tauri::State<'_, AppState>,
     style: OverlayStyle,
 ) -> Result<(), String> {
-    {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        overlay
+            .emit("overlay_style_changed", &style)
+            .map_err(|e| e.to_string())?;
+
         let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
-        st.style = style.clone();
+        st.style = style;
+        Ok(())
+    } else {
+        Err("Overlay window not found".to_string())
     }
-    app.emit("overlay_style_changed", &style)
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -164,17 +187,8 @@ pub fn run() -> tauri::Result<()> {
                 let _ = overlay_win.set_ignore_cursor_events(true);
 
                 // Position overlay bottom-center of primary monitor
-                if let Ok(Some(monitor)) = overlay_win.primary_monitor() {
-                    let size = monitor.size();
-                    let scale = monitor.scale_factor();
-                    let screen_w = (size.width as f64) / scale;
-                    let screen_h = (size.height as f64) / scale;
-                    let canvas_w = 800.0;
-                    let canvas_h = 160.0;
-                    let x = (screen_w - canvas_w) / 2.0;
-                    let y = screen_h - canvas_h - 60.0;
-                    let _ = overlay_win
-                        .set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)));
+                if let Ok(pos) = calculate_default_overlay_position(&overlay_win) {
+                    let _ = overlay_win.set_position(pos);
                 }
 
                 // Elevate window level above macOS native fullscreen video spaces

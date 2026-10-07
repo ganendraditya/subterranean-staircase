@@ -78,24 +78,30 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!consoleOutput) return;
     const ts = new Date().toLocaleTimeString();
     const line = `[${ts}] ${msg}\n`;
-    const lines = (consoleOutput.textContent || "").split("\n");
-    if (lines.length > MAX_LOG_LINES) {
+    const existing = consoleOutput.textContent || "";
+    const lines = existing.split("\n");
+    const visibleLines = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+    if (visibleLines > MAX_LOG_LINES) {
       consoleOutput.textContent = lines.slice(lines.length - MAX_LOG_LINES).join("\n");
     }
     consoleOutput.textContent += line;
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
   }
 
-  // 1. Tab Navigation
+  // 1. Tab Navigation with Accessibility ARIA
   tabButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       const targetTabId = btn.getAttribute("data-tab");
       if (!targetTabId) return;
 
-      tabButtons.forEach((b) => b.classList.remove("active"));
+      tabButtons.forEach((b) => {
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
       tabPanes.forEach((p) => p.classList.remove("active"));
 
       btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
       const targetPane = document.getElementById(targetTabId);
       if (targetPane) {
         targetPane.classList.add("active");
@@ -123,6 +129,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     overlayVisible = state.is_visible;
     overlayInteractive = state.is_interactive;
     updateInteractiveUI(overlayInteractive);
+    updateOverlayVisibilityUI(overlayVisible);
 
     if (sliderFontSize && lblFontSizeVal) {
       sliderFontSize.value = String(state.style.font_size);
@@ -139,7 +146,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   // 3. Subtitle Emitter Functions
   async function sendSubtitle(text: string, durationMs = 4500) {
     try {
-      await invoke("emit_subtitle", { text, durationMs });
+      await invoke("emit_subtitle", { text, duration_ms: durationMs });
       log(`Emitted subtitle to overlay: "${text.replace(/\n/g, " ")}"`);
     } catch (err) {
       log(`Error emitting subtitle: ${String(err)}`);
@@ -182,11 +189,19 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  function updateOverlayVisibilityUI(visible: boolean) {
+    if (btnToggleOverlayVis) {
+      btnToggleOverlayVis.textContent = visible ? "Hide Overlay" : "Show Overlay";
+    }
+  }
+
   if (btnToggleOverlayVis) {
     btnToggleOverlayVis.addEventListener("click", async () => {
+      const nextVisible = !overlayVisible;
       try {
-        overlayVisible = !overlayVisible;
-        await invoke("toggle_overlay_visibility", { visible: overlayVisible });
+        await invoke("toggle_overlay_visibility", { visible: nextVisible });
+        overlayVisible = nextVisible;
+        updateOverlayVisibilityUI(overlayVisible);
         log(`Overlay visibility toggled: ${overlayVisible ? "Visible" : "Hidden"}`);
       } catch (err) {
         log(`Error toggling visibility: ${String(err)}`);
@@ -222,9 +237,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (btnToggleInteractive) {
     btnToggleInteractive.addEventListener("click", async () => {
+      const nextInteractive = !overlayInteractive;
       try {
-        overlayInteractive = !overlayInteractive;
-        await invoke("toggle_overlay_interactive", { interactive: overlayInteractive });
+        await invoke("toggle_overlay_interactive", { interactive: nextInteractive });
+        overlayInteractive = nextInteractive;
         updateInteractiveUI(overlayInteractive);
         log(`Interactive mode toggled: ${overlayInteractive ? "UNLOCKED (Drag enabled)" : "LOCKED (Passthrough)"}`);
       } catch (err) {
@@ -259,8 +275,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (btnApplyStyle) {
     btnApplyStyle.addEventListener("click", async () => {
-      const fontSize = parseInt(sliderFontSize?.value || "24", 10);
-      const strokeWidth = parseInt(sliderStrokeWidth?.value || "2", 10);
+      const rawFs = parseInt(sliderFontSize?.value || "24", 10);
+      const rawSw = parseInt(sliderStrokeWidth?.value || "2", 10);
+      const fontSize = Number.isFinite(rawFs) ? rawFs : 24;
+      const strokeWidth = Number.isFinite(rawSw) ? rawSw : 2;
       const textColor = selectTextColor?.value || "#ffffff";
       const strokeColor = selectStrokeColor?.value || "#000000";
 
@@ -282,8 +300,18 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // 6. Translation & LLM Settings
   function updateLanguagePairUI() {
-    const src = (selectSourceLang?.value || "auto").toUpperCase();
-    const tgt = (selectTargetLang?.value || "en").toUpperCase();
+    const langLabel: Record<string, string> = {
+      auto: "Auto",
+      ja: "JA",
+      zh: "ZH",
+      ko: "KO",
+      en: "EN",
+      id: "ID",
+    };
+    const srcVal = selectSourceLang?.value || "auto";
+    const tgtVal = selectTargetLang?.value || "en";
+    const src = langLabel[srcVal] ?? srcVal.toUpperCase();
+    const tgt = langLabel[tgtVal] ?? tgtVal.toUpperCase();
     if (valLangPair) {
       valLangPair.textContent = `${src} → ${tgt}`;
     }
@@ -310,15 +338,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // Load stored LLM settings from localStorage if present
+  // Load stored LLM settings from localStorage on startup
   try {
     const savedUrl = localStorage.getItem("subtrans_llm_url");
     const savedModel = localStorage.getItem("subtrans_llm_model");
+    const savedKey = localStorage.getItem("subtrans_llm_key");
     if (savedUrl && inputLlmUrl) inputLlmUrl.value = savedUrl;
     if (savedModel && inputLlmModel) inputLlmModel.value = savedModel;
+    if (savedKey && inputLlmKey) inputLlmKey.value = savedKey;
+    if (valEngine) valEngine.textContent = savedModel ? "Cloud LLM" : "Local";
   } catch {
     // Ignore storage errors
   }
+
+  // Initial sync of language pair
+  updateLanguagePairUI();
 
   // 7. Console Actions
   if (btnClearLog && consoleOutput) {

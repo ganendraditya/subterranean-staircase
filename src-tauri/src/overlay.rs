@@ -42,8 +42,11 @@ pub struct SubtitlePayload {
     pub duration_ms: Option<u64>,
 }
 
+/// # Safety
+/// `ns_window_ptr` must be a valid, non-null pointer to a live `NSWindow`
+/// obtained from Tauri's `ns_window()` API within the setup lifecycle.
 #[cfg(target_os = "macos")]
-pub fn configure_macos_fullscreen_overlay(ns_window_ptr: *mut std::ffi::c_void) {
+pub(crate) fn configure_macos_fullscreen_overlay(ns_window_ptr: *mut std::ffi::c_void) {
     if ns_window_ptr.is_null() {
         return;
     }
@@ -53,35 +56,41 @@ pub fn configure_macos_fullscreen_overlay(ns_window_ptr: *mut std::ffi::c_void) 
         fn objc_msgSend();
     }
 
-    unsafe {
-        let nswindow = ns_window_ptr as *mut c_void;
+    let nswindow = ns_window_ptr as *mut c_void;
 
-        // NSWindowCollectionBehaviorCanJoinAllSpaces (1) | NSWindowCollectionBehaviorFullScreenAuxiliary (256) | NSWindowCollectionBehaviorStationary (16) = 273
-        let set_collection_behavior =
-            sel_registerName(b"setCollectionBehavior:\0".as_ptr() as *const _);
+    // SAFETY: Registered selectors are checked for non-null before invocation.
+    // 1. NSWindowCollectionBehaviorCanJoinAllSpaces (1) | NSWindowCollectionBehaviorFullScreenAuxiliary (256) | NSWindowCollectionBehaviorStationary (16) = 273
+    let sel_collection =
+        unsafe { sel_registerName(b"setCollectionBehavior:\0".as_ptr() as *const _) };
+    if !sel_collection.is_null() {
         let send_usize: unsafe extern "C" fn(*mut c_void, *mut c_void, usize) =
-            std::mem::transmute(objc_msgSend as *const ());
-        send_usize(nswindow, set_collection_behavior, 1 | 256 | 16);
+            unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+        unsafe { send_usize(nswindow, sel_collection, 1 | 256 | 16) };
+    }
 
-        // NSScreenSaverWindowLevel = 1000
-        let set_level = sel_registerName(b"setLevel:\0".as_ptr() as *const _);
+    // 2. NSScreenSaverWindowLevel = 1000
+    let sel_level = unsafe { sel_registerName(b"setLevel:\0".as_ptr() as *const _) };
+    if !sel_level.is_null() {
         let send_isize: unsafe extern "C" fn(*mut c_void, *mut c_void, isize) =
-            std::mem::transmute(objc_msgSend as *const ());
-        send_isize(nswindow, set_level, 1000);
+            unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+        unsafe { send_isize(nswindow, sel_level, 1000) };
+    }
 
-        // setHidesOnDeactivate: false
-        let set_hides_on_deactivate =
-            sel_registerName(b"setHidesOnDeactivate:\0".as_ptr() as *const _);
-        let send_bool: unsafe extern "C" fn(*mut c_void, *mut c_void, bool) =
-            std::mem::transmute(objc_msgSend as *const ());
-        send_bool(nswindow, set_hides_on_deactivate, false);
+    // 3. setHidesOnDeactivate: NO (0u8 across C ABI)
+    let sel_hides =
+        unsafe { sel_registerName(b"setHidesOnDeactivate:\0".as_ptr() as *const _) };
+    if !sel_hides.is_null() {
+        let send_u8: unsafe extern "C" fn(*mut c_void, *mut c_void, u8) =
+            unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+        unsafe { send_u8(nswindow, sel_hides, 0u8) };
+    }
 
-        // orderFrontRegardless
-        let order_front_regardless =
-            sel_registerName(b"orderFrontRegardless\0".as_ptr() as *const _);
+    // 4. orderFrontRegardless
+    let sel_order = unsafe { sel_registerName(b"orderFrontRegardless\0".as_ptr() as *const _) };
+    if !sel_order.is_null() {
         let send_void: unsafe extern "C" fn(*mut c_void, *mut c_void) =
-            std::mem::transmute(objc_msgSend as *const ());
-        send_void(nswindow, order_front_regardless);
+            unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+        unsafe { send_void(nswindow, sel_order) };
     }
 }
 
@@ -97,6 +106,7 @@ mod tests {
         assert_eq!(state.style.font_size, 24);
         assert_eq!(state.style.text_color, "#ffffff");
         assert_eq!(state.style.stroke_color, "#000000");
+        assert_eq!(state.style.stroke_width, 2);
     }
 
     #[test]
