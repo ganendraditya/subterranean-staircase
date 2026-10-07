@@ -133,6 +133,12 @@ window.addEventListener("DOMContentLoaded", async () => {
       sliderStrokeWidth.value = String(state.style.stroke_width);
       lblStrokeVal.textContent = `${state.style.stroke_width}px`;
     }
+    if (selectTextColor && state.style.text_color) {
+      selectTextColor.value = state.style.text_color;
+    }
+    if (selectStrokeColor && state.style.stroke_color) {
+      selectStrokeColor.value = state.style.stroke_color;
+    }
   } catch (err) {
     log(`Overlay state query: ${String(err)}`);
   }
@@ -311,7 +317,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       try {
         localStorage.setItem("subtrans_llm_url", url);
         localStorage.setItem("subtrans_llm_model", model);
-        if (key) localStorage.setItem("subtrans_llm_key", key);
+        if (key) {
+          localStorage.setItem("subtrans_llm_key", key);
+        } else {
+          localStorage.removeItem("subtrans_llm_key");
+        }
         if (valEngine) valEngine.textContent = model ? "Cloud LLM" : "Local";
         log(`Saved translation config: Model ${model} via ${url}`);
       } catch (err) {
