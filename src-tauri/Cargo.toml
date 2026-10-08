@@ -22,6 +22,10 @@ serde_json = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 base64 = "0.22"
 xcap = "0.9.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+dirs = "6.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
 
 [profile.release]
 codegen-units = 1

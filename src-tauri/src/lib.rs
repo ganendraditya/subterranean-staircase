@@ -1,14 +1,18 @@
+pub mod cache;
 pub mod capture;
 pub mod diff;
 pub mod overlay;
+pub mod translate;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
+use cache::TranslationCache;
 use capture::{CaptureEngine, CaptureRoi, CaptureTargets};
 use diff::{DiffResult, FrameDiffDetector};
 use overlay::{OverlayState, OverlayStyle, SubtitlePayload};
 use serde::Serialize;
+use translate::{LlmConfig, LlmTranslator, TranslationRequest, TranslationResponse};
 
 const OVERLAY_WIDTH: f64 = 800.0;
 const OVERLAY_HEIGHT: f64 = 160.0;
@@ -33,13 +37,24 @@ fn calculate_default_overlay_position(
 pub struct AppState {
     pub overlay_state: Mutex<OverlayState>,
     pub diff_detector: Mutex<FrameDiffDetector>,
+    pub cache: Arc<TranslationCache>,
+    pub llm_translator: LlmTranslator,
+    pub llm_config: Mutex<LlmConfig>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
+        let cache = Arc::new(TranslationCache::open_default().unwrap_or_else(|_| {
+            TranslationCache::open_in_memory().expect("open fallback memory cache")
+        }));
+        let llm_translator = LlmTranslator::new(cache.clone());
+        let llm_config = Mutex::new(LlmConfig::load());
         Self {
             overlay_state: Mutex::new(OverlayState::default()),
             diff_detector: Mutex::new(FrameDiffDetector::default()),
+            cache,
+            llm_translator,
+            llm_config,
         }
     }
 }
@@ -270,6 +285,64 @@ fn get_overlay_state(state: tauri::State<'_, AppState>) -> Result<OverlayState, 
     Ok(st.clone())
 }
 
+#[tauri::command]
+async fn translate_subtitle(
+    state: tauri::State<'_, AppState>,
+    request: TranslationRequest,
+    config: Option<LlmConfig>,
+) -> Result<TranslationResponse, String> {
+    let active_config = match config {
+        Some(cfg) => cfg,
+        None => {
+            let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+            guard.clone()
+        }
+    };
+    state.llm_translator.translate(&active_config, &request).await
+}
+
+#[tauri::command]
+async fn test_llm_connection(
+    state: tauri::State<'_, AppState>,
+    config: Option<LlmConfig>,
+) -> Result<String, String> {
+    let active_config = match config {
+        Some(cfg) => cfg,
+        None => {
+            let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+            guard.clone()
+        }
+    };
+    state.llm_translator.test_connection(&active_config).await
+}
+
+#[tauri::command]
+fn get_llm_config(state: tauri::State<'_, AppState>) -> Result<LlmConfig, String> {
+    let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+    Ok(guard.clone())
+}
+
+#[tauri::command]
+fn save_llm_config(
+    state: tauri::State<'_, AppState>,
+    config: LlmConfig,
+) -> Result<(), String> {
+    config.save()?;
+    let mut guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+    *guard = config;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_cache_stats(state: tauri::State<'_, AppState>) -> usize {
+    state.cache.count()
+}
+
+#[tauri::command]
+fn clear_translation_cache(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.cache.clear().map_err(|e| e.to_string())
+}
+
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .manage(AppState::default())
@@ -306,7 +379,13 @@ pub fn run() -> tauri::Result<()> {
             toggle_overlay_visibility,
             reset_overlay_position,
             update_overlay_style,
-            get_overlay_state
+            get_overlay_state,
+            translate_subtitle,
+            test_llm_connection,
+            get_llm_config,
+            save_llm_config,
+            get_cache_stats,
+            clear_translation_cache
         ])
         .run(tauri::generate_context!())?;
     Ok(())

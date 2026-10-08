@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   clampNumber,
+  formatCacheCountLabel,
   formatDiffStatus,
   formatLanguagePairLabel,
+  formatTranslationMetric,
   generateOverlayCssTokens,
   isHexColor,
   parseCaptureTargetValue,
@@ -122,5 +124,28 @@ describe("formatDiffStatus", () => {
     expect(res.label).toContain("STATIC");
     expect(res.label).toContain("Gated");
     expect(res.badgeClass).toBe("badge-locked");
+  });
+});
+
+describe("formatCacheCountLabel", () => {
+  it("formats singular and plural entries correctly", () => {
+    expect(formatCacheCountLabel(0)).toBe("0 cached dialogue lines");
+    expect(formatCacheCountLabel(1)).toBe("1 cached dialogue line");
+    expect(formatCacheCountLabel(42)).toBe("42 cached dialogue lines");
+  });
+
+  it("handles negative or invalid counts safely", () => {
+    expect(formatCacheCountLabel(-5)).toBe("0 cached dialogue lines");
+  });
+});
+
+describe("formatTranslationMetric", () => {
+  it("indicates SQLite cache hit", () => {
+    expect(formatTranslationMetric(0.0, true)).toContain("Cache Hit");
+    expect(formatTranslationMetric(0.0, true)).toContain("< 0.1 ms");
+  });
+
+  it("indicates network latency on cloud dispatch", () => {
+    expect(formatTranslationMetric(125.4, false)).toBe("125.4 ms (Cloud LLM Network)");
   });
 });
