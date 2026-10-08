@@ -13,6 +13,17 @@ BIN_DIR="${HOME}/.local/bin"
 LAUNCHER_PATH="${BIN_DIR}/${APP_NAME}"
 CONFIG_BASE="${XDG_CONFIG_HOME:-${HOME}/.config}"
 CACHE_BASE="${XDG_CACHE_HOME:-${HOME}/.cache}"
+
+case "${CONFIG_BASE}" in
+    /*) ;;
+    *) echo "Error: XDG_CONFIG_HOME must be an absolute path: ${CONFIG_BASE}" >&2; exit 1 ;;
+esac
+
+case "${CACHE_BASE}" in
+    /*) ;;
+    *) echo "Error: XDG_CACHE_HOME must be an absolute path: ${CACHE_BASE}" >&2; exit 1 ;;
+esac
+
 CONFIG_DIR="${CONFIG_BASE}/subtitle-translator"
 CACHE_DIR="${CACHE_BASE}/subtitle-translator"
 

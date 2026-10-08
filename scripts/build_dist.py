@@ -29,7 +29,12 @@ def get_target_triple() -> str:
         arch = "x86_64" if "64" in machine else "x86"
     else:
         os_name = "linux"
-        arch = "x86_64" if "64" in machine else "arm64"
+        if machine in {"x86_64", "amd64"}:
+            arch = "x86_64"
+        elif machine in {"aarch64", "arm64"}:
+            arch = "arm64"
+        else:
+            arch = machine
 
     return f"{os_name}-{arch}"
 

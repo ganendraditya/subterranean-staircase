@@ -198,6 +198,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (btnToggleOverlayVis) {
     btnToggleOverlayVis.addEventListener("click", async () => {
       const nextVisible = !overlayVisible;
+      btnToggleOverlayVis.setAttribute("disabled", "true");
       try {
         await invoke("toggle_overlay_visibility", { visible: nextVisible });
         overlayVisible = nextVisible;
@@ -205,6 +206,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         log(`Overlay visibility toggled: ${overlayVisible ? "Visible" : "Hidden"}`);
       } catch (err) {
         log(`Error toggling visibility: ${String(err)}`);
+      } finally {
+        btnToggleOverlayVis.removeAttribute("disabled");
       }
     });
   }
@@ -238,6 +241,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (btnToggleInteractive) {
     btnToggleInteractive.addEventListener("click", async () => {
       const nextInteractive = !overlayInteractive;
+      btnToggleInteractive.setAttribute("disabled", "true");
       try {
         await invoke("toggle_overlay_interactive", { interactive: nextInteractive });
         overlayInteractive = nextInteractive;
@@ -245,6 +249,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         log(`Interactive mode toggled: ${overlayInteractive ? "UNLOCKED (Drag enabled)" : "LOCKED (Passthrough)"}`);
       } catch (err) {
         log(`Error toggling interactive mode: ${String(err)}`);
+      } finally {
+        btnToggleInteractive.removeAttribute("disabled");
       }
     });
   }

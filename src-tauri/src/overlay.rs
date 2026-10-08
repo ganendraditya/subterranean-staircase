@@ -46,7 +46,7 @@ pub struct SubtitlePayload {
 /// `ns_window_ptr` must be a valid, non-null pointer to a live `NSWindow`
 /// obtained from Tauri's `ns_window()` API within the setup lifecycle.
 #[cfg(target_os = "macos")]
-pub(crate) fn configure_macos_fullscreen_overlay(ns_window_ptr: *mut std::ffi::c_void) {
+pub(crate) unsafe fn configure_macos_fullscreen_overlay(ns_window_ptr: *mut std::ffi::c_void) {
     if ns_window_ptr.is_null() {
         return;
     }
@@ -124,6 +124,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     fn test_macos_fullscreen_null_safety() {
         // Must safely return on null pointer without panicking
-        configure_macos_fullscreen_overlay(std::ptr::null_mut());
+        unsafe {
+            configure_macos_fullscreen_overlay(std::ptr::null_mut());
+        }
     }
 }

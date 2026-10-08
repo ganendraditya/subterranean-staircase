@@ -131,10 +131,6 @@ class MSSScreenCapture(BaseCapture):
         """MSS is purely screen-coordinate based. Window grabbing is delegated to platform drivers."""
         raise NotImplementedError("Window-specific grabbing is handled by platform drivers (Quartz/Win32)")
 
-    def close(self) -> None:
-        """Release MSS resources."""
-        self._sct.close()
-
     def __enter__(self) -> MSSScreenCapture:
         return self
 

@@ -35,6 +35,7 @@ export function clampNumber(
   fallback: number
 ): number {
   if (value === null || value === undefined) return fallback;
+  if (typeof value === "string" && value.trim() === "") return fallback;
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.min(Math.max(num, min), max);
@@ -61,13 +62,16 @@ export function generateOverlayCssTokens(style: OverlayStyle): Record<string, st
 }
 
 /**
- * Trims extraneous whitespace while preserving intentional newline breaks.
+ * Trims extraneous line whitespace while preserving intentional newline breaks.
  */
 export function sanitizeSubtitleText(text: string): string {
   if (!text) return "";
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .join("\n");
+  const lines = text.split("\n").map((line) => line.trim());
+  while (lines.length > 0 && lines[0] === "") {
+    lines.shift();
+  }
+  while (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return lines.join("\n");
 }

@@ -38,6 +38,8 @@ describe("clampNumber", () => {
 
   it("returns fallback on NaN, null, or undefined", () => {
     expect(clampNumber("abc", 16, 38, 24)).toBe(24);
+    expect(clampNumber("", 16, 38, 24)).toBe(24);
+    expect(clampNumber("   ", 16, 38, 24)).toBe(24);
     expect(clampNumber(null, 16, 38, 24)).toBe(24);
     expect(clampNumber(undefined, 16, 38, 24)).toBe(24);
     expect(clampNumber(NaN, 16, 38, 24)).toBe(24);
@@ -82,9 +84,9 @@ describe("sanitizeSubtitleText", () => {
     expect(sanitizeSubtitleText(input)).toBe("Hello, world!\nThis is a subtitle.");
   });
 
-  it("filters out empty or pure whitespace lines", () => {
-    const input = "Line 1\n   \n\nLine 2";
-    expect(sanitizeSubtitleText(input)).toBe("Line 1\nLine 2");
+  it("trims external whitespace while preserving intentional paragraph breaks", () => {
+    const input = "  Line 1  \n\n  Line 2  ";
+    expect(sanitizeSubtitleText(input)).toBe("Line 1\n\nLine 2");
   });
 
   it("returns empty string on empty input", () => {

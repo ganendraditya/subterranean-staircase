@@ -167,7 +167,15 @@ class ConfigManager:
         try:
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(self.config.to_dict(), f, indent=2)
+            try:
+                os.chmod(temp_file, 0o600)
+            except OSError:
+                pass
             os.replace(temp_file, self.config_path)
+            try:
+                os.chmod(self.config_path, 0o600)
+            except OSError:
+                pass
         except Exception:
             if temp_file.exists():
                 temp_file.unlink(missing_ok=True)

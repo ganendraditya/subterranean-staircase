@@ -481,6 +481,8 @@ class SubtitleTranslatorApp:
         logger.info("Shutting down Subtitle Translator V1...")
         if self.worker.isRunning():
             self.worker.stop()
+            if not self.worker.wait(5000):
+                logger.warning("Translation pipeline worker did not finish within 5s shutdown timeout.")
         self.control_center.close()
         self.overlay.close()
         self.tray.hide()

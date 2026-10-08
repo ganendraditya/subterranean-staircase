@@ -136,12 +136,15 @@ def evaluate_log_against_ground_truth(
     base_log_time = ocr_events[0][0]
     best_offset = base_log_time - gt_entries[0][0]
     
-    # Try finding an exact anchor match in first 10 entries to lock video sync
+    # Try finding the lowest-WER anchor match in first 15 entries to lock video sync
+    anchor_candidates = []
     for log_t, ocr_txt in ocr_events[:15]:
         for gt_s, gt_e, gt_txt in gt_entries[:15]:
-            if compute_wer(gt_txt, ocr_txt) < 0.15:
-                best_offset = log_t - gt_s
-                break
+            wer = compute_wer(gt_txt, ocr_txt)
+            if wer < 0.15:
+                anchor_candidates.append((wer, log_t - gt_s))
+    if anchor_candidates:
+        _, best_offset = min(anchor_candidates, key=lambda x: x[0])
 
     wers: List[float] = []
     cers: List[float] = []
