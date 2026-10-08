@@ -71,14 +71,16 @@ impl CaptureEngine {
                         let width = w.width().unwrap_or(0);
                         let height = w.height().unwrap_or(0);
                         if width > 100 && height > 100 {
-                            windows.push(WindowTargetInfo {
-                                id: w.id().unwrap_or(0),
-                                title,
-                                app_name,
-                                width,
-                                height,
-                                is_minimized,
-                            });
+                            if let Ok(id) = w.id() {
+                                windows.push(WindowTargetInfo {
+                                    id,
+                                    title,
+                                    app_name,
+                                    width,
+                                    height,
+                                    is_minimized,
+                                });
+                            }
                         }
                     }
                 }

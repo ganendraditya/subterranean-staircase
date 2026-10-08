@@ -206,7 +206,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
       const targets = await invoke<CaptureTargets>("get_capture_targets");
       const currentVal = selectCaptureTarget.value;
-      selectCaptureTarget.innerHTML = "";
+      selectCaptureTarget.replaceChildren();
 
       // Add Displays
       targets.monitors.forEach((m) => {
