@@ -94,7 +94,7 @@ export function parseCaptureTargetValue(val: string): ParsedCaptureTarget {
   }
   const kind = parts[0];
   const id = parseInt(parts[1], 10);
-  if (kind === "window" && Number.isFinite(id) && id > 0) {
+  if (kind === "window" && Number.isFinite(id) && id >= 0) {
     return { kind: "window", id };
   }
   return { kind: "screen", id: Number.isFinite(id) ? id : 0 };

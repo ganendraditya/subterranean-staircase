@@ -109,22 +109,23 @@ impl CaptureEngine {
         }
     }
 
-    /// Captures a specific window by its window ID, falling back to primary screen if closed.
+    /// Captures a specific window by its window ID.
     pub fn capture_window(window_id: u32, roi: Option<&CaptureRoi>) -> Result<RgbaImage, String> {
-        if let Ok(all_windows) = xcap::Window::all() {
-            if let Some(target_window) = all_windows.into_iter().find(|w| w.id().unwrap_or(0) == window_id) {
-                if let Ok(raw_img) = target_window.capture_image() {
-                    if let Some(r) = roi {
-                        return Self::crop_image(&raw_img, r);
-                    } else {
-                        return Ok(raw_img);
-                    }
-                }
-            }
-        }
+        let all_windows = xcap::Window::all().map_err(|e| format!("Failed to list windows: {}", e))?;
+        let target_window = all_windows
+            .into_iter()
+            .find(|w| w.id().unwrap_or(0) == window_id)
+            .ok_or_else(|| format!("Window with ID {} not found", window_id))?;
 
-        // Fallback to primary screen
-        Self::capture_screen(None, roi)
+        let raw_img = target_window
+            .capture_image()
+            .map_err(|e| format!("Failed to capture window {}: {}", window_id, e))?;
+
+        if let Some(r) = roi {
+            Self::crop_image(&raw_img, r)
+        } else {
+            Ok(raw_img)
+        }
     }
 
     /// Safely crops an RgbaImage to the specified ROI boundaries.
@@ -151,11 +152,16 @@ impl CaptureEngine {
 
     /// Encodes an RgbaImage into a base64 JPEG data URL for lightweight frontend preview streaming.
     pub fn to_base64_jpeg(img: &RgbaImage, quality: u8) -> Result<String, String> {
-        let rgb_img = image::DynamicImage::ImageRgba8(img.clone()).to_rgb8();
+        let width = img.width();
+        let height = img.height();
+        let mut rgb_bytes = Vec::with_capacity((width * height * 3) as usize);
+        for pixel in img.pixels() {
+            rgb_bytes.extend_from_slice(&pixel.0[0..3]);
+        }
         let mut jpeg_bytes: Vec<u8> = Vec::new();
         let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg_bytes, quality);
         encoder
-            .encode(rgb_img.as_raw(), rgb_img.width(), rgb_img.height(), image::ExtendedColorType::Rgb8)
+            .encode(&rgb_bytes, width, height, image::ExtendedColorType::Rgb8)
             .map_err(|e| format!("JPEG encode failed: {}", e))?;
 
         use base64::Engine;

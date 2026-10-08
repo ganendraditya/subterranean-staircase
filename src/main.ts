@@ -253,8 +253,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  let isTicking = false;
   async function tickPreview() {
-    if (!previewActive) return;
+    if (!previewActive || isTicking) return;
+    isTicking = true;
     const targetVal = selectCaptureTarget?.value || "screen:0";
     const parsed = parseCaptureTargetValue(targetVal);
 
@@ -292,6 +294,8 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
     } catch (err) {
       console.warn("Standby preview tick failed:", err);
+    } finally {
+      isTicking = false;
     }
   }
 
