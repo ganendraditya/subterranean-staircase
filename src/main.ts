@@ -51,6 +51,11 @@ export interface DiffResult {
   latency_ms: number;
 }
 
+export interface PreviewTickResult {
+  preview_data_url: string;
+  diff: DiffResult;
+}
+
 const PING_PAYLOAD = "Hello from Vite Frontend!";
 const MAX_LOG_LINES = 200;
 
@@ -264,25 +269,18 @@ window.addEventListener("DOMContentLoaded", async () => {
     const monId = parsed.kind === "screen" ? parsed.id : null;
 
     try {
-      // 1. Capture preview frame (JPEG base64)
-      const dataUrl = await invoke<string>("capture_preview_frame", {
-        windowId: winId,
-        monitorId: monId,
-        roi: null,
-      });
-
-      if (imgPreview) {
-        imgPreview.src = dataUrl;
-      }
-
-      // 2. Evaluate SIMD frame-diff
-      const diff = await invoke<DiffResult>("evaluate_frame_diff", {
+      const res = await invoke<PreviewTickResult>("capture_preview_and_diff", {
         windowId: winId,
         monitorId: monId,
         roi: null,
         threshold: 0.015,
       });
 
+      if (imgPreview) {
+        imgPreview.src = res.preview_data_url;
+      }
+
+      const diff = res.diff;
       if (valDiffDelta) valDiffDelta.textContent = `${diff.delta_percent.toFixed(2)}%`;
       if (valDiffThresh) valDiffThresh.textContent = `${(diff.threshold * 100).toFixed(1)}%`;
       if (valDiffLatency) valDiffLatency.textContent = `${diff.latency_ms.toFixed(3)} ms`;

@@ -115,6 +115,47 @@ fn evaluate_frame_diff(
     Ok(detector.compare(&img, threshold))
 }
 
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct PreviewTickResult {
+    pub preview_data_url: String,
+    pub diff: DiffResult,
+}
+
+#[tauri::command]
+fn capture_preview_and_diff(
+    state: tauri::State<'_, AppState>,
+    window_id: Option<u32>,
+    monitor_id: Option<u32>,
+    roi: Option<CaptureRoi>,
+    threshold: Option<f32>,
+) -> Result<PreviewTickResult, String> {
+    let img = match window_id {
+        Some(win_id) if win_id > 0 => CaptureEngine::capture_window(win_id, roi.as_ref())?,
+        _ => CaptureEngine::capture_screen(monitor_id.map(|m| m as usize), roi.as_ref())?,
+    };
+
+    let diff = {
+        let mut detector = state.diff_detector.lock().map_err(|e| e.to_string())?;
+        detector.compare(&img, threshold)
+    };
+
+    let preview_img = if img.width() > 640 {
+        let aspect = img.height() as f32 / img.width() as f32;
+        let new_w = 640;
+        let new_h = ((640.0 * aspect) as u32).max(1);
+        image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Nearest)
+    } else {
+        img
+    };
+
+    let preview_data_url = CaptureEngine::to_base64_jpeg(&preview_img, 65)?;
+
+    Ok(PreviewTickResult {
+        preview_data_url,
+        diff,
+    })
+}
+
 #[tauri::command]
 fn emit_subtitle(
     app: tauri::AppHandle,
@@ -258,6 +299,7 @@ pub fn run() -> tauri::Result<()> {
             get_capture_targets,
             capture_preview_frame,
             evaluate_frame_diff,
+            capture_preview_and_diff,
             emit_subtitle,
             clear_subtitle,
             toggle_overlay_interactive,

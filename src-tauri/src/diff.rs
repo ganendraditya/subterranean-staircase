@@ -25,12 +25,10 @@ impl Default for FrameDiffDetector {
 
 impl FrameDiffDetector {
     pub fn new(downsample_width: u32, downsample_height: u32, default_threshold: f32) -> Self {
-        assert!(downsample_width > 0, "downsample_width must be > 0");
-        assert!(downsample_height > 0, "downsample_height must be > 0");
         Self {
             prev_buffer: None,
-            downsample_width,
-            downsample_height,
+            downsample_width: downsample_width.max(1),
+            downsample_height: downsample_height.max(1),
             default_threshold,
         }
     }

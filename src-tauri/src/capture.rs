@@ -44,7 +44,7 @@ impl CaptureEngine {
             Ok(all_monitors) => {
                 for (idx, m) in all_monitors.into_iter().enumerate() {
                     monitors.push(MonitorTargetInfo {
-                        id: idx as u32,
+                        id: m.id().unwrap_or(idx as u32),
                         name: m.name().unwrap_or_else(|_| format!("Display {}", idx + 1)),
                         width: m.width().unwrap_or(1920),
                         height: m.height().unwrap_or(1080),
