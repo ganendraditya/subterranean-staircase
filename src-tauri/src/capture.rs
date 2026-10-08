@@ -91,15 +91,24 @@ impl CaptureEngine {
         Ok(CaptureTargets { monitors, windows })
     }
 
-    /// Captures the primary screen, optionally cropping to an ROI bounding box.
-    pub fn capture_screen(monitor_idx: Option<usize>, roi: Option<&CaptureRoi>) -> Result<RgbaImage, String> {
+    /// Captures a screen by monitor ID or fallback index, optionally cropping to an ROI bounding box.
+    pub fn capture_screen(monitor_id: Option<u32>, roi: Option<&CaptureRoi>) -> Result<RgbaImage, String> {
         let all_monitors = xcap::Monitor::all().map_err(|e| format!("Failed to list monitors: {}", e))?;
         if all_monitors.is_empty() {
             return Err("No active displays found".to_string());
         }
 
-        let idx = monitor_idx.unwrap_or(0).min(all_monitors.len() - 1);
-        let monitor = &all_monitors[idx];
+        let monitor = if let Some(target_id) = monitor_id {
+            all_monitors
+                .iter()
+                .enumerate()
+                .find(|(idx, m)| m.id().unwrap_or(*idx as u32) == target_id)
+                .map(|(_, m)| m)
+                .unwrap_or(&all_monitors[0])
+        } else {
+            &all_monitors[0]
+        };
+
         let raw_img = monitor.capture_image().map_err(|e| format!("Capture display failed: {}", e))?;
 
         if let Some(r) = roi {
@@ -154,9 +163,10 @@ impl CaptureEngine {
     pub fn to_base64_jpeg(img: &RgbaImage, quality: u8) -> Result<String, String> {
         let width = img.width();
         let height = img.height();
+        let raw = img.as_raw();
         let mut rgb_bytes = Vec::with_capacity((width * height * 3) as usize);
-        for pixel in img.pixels() {
-            rgb_bytes.extend_from_slice(&pixel.0[0..3]);
+        for chunk in raw.chunks_exact(4) {
+            rgb_bytes.extend_from_slice(&chunk[0..3]);
         }
         let mut jpeg_bytes: Vec<u8> = Vec::new();
         let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg_bytes, quality);

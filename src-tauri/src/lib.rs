@@ -84,7 +84,7 @@ fn capture_preview_frame(
 ) -> Result<String, String> {
     let img = match window_id {
         Some(win_id) if win_id > 0 => CaptureEngine::capture_window(win_id, roi.as_ref())?,
-        _ => CaptureEngine::capture_screen(monitor_id.map(|m| m as usize), roi.as_ref())?,
+        _ => CaptureEngine::capture_screen(monitor_id, roi.as_ref())?,
     };
 
     let preview_img = if img.width() > 640 {
@@ -109,7 +109,7 @@ fn evaluate_frame_diff(
 ) -> Result<DiffResult, String> {
     let img = match window_id {
         Some(win_id) if win_id > 0 => CaptureEngine::capture_window(win_id, roi.as_ref())?,
-        _ => CaptureEngine::capture_screen(monitor_id.map(|m| m as usize), roi.as_ref())?,
+        _ => CaptureEngine::capture_screen(monitor_id, roi.as_ref())?,
     };
     let mut detector = state.diff_detector.lock().map_err(|e| e.to_string())?;
     Ok(detector.compare(&img, threshold))
@@ -131,7 +131,7 @@ fn capture_preview_and_diff(
 ) -> Result<PreviewTickResult, String> {
     let img = match window_id {
         Some(win_id) if win_id > 0 => CaptureEngine::capture_window(win_id, roi.as_ref())?,
-        _ => CaptureEngine::capture_screen(monitor_id.map(|m| m as usize), roi.as_ref())?,
+        _ => CaptureEngine::capture_screen(monitor_id, roi.as_ref())?,
     };
 
     let diff = {
