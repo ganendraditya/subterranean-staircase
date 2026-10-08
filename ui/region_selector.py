@@ -133,6 +133,8 @@ class RegionSelectorWidget(QWidget):
             self._is_selecting = False
             self._current_pos = event.position().toPoint()
             selection = self._get_selection_rect()
+            self._start_pos = None
+            self._current_pos = None
 
             self.hide()
             # If user clicked once or dragged a tiny box (< 15x8), treat as intentional dismiss/cancel
@@ -153,6 +155,8 @@ class RegionSelectorWidget(QWidget):
         """Handle Escape key to cancel selection."""
         if event.key() == Qt.Key.Key_Escape:
             self._is_selecting = False
+            self._start_pos = None
+            self._current_pos = None
             self.hide()
             self.selection_cancelled.emit()
             event.accept()

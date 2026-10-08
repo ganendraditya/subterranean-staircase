@@ -801,6 +801,10 @@ class ControlCenterDialog(QDialog):
         # Restore previously selected window if it is still open
         if matched_index > 0:
             self.window_combo.setCurrentIndex(matched_index)
+        else:
+            self.window_combo.setCurrentIndex(0)
+            if prev_win_id is not None:
+                self.window_selected.emit(None)
 
         self.window_combo.blockSignals(False)
 
@@ -817,7 +821,7 @@ class ControlCenterDialog(QDialog):
 
     def _on_preview_timer_tick(self) -> None:
         """Dispatch standby frame capture off the main thread to prevent UI freezing."""
-        if not self.isVisible() or self._is_active or self._standby_busy:
+        if not self.isVisible() or self._is_active or self._standby_busy or self.capture_driver is None:
             return
 
         crop = None

@@ -106,8 +106,10 @@ fn toggle_overlay_interactive(
             .set_ignore_cursor_events(!interactive)
             .map_err(|e| e.to_string())?;
 
-        let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
-        st.is_interactive = interactive;
+        {
+            let mut st = state.overlay_state.lock().map_err(|e| e.to_string())?;
+            st.is_interactive = interactive;
+        }
 
         overlay
             .emit("overlay_interactive_changed", interactive)
@@ -195,7 +197,9 @@ pub fn run() -> tauri::Result<()> {
                 #[cfg(target_os = "macos")]
                 {
                     if let Ok(ns_win) = overlay_win.ns_window() {
-                        overlay::configure_macos_fullscreen_overlay(ns_win);
+                        unsafe {
+                            overlay::configure_macos_fullscreen_overlay(ns_win);
+                        }
                     }
                 }
             }

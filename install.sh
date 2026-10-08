@@ -272,6 +272,9 @@ if [ "$(uname)" = "Darwin" ]; then
         APP_BIN_TARGET="${HOME}/Applications/Subterranean Staircase.app/Contents/MacOS/subtrans"
     fi
 
+    ESCAPED_APP_BIN="$(printf '%s' "${APP_BIN_TARGET}" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')"
+    ESCAPED_LOG="$(printf '%s' "${HOME}/Library/Logs/subtrans.log" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')"
+
     cat > "${LAUNCH_AGENT_PLIST}" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -281,16 +284,16 @@ if [ "$(uname)" = "Darwin" ]; then
     <string>com.subtitle-translator.subtrans</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${APP_BIN_TARGET}</string>
+        <string>${ESCAPED_APP_BIN}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>${HOME}/Library/Logs/subtrans.log</string>
+    <string>${ESCAPED_LOG}</string>
     <key>StandardErrorPath</key>
-    <string>${HOME}/Library/Logs/subtrans.log</string>
+    <string>${ESCAPED_LOG}</string>
 </dict>
 </plist>
 PLIST

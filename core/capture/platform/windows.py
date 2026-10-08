@@ -76,6 +76,30 @@ if HAS_WIN32:
         wintypes.LPARAM,
     ]
 
+    _user32.GetWindowRect.restype = wintypes.BOOL
+    _user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.c_void_p]
+
+    _user32.IsWindow.restype = wintypes.BOOL
+    _user32.IsWindow.argtypes = [wintypes.HWND]
+
+    _user32.IsIconic.restype = wintypes.BOOL
+    _user32.IsIconic.argtypes = [wintypes.HWND]
+
+    _user32.IsWindowVisible.restype = wintypes.BOOL
+    _user32.IsWindowVisible.argtypes = [wintypes.HWND]
+
+    _user32.GetWindowTextLengthW.restype = ctypes.c_int
+    _user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+
+    _user32.GetWindowTextW.restype = ctypes.c_int
+    _user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+
+    _user32.ShowWindow.restype = wintypes.BOOL
+    _user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+
+    _user32.SetForegroundWindow.restype = wintypes.BOOL
+    _user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+
     _dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long  # HRESULT
     _dwmapi.DwmGetWindowAttribute.argtypes = [
         wintypes.HWND,
