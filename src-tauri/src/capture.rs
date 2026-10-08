@@ -221,6 +221,34 @@ mod tests {
     }
 
     #[test]
+    fn test_crop_image_extreme_u32_max_values() {
+        let img = RgbaImage::new(100, 100);
+        let roi = CaptureRoi {
+            left: u32::MAX,
+            top: u32::MAX,
+            width: u32::MAX,
+            height: u32::MAX,
+        };
+
+        let err = CaptureEngine::crop_image(&img, &roi);
+        assert!(err.is_err(), "Extreme u32 coordinates must safely return Err without overflowing or panicking");
+    }
+
+    #[test]
+    fn test_crop_image_zero_dimensions() {
+        let img = RgbaImage::new(100, 100);
+        let roi = CaptureRoi {
+            left: 0,
+            top: 0,
+            width: 0,
+            height: 0,
+        };
+
+        let err = CaptureEngine::crop_image(&img, &roi);
+        assert!(err.is_err(), "Zero width/height ROI must safely return Err");
+    }
+
+    #[test]
     fn test_to_base64_jpeg_encoding() {
         let img = RgbaImage::from_pixel(64, 36, Rgba([100, 150, 200, 255]));
         let b64 = CaptureEngine::to_base64_jpeg(&img, 60).expect("JPEG encoding succeeds");

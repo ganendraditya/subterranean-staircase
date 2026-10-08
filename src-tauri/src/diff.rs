@@ -70,7 +70,9 @@ impl FrameDiffDetector {
     /// Computes Mean Absolute Difference (MAD) between current image and previous buffer.
     pub fn compare(&mut self, img: &RgbaImage, threshold: Option<f32>) -> DiffResult {
         let start = std::time::Instant::now();
-        let thresh = threshold.unwrap_or(self.default_threshold);
+        let thresh = threshold
+            .filter(|t| t.is_finite() && *t >= 0.0)
+            .unwrap_or(self.default_threshold);
         let curr_buffer = self.downsample_to_grayscale(img);
 
         if curr_buffer.is_empty() {
@@ -174,6 +176,32 @@ mod tests {
 
         detector.reset();
         assert!(detector.compare(&img, None).has_changed, "After reset, frame establishes new baseline");
+    }
+
+    #[test]
+    fn test_nan_or_negative_threshold_resilience() {
+        let mut detector = FrameDiffDetector::default();
+        let img1 = RgbaImage::from_pixel(640, 360, Rgba([0, 0, 0, 255]));
+        let img2 = RgbaImage::from_pixel(640, 360, Rgba([100, 100, 100, 255]));
+
+        detector.compare(&img1, None);
+        // Pass NaN threshold - should fallback safely to default threshold
+        let res_nan = detector.compare(&img2, Some(f32::NAN));
+        assert!(res_nan.threshold.is_finite());
+        assert_eq!(res_nan.threshold, 0.015);
+
+        // Pass negative threshold - should fallback safely
+        let res_neg = detector.compare(&img2, Some(-0.5));
+        assert_eq!(res_neg.threshold, 0.015);
+    }
+
+    #[test]
+    fn test_empty_or_zero_dimension_image_safety() {
+        let mut detector = FrameDiffDetector::default();
+        let empty = RgbaImage::new(0, 0);
+        let res = detector.compare(&empty, None);
+        assert!(!res.has_changed);
+        assert_eq!(res.delta, 0.0);
     }
 
     #[test]
