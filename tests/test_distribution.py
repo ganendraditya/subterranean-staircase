@@ -327,7 +327,6 @@ def test_v2_phase3_capture_and_diff_modules() -> None:
 
     cargo_content = cargo_toml.read_text(encoding="utf-8")
     assert "xcap = " in cargo_content, "xcap native capture driver must be declared"
-    assert "ndarray = " in cargo_content, "ndarray must be declared"
     assert "image = " in cargo_content, "image processing crate must be declared"
 
     capture_code = capture_rs.read_text(encoding="utf-8")

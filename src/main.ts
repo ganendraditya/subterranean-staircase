@@ -273,8 +273,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     try {
       const res = await invoke<PreviewTickResult>("capture_preview_and_diff", {
-        windowId: winId,
-        monitorId: monId,
+        window_id: winId,
+        monitor_id: monId,
         roi: null,
         threshold: 0.015,
       });
