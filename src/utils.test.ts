@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   clampNumber,
+  formatDiffStatus,
   formatLanguagePairLabel,
   generateOverlayCssTokens,
   isHexColor,
+  parseCaptureTargetValue,
   sanitizeSubtitleText,
 } from "./utils";
 
@@ -91,5 +93,34 @@ describe("sanitizeSubtitleText", () => {
 
   it("returns empty string on empty input", () => {
     expect(sanitizeSubtitleText("")).toBe("");
+  });
+});
+
+describe("parseCaptureTargetValue", () => {
+  it("correctly parses window and screen identifiers", () => {
+    expect(parseCaptureTargetValue("window:1024")).toEqual({ kind: "window", id: 1024 });
+    expect(parseCaptureTargetValue("screen:1")).toEqual({ kind: "screen", id: 1 });
+  });
+
+  it("handles malformed or empty target values safely", () => {
+    expect(parseCaptureTargetValue("")).toEqual({ kind: "screen", id: 0 });
+    expect(parseCaptureTargetValue("unknown")).toEqual({ kind: "screen", id: 0 });
+    expect(parseCaptureTargetValue("window:invalid")).toEqual({ kind: "screen", id: 0 });
+  });
+});
+
+describe("formatDiffStatus", () => {
+  it("formats active changed state", () => {
+    const res = formatDiffStatus(true, 4.2);
+    expect(res.label).toContain("ACTIVE");
+    expect(res.label).toContain("4.2% delta");
+    expect(res.badgeClass).toBe("badge-unlocked");
+  });
+
+  it("formats static gated state", () => {
+    const res = formatDiffStatus(false, 0.4);
+    expect(res.label).toContain("STATIC");
+    expect(res.label).toContain("Gated");
+    expect(res.badgeClass).toBe("badge-locked");
   });
 });
