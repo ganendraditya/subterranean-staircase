@@ -256,6 +256,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (valCaptureRes && selectCaptureTarget.selectedOptions[0]) {
       valCaptureRes.textContent = selectCaptureTarget.selectedOptions[0].text;
     }
+    if (previewActive) {
+      tickPreview();
+    }
   });
 
   let isTicking = false;
