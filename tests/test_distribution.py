@@ -316,6 +316,29 @@ def test_v2_dual_window_configuration() -> None:
     assert overlay_win["height"] == 160
 
 
+def test_v2_phase3_capture_and_diff_modules() -> None:
+    root = _root()
+    capture_rs = root / "src-tauri" / "src" / "capture.rs"
+    diff_rs = root / "src-tauri" / "src" / "diff.rs"
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+
+    assert capture_rs.is_file(), "src-tauri/src/capture.rs must exist"
+    assert diff_rs.is_file(), "src-tauri/src/diff.rs must exist"
+
+    cargo_content = cargo_toml.read_text(encoding="utf-8")
+    assert "xcap = " in cargo_content, "xcap native capture driver must be declared"
+    assert "image = " in cargo_content, "image processing crate must be declared"
+
+    capture_code = capture_rs.read_text(encoding="utf-8")
+    assert "pub struct CaptureEngine;" in capture_code
+    assert "pub fn capture_screen" in capture_code
+    assert "pub fn capture_window" in capture_code
+
+    diff_code = diff_rs.read_text(encoding="utf-8")
+    assert "pub struct FrameDiffDetector" in diff_code
+    assert "pub fn compare" in diff_code
+
+
 
 
 

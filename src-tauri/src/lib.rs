@@ -1,8 +1,12 @@
+pub mod capture;
+pub mod diff;
 pub mod overlay;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
+use capture::{CaptureEngine, CaptureRoi, CaptureTargets};
+use diff::{DiffResult, FrameDiffDetector};
 use overlay::{OverlayState, OverlayStyle, SubtitlePayload};
 use serde::Serialize;
 
@@ -28,12 +32,14 @@ fn calculate_default_overlay_position(
 
 pub struct AppState {
     pub overlay_state: Mutex<OverlayState>,
+    pub diff_detector: Mutex<FrameDiffDetector>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
             overlay_state: Mutex::new(OverlayState::default()),
+            diff_detector: Mutex::new(FrameDiffDetector::default()),
         }
     }
 }
@@ -63,6 +69,91 @@ fn ping(message: String) -> String {
         message,
         std::env::consts::ARCH
     )
+}
+
+#[tauri::command]
+fn get_capture_targets() -> Result<CaptureTargets, String> {
+    CaptureEngine::list_targets()
+}
+
+#[tauri::command]
+fn capture_preview_frame(
+    window_id: Option<u32>,
+    monitor_id: Option<u32>,
+    roi: Option<CaptureRoi>,
+) -> Result<String, String> {
+    let img = match window_id {
+        Some(win_id) => CaptureEngine::capture_window(win_id, roi.as_ref())?,
+        None => CaptureEngine::capture_screen(monitor_id, roi.as_ref())?,
+    };
+
+    let preview_img = if img.width() > 640 {
+        let aspect = img.height() as f32 / img.width() as f32;
+        let new_w = 640;
+        let new_h = ((640.0 * aspect) as u32).max(1);
+        image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Nearest)
+    } else {
+        img
+    };
+
+    CaptureEngine::to_base64_jpeg(&preview_img, 65)
+}
+
+#[tauri::command]
+fn evaluate_frame_diff(
+    state: tauri::State<'_, AppState>,
+    window_id: Option<u32>,
+    monitor_id: Option<u32>,
+    roi: Option<CaptureRoi>,
+    threshold: Option<f32>,
+) -> Result<DiffResult, String> {
+    let img = match window_id {
+        Some(win_id) => CaptureEngine::capture_window(win_id, roi.as_ref())?,
+        None => CaptureEngine::capture_screen(monitor_id, roi.as_ref())?,
+    };
+    let mut detector = state.diff_detector.lock().map_err(|e| e.to_string())?;
+    Ok(detector.compare(&img, threshold))
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct PreviewTickResult {
+    pub preview_data_url: String,
+    pub diff: DiffResult,
+}
+
+#[tauri::command]
+fn capture_preview_and_diff(
+    state: tauri::State<'_, AppState>,
+    window_id: Option<u32>,
+    monitor_id: Option<u32>,
+    roi: Option<CaptureRoi>,
+    threshold: Option<f32>,
+) -> Result<PreviewTickResult, String> {
+    let img = match window_id {
+        Some(win_id) => CaptureEngine::capture_window(win_id, roi.as_ref())?,
+        None => CaptureEngine::capture_screen(monitor_id, roi.as_ref())?,
+    };
+
+    let diff = {
+        let mut detector = state.diff_detector.lock().map_err(|e| e.to_string())?;
+        detector.compare(&img, threshold)
+    };
+
+    let preview_img = if img.width() > 640 {
+        let aspect = img.height() as f32 / img.width() as f32;
+        let new_w = 640;
+        let new_h = ((640.0 * aspect) as u32).max(1);
+        image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Nearest)
+    } else {
+        img
+    };
+
+    let preview_data_url = CaptureEngine::to_base64_jpeg(&preview_img, 65)?;
+
+    Ok(PreviewTickResult {
+        preview_data_url,
+        diff,
+    })
 }
 
 #[tauri::command]
@@ -185,15 +276,12 @@ pub fn run() -> tauri::Result<()> {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             if let Some(overlay_win) = app.get_webview_window("overlay") {
-                // By default, overlay ignores cursor events so mouse clicks pass through to video
                 let _ = overlay_win.set_ignore_cursor_events(true);
 
-                // Position overlay bottom-center of primary monitor
                 if let Ok(pos) = calculate_default_overlay_position(&overlay_win) {
                     let _ = overlay_win.set_position(pos);
                 }
 
-                // Elevate window level above macOS native fullscreen video spaces
                 #[cfg(target_os = "macos")]
                 {
                     if let Ok(ns_win) = overlay_win.ns_window() {
@@ -208,6 +296,10 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             ping,
+            get_capture_targets,
+            capture_preview_frame,
+            evaluate_frame_diff,
+            capture_preview_and_diff,
             emit_subtitle,
             clear_subtitle,
             toggle_overlay_interactive,

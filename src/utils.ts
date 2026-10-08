@@ -75,3 +75,46 @@ export function sanitizeSubtitleText(text: string): string {
   }
   return lines.join("\n");
 }
+
+export interface ParsedCaptureTarget {
+  kind: "screen" | "window";
+  id: number;
+}
+
+/**
+ * Parses composite select option values like "window:1234" or "screen:0".
+ */
+export function parseCaptureTargetValue(val: string): ParsedCaptureTarget {
+  if (!val || typeof val !== "string") {
+    return { kind: "screen", id: 0 };
+  }
+  const parts = val.split(":");
+  if (parts.length < 2) {
+    return { kind: "screen", id: 0 };
+  }
+  const kind = parts[0];
+  const id = parseInt(parts[1], 10);
+  if (kind === "window" && Number.isFinite(id) && id >= 0) {
+    return { kind: "window", id };
+  }
+  return { kind: "screen", id: Number.isFinite(id) ? id : 0 };
+}
+
+/**
+ * Formats delta and gating status for visual telemetry display.
+ */
+export function formatDiffStatus(hasChanged: boolean, deltaPercent: number): {
+  label: string;
+  badgeClass: string;
+} {
+  if (hasChanged) {
+    return {
+      label: `ACTIVE (${deltaPercent.toFixed(1)}% delta)`,
+      badgeClass: "badge-unlocked",
+    };
+  }
+  return {
+    label: `STATIC (${deltaPercent.toFixed(1)}% - Gated)`,
+    badgeClass: "badge-locked",
+  };
+}

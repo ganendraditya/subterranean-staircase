@@ -63,6 +63,54 @@
 
         <div class="settings-card">
           <div class="settings-card-header">
+            <h3 class="settings-card-title">Screen Capture &amp; SIMD Vision Gating</h3>
+            <span id="badge-gate-status" class="settings-card-badge badge-locked">STATIC (Gated)</span>
+          </div>
+          <p class="settings-description">
+            Real-time native display grabber with SIMD Mean Absolute Difference (MAD) gating. Evaluates static scenes in &lt; 0.2 ms to bypass 100% of redundant OCR compute.
+          </p>
+
+          <div class="input-group">
+            <label class="input-label" for="select-capture-target">Capture Source (Display / Window)</label>
+            <div class="input-action-row">
+              <select id="select-capture-target" class="select-input">
+                <option value="screen:0" selected>Primary Display (Full Screen)</option>
+              </select>
+              <button id="btn-refresh-targets" class="btn btn-secondary">Refresh</button>
+              <button id="btn-toggle-preview" class="btn btn-primary">Start Live Preview (5 FPS)</button>
+            </div>
+          </div>
+
+          <div class="preview-container">
+            <div id="preview-placeholder" class="preview-placeholder">
+              <span>Standby Preview Paused</span>
+            </div>
+            <img id="img-preview" class="preview-img hidden" alt="Live Capture Preview" />
+            <div id="preview-tag" class="preview-overlay-tag hidden">LIVE 5 FPS</div>
+          </div>
+
+          <div class="preview-stats-bar">
+            <div class="preview-stat-item">
+              <span>Frame Variance:</span>
+              <span id="val-diff-delta" class="preview-stat-val">0.0%</span>
+            </div>
+            <div class="preview-stat-item">
+              <span>Threshold:</span>
+              <span id="val-diff-thresh" class="preview-stat-val">1.5%</span>
+            </div>
+            <div class="preview-stat-item">
+              <span>Diff Latency:</span>
+              <span id="val-diff-latency" class="preview-stat-val">&lt; 0.1 ms</span>
+            </div>
+            <div class="preview-stat-item">
+              <span>Resolution:</span>
+              <span id="val-capture-res" class="preview-stat-val">Primary Display</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
             <h3 class="settings-card-title">Live Overlay Test Harness</h3>
             <span class="settings-card-badge">Instant Verification</span>
           </div>

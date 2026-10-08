@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { clampNumber, formatLanguagePairLabel, OverlayStyle } from "./utils";
+import {
+  clampNumber,
+  formatDiffStatus,
+  formatLanguagePairLabel,
+  OverlayStyle,
+  parseCaptureTargetValue,
+} from "./utils";
 
 export interface SystemInfo {
   app_name: string;
@@ -12,6 +18,42 @@ export interface OverlayState {
   is_visible: boolean;
   is_interactive: boolean;
   style: OverlayStyle;
+}
+
+export interface MonitorTargetInfo {
+  id: number;
+  name: string;
+  width: number;
+  height: number;
+  scale_factor: number;
+  is_primary: boolean;
+}
+
+export interface WindowTargetInfo {
+  id: number;
+  title: string;
+  app_name: string;
+  width: number;
+  height: number;
+  is_minimized: boolean;
+}
+
+export interface CaptureTargets {
+  monitors: MonitorTargetInfo[];
+  windows: WindowTargetInfo[];
+}
+
+export interface DiffResult {
+  has_changed: boolean;
+  delta: number;
+  delta_percent: number;
+  threshold: number;
+  latency_ms: number;
+}
+
+export interface PreviewTickResult {
+  preview_data_url: string;
+  diff: DiffResult;
 }
 
 const PING_PAYLOAD = "Hello from Vite Frontend!";
@@ -34,6 +76,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements - Tabs
   const tabButtons = document.querySelectorAll<HTMLButtonElement>(".tab-btn");
   const tabPanes = document.querySelectorAll<HTMLElement>(".tab-pane");
+
+  // DOM Elements - Screen Capture & Preview
+  const selectCaptureTarget = document.getElementById("select-capture-target") as HTMLSelectElement | null;
+  const btnRefreshTargets = document.getElementById("btn-refresh-targets");
+  const btnTogglePreview = document.getElementById("btn-toggle-preview");
+  const imgPreview = document.getElementById("img-preview") as HTMLImageElement | null;
+  const previewPlaceholder = document.getElementById("preview-placeholder");
+  const previewTag = document.getElementById("preview-tag");
+  const badgeGateStatus = document.getElementById("badge-gate-status");
+  const valDiffDelta = document.getElementById("val-diff-delta");
+  const valDiffThresh = document.getElementById("val-diff-thresh");
+  const valDiffLatency = document.getElementById("val-diff-latency");
+  const valCaptureRes = document.getElementById("val-capture-res");
 
   // DOM Elements - Subtitle Test Harness
   const customSubtitleInput = document.getElementById("custom-subtitle-input") as HTMLInputElement | null;
@@ -67,6 +122,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Local State
   let overlayVisible = true;
   let overlayInteractive = false;
+  let previewActive = false;
+  let previewInterval: number | null = null;
 
   function log(msg: string) {
     if (!consoleOutput) return;
@@ -143,7 +200,142 @@ window.addEventListener("DOMContentLoaded", async () => {
     log(`Overlay state query: ${String(err)}`);
   }
 
-  // 3. Subtitle Emitter Functions
+  // 3. Screen Capture & Live Vision Gating
+  async function loadCaptureTargets() {
+    if (!selectCaptureTarget) return;
+    try {
+      const targets = await invoke<CaptureTargets>("get_capture_targets");
+      const currentVal = selectCaptureTarget.value;
+      selectCaptureTarget.replaceChildren();
+
+      // Add Displays
+      targets.monitors.forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = `screen:${m.id}`;
+        opt.textContent = `${m.name} (${m.width}×${m.height}${m.is_primary ? " - Primary" : ""})`;
+        selectCaptureTarget.appendChild(opt);
+      });
+
+      // Add Application Windows
+      if (targets.windows.length > 0) {
+        const group = document.createElement("optgroup");
+        group.label = "Active Application Windows";
+        targets.windows.forEach((w) => {
+          const opt = document.createElement("option");
+          opt.value = `window:${w.id}`;
+          const title = w.title.length > 36 ? `${w.title.slice(0, 33)}...` : w.title;
+          opt.textContent = `${w.app_name}: ${title}`;
+          group.appendChild(opt);
+        });
+        selectCaptureTarget.appendChild(group);
+      }
+
+      if (currentVal && Array.from(selectCaptureTarget.options).some((o) => o.value === currentVal)) {
+        selectCaptureTarget.value = currentVal;
+      }
+
+      if (valCaptureRes && selectCaptureTarget.selectedOptions[0]) {
+        valCaptureRes.textContent = selectCaptureTarget.selectedOptions[0].text;
+      }
+
+      log(`Enumerated ${targets.monitors.length} display(s) and ${targets.windows.length} window(s).`);
+    } catch (err) {
+      log(`Error enumerating capture targets: ${String(err)}`);
+    }
+  }
+
+  await loadCaptureTargets();
+
+  if (btnRefreshTargets) {
+    btnRefreshTargets.addEventListener("click", () => {
+      loadCaptureTargets();
+    });
+  }
+
+  selectCaptureTarget?.addEventListener("change", () => {
+    if (valCaptureRes && selectCaptureTarget.selectedOptions[0]) {
+      valCaptureRes.textContent = selectCaptureTarget.selectedOptions[0].text;
+    }
+    if (previewActive) {
+      tickPreview();
+    }
+  });
+
+  let isTicking = false;
+  async function tickPreview() {
+    if (!previewActive || isTicking) return;
+    isTicking = true;
+    const targetVal = selectCaptureTarget?.value || "screen:0";
+    const parsed = parseCaptureTargetValue(targetVal);
+
+    const winId = parsed.kind === "window" ? parsed.id : null;
+    const monId = parsed.kind === "screen" ? parsed.id : null;
+
+    try {
+      const res = await invoke<PreviewTickResult>("capture_preview_and_diff", {
+        window_id: winId,
+        monitor_id: monId,
+        roi: null,
+        threshold: 0.015,
+      });
+
+      if (imgPreview) {
+        imgPreview.src = res.preview_data_url;
+      }
+
+      const diff = res.diff;
+      if (valDiffDelta) valDiffDelta.textContent = `${diff.delta_percent.toFixed(2)}%`;
+      if (valDiffThresh) valDiffThresh.textContent = `${(diff.threshold * 100).toFixed(1)}%`;
+      if (valDiffLatency) valDiffLatency.textContent = `${diff.latency_ms.toFixed(3)} ms`;
+
+      if (badgeGateStatus) {
+        const status = formatDiffStatus(diff.has_changed, diff.delta_percent);
+        badgeGateStatus.textContent = status.label;
+        badgeGateStatus.className = `settings-card-badge ${status.badgeClass}`;
+      }
+    } catch (err) {
+      console.warn("Standby preview tick failed:", err);
+    } finally {
+      isTicking = false;
+    }
+  }
+
+  function startPreview() {
+    previewActive = true;
+    if (previewPlaceholder) previewPlaceholder.classList.add("hidden");
+    if (imgPreview) imgPreview.classList.remove("hidden");
+    if (previewTag) previewTag.classList.remove("hidden");
+    if (btnTogglePreview) btnTogglePreview.textContent = "Pause Live Preview";
+
+    tickPreview();
+    previewInterval = window.setInterval(tickPreview, 200); // 5 FPS
+    log("Started live screen preview (5 FPS) & SIMD vision gating.");
+  }
+
+  function stopPreview() {
+    previewActive = false;
+    if (previewInterval !== null) {
+      window.clearInterval(previewInterval);
+      previewInterval = null;
+    }
+    if (previewPlaceholder) previewPlaceholder.classList.remove("hidden");
+    if (imgPreview) imgPreview.classList.add("hidden");
+    if (previewTag) previewTag.classList.add("hidden");
+    if (btnTogglePreview) btnTogglePreview.textContent = "Start Live Preview (5 FPS)";
+    log("Paused live screen preview.");
+  }
+
+  if (btnTogglePreview) {
+    btnTogglePreview.addEventListener("click", () => {
+      if (previewActive) {
+        stopPreview();
+      } else {
+        startPreview();
+      }
+    });
+  }
+
+  // 4. Subtitle Emitter Functions
   async function sendSubtitle(text: string, durationMs = 4500) {
     try {
       await invoke("emit_subtitle", { text, duration_ms: durationMs });
@@ -212,7 +404,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // 4. Interactive Repositioning
+  // 5. Interactive Repositioning
   function updateInteractiveUI(interactive: boolean) {
     if (btnToggleInteractive) {
       btnToggleInteractive.textContent = interactive ? "Lock Position" : "Unlock for Dragging";
@@ -266,7 +458,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // 5. Typography Settings
+  // 6. Typography Settings
   if (sliderFontSize && lblFontSizeVal) {
     sliderFontSize.addEventListener("input", () => {
       lblFontSizeVal.textContent = `${sliderFontSize.value}px`;
@@ -302,7 +494,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // 6. Translation & LLM Settings
+  // 7. Translation & LLM Settings
   function updateLanguagePairUI() {
     const srcVal = selectSourceLang?.value || "auto";
     const tgtVal = selectTargetLang?.value || "en";
@@ -352,7 +544,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Initial sync of language pair
   updateLanguagePairUI();
 
-  // 7. Console Actions
+  // 8. Console Actions
   if (btnClearLog && consoleOutput) {
     btnClearLog.addEventListener("click", () => {
       consoleOutput.textContent = "";
