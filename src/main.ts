@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   clampNumber,
+  formatCacheCountLabel,
   formatDiffStatus,
   formatLanguagePairLabel,
+  formatTranslationMetric,
   OverlayStyle,
   parseCaptureTargetValue,
 } from "./utils";
@@ -54,6 +56,28 @@ export interface DiffResult {
 export interface PreviewTickResult {
   preview_data_url: string;
   diff: DiffResult;
+}
+
+export interface LlmConfig {
+  base_url: string;
+  model_name: string;
+  api_key?: string | null;
+  timeout_seconds?: number | null;
+}
+
+export interface TranslationRequest {
+  source_text: string;
+  source_lang: string;
+  target_lang: string;
+}
+
+export interface TranslationResponse {
+  source_text: string;
+  translated_text: string;
+  source_lang: string;
+  target_lang: string;
+  from_cache: boolean;
+  latency_ms: number;
 }
 
 const PING_PAYLOAD = "Hello from Vite Frontend!";
@@ -118,6 +142,16 @@ window.addEventListener("DOMContentLoaded", async () => {
   const inputLlmModel = document.getElementById("input-llm-model") as HTMLInputElement | null;
   const inputLlmKey = document.getElementById("input-llm-key") as HTMLInputElement | null;
   const btnSaveLlm = document.getElementById("btn-save-llm");
+  const btnTestLlm = document.getElementById("btn-test-llm");
+  const lblLlmTestFeedback = document.getElementById("lbl-llm-test-feedback");
+
+  // DOM Elements - Cache & Translation Test
+  const lblCacheCount = document.getElementById("lbl-cache-count");
+  const btnRefreshCacheStats = document.getElementById("btn-refresh-cache-stats");
+  const btnClearCache = document.getElementById("btn-clear-cache");
+  const inputTestTranslate = document.getElementById("input-test-translate") as HTMLInputElement | null;
+  const btnRunTranslation = document.getElementById("btn-run-translation");
+  const boxTransResult = document.getElementById("box-trans-result");
 
   // Local State
   let overlayVisible = true;
@@ -506,39 +540,179 @@ window.addEventListener("DOMContentLoaded", async () => {
   selectSourceLang?.addEventListener("change", updateLanguagePairUI);
   selectTargetLang?.addEventListener("change", updateLanguagePairUI);
 
+  // Load authoritative LLM config from Rust persistent storage
+  async function loadLlmConfig() {
+    try {
+      const cfg = await invoke<LlmConfig>("get_llm_config");
+      if (inputLlmUrl) inputLlmUrl.value = cfg.base_url;
+      if (inputLlmModel) inputLlmModel.value = cfg.model_name;
+      if (inputLlmKey) inputLlmKey.value = cfg.api_key || "";
+      if (valEngine) valEngine.textContent = cfg.model_name ? "Cloud LLM" : "Local";
+      log(`Loaded persistent LLM config: ${cfg.model_name} @ ${cfg.base_url}`);
+    } catch (err) {
+      log(`Note loading persistent LLM config: ${String(err)}`);
+    }
+  }
+
+  await loadLlmConfig();
+
   if (btnSaveLlm) {
-    btnSaveLlm.addEventListener("click", () => {
-      const url = inputLlmUrl?.value.trim() || "";
-      const model = inputLlmModel?.value.trim() || "";
+    btnSaveLlm.addEventListener("click", async () => {
+      const url = inputLlmUrl?.value.trim() || "https://api.groq.com/openai/v1";
+      const model = inputLlmModel?.value.trim() || "llama-3.3-70b-versatile";
       const key = inputLlmKey?.value.trim() || "";
 
+      const config: LlmConfig = {
+        base_url: url,
+        model_name: model,
+        api_key: key ? key : null,
+        timeout_seconds: 10,
+      };
+
+      btnSaveLlm.setAttribute("disabled", "true");
       try {
-        localStorage.setItem("subtrans_llm_url", url);
-        localStorage.setItem("subtrans_llm_model", model);
-        if (key) {
-          localStorage.setItem("subtrans_llm_key", key);
-        } else {
-          localStorage.removeItem("subtrans_llm_key");
-        }
+        await invoke("save_llm_config", { config });
         if (valEngine) valEngine.textContent = model ? "Cloud LLM" : "Local";
-        log(`Saved translation config: Model ${model} via ${url}`);
+        log(`Saved and secured LLM configuration: Model ${model} via ${url}`);
       } catch (err) {
         log(`Error saving LLM config: ${String(err)}`);
+      } finally {
+        btnSaveLlm.removeAttribute("disabled");
       }
     });
   }
 
-  // Load stored LLM settings from localStorage on startup
-  try {
-    const savedUrl = localStorage.getItem("subtrans_llm_url");
-    const savedModel = localStorage.getItem("subtrans_llm_model");
-    const savedKey = localStorage.getItem("subtrans_llm_key");
-    if (savedUrl && inputLlmUrl) inputLlmUrl.value = savedUrl;
-    if (savedModel && inputLlmModel) inputLlmModel.value = savedModel;
-    if (savedKey && inputLlmKey) inputLlmKey.value = savedKey;
-    if (valEngine) valEngine.textContent = savedModel ? "Cloud LLM" : "Local";
-  } catch {
-    // Ignore storage errors
+  if (btnTestLlm) {
+    btnTestLlm.addEventListener("click", async () => {
+      const url = inputLlmUrl?.value.trim() || "https://api.groq.com/openai/v1";
+      const model = inputLlmModel?.value.trim() || "llama-3.3-70b-versatile";
+      const key = inputLlmKey?.value.trim() || "";
+
+      const config: LlmConfig = {
+        base_url: url,
+        model_name: model,
+        api_key: key ? key : null,
+        timeout_seconds: 8,
+      };
+
+      if (lblLlmTestFeedback) {
+        lblLlmTestFeedback.textContent = "Connecting to API...";
+        lblLlmTestFeedback.className = "settings-card-badge";
+        lblLlmTestFeedback.classList.remove("hidden");
+      }
+      btnTestLlm.setAttribute("disabled", "true");
+
+      try {
+        const reply = await invoke<string>("test_llm_connection", { config: SomeConfig(config) });
+        if (lblLlmTestFeedback) {
+          lblLlmTestFeedback.textContent = reply;
+          lblLlmTestFeedback.className = "settings-card-badge badge-locked";
+        }
+        log(`LLM Probe Result: ${reply}`);
+      } catch (err) {
+        if (lblLlmTestFeedback) {
+          lblLlmTestFeedback.textContent = `Failed: ${String(err)}`;
+          lblLlmTestFeedback.className = "settings-card-badge badge-unlocked";
+        }
+        log(`LLM Probe Error: ${String(err)}`);
+      } finally {
+        btnTestLlm.removeAttribute("disabled");
+      }
+    });
+  }
+
+  function SomeConfig(cfg: LlmConfig): LlmConfig | null {
+    return cfg;
+  }
+
+  // Cache Statistics & Management
+  async function refreshCacheStats() {
+    try {
+      const count = await invoke<number>("get_cache_stats");
+      if (lblCacheCount) {
+        lblCacheCount.textContent = formatCacheCountLabel(count);
+      }
+    } catch (err) {
+      console.warn("Failed to query cache stats:", err);
+    }
+  }
+
+  await refreshCacheStats();
+
+  if (btnRefreshCacheStats) {
+    btnRefreshCacheStats.addEventListener("click", () => {
+      refreshCacheStats();
+    });
+  }
+
+  if (btnClearCache) {
+    btnClearCache.addEventListener("click", async () => {
+      btnClearCache.setAttribute("disabled", "true");
+      try {
+        await invoke("clear_translation_cache");
+        await refreshCacheStats();
+        log("Cleared on-device SQLite WAL translation memory.");
+      } catch (err) {
+        log(`Error clearing translation cache: ${String(err)}`);
+      } finally {
+        btnClearCache.removeAttribute("disabled");
+      }
+    });
+  }
+
+  // Interactive Live Translation Test Harness
+  if (btnRunTranslation && inputTestTranslate) {
+    btnRunTranslation.addEventListener("click", async () => {
+      const text = inputTestTranslate.value.trim();
+      if (!text) return;
+
+      const src = selectSourceLang?.value || "auto";
+      const tgt = selectTargetLang?.value || "en";
+
+      const request: TranslationRequest = {
+        source_text: text,
+        source_lang: src,
+        target_lang: tgt,
+      };
+
+      btnRunTranslation.setAttribute("disabled", "true");
+      if (boxTransResult) {
+        boxTransResult.textContent = "Translating sentence...";
+        boxTransResult.classList.remove("hidden");
+      }
+
+      try {
+        const res = await invoke<TranslationResponse>("translate_subtitle", {
+          request,
+          config: null,
+        });
+
+        const metric = formatTranslationMetric(res.latency_ms, res.from_cache);
+        const report = `[${formatLanguagePairLabel(res.source_lang, res.target_lang)} | ${metric}]\n"${res.translated_text}"`;
+        if (boxTransResult) {
+          boxTransResult.textContent = report;
+        }
+        log(`Translation Output: ${report.replace(/\n/g, " ")}`);
+
+        // Also emit translated line to floating subtitle overlay (non-fatal)
+        try {
+          await invoke("emit_subtitle", {
+            text: res.translated_text,
+            duration_ms: 5000,
+          });
+        } catch (overlayErr) {
+          log(`Subtitle overlay notification skipped: ${String(overlayErr)}`);
+        }
+        await refreshCacheStats();
+      } catch (err) {
+        if (boxTransResult) {
+          boxTransResult.textContent = `Translation Error: ${String(err)}`;
+        }
+        log(`Translation Error: ${String(err)}`);
+      } finally {
+        btnRunTranslation.removeAttribute("disabled");
+      }
+    });
   }
 
   // Initial sync of language pair

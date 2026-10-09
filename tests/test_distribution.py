@@ -339,6 +339,31 @@ def test_v2_phase3_capture_and_diff_modules() -> None:
     assert "pub fn compare" in diff_code
 
 
+def test_v2_phase4_llm_and_cache_modules() -> None:
+    root = _root()
+    cache_rs = root / "src-tauri" / "src" / "cache.rs"
+    translate_rs = root / "src-tauri" / "src" / "translate.rs"
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+
+    assert cache_rs.is_file(), "src-tauri/src/cache.rs must exist"
+    assert translate_rs.is_file(), "src-tauri/src/translate.rs must exist"
+
+    cargo_content = cargo_toml.read_text(encoding="utf-8")
+    assert "rusqlite = " in cargo_content, "rusqlite SQLite driver must be declared"
+    assert "reqwest = " in cargo_content, "reqwest HTTP client must be declared"
+
+    cache_code = cache_rs.read_text(encoding="utf-8")
+    assert "pub struct TranslationCache" in cache_code
+    assert "PRAGMA journal_mode = WAL;" in cache_code
+    assert "pub fn get" in cache_code
+    assert "pub fn set" in cache_code
+
+    translate_code = translate_rs.read_text(encoding="utf-8")
+    assert "pub struct LlmTranslator" in translate_code
+    assert "pub async fn translate" in translate_code
+    assert "normalize_chat_endpoint" in translate_code
+
+
 
 
 

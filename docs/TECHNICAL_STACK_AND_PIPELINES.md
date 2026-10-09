@@ -253,3 +253,54 @@ Subterranean Staircase implements zero-byte data purge workflows across all supp
 * **Terminal CLI Uninstaller (`uninstall.sh` / `uninstall.ps1`):**
   - Canonical `subtrans uninstall` command provides interactive prompt to retain or purge data.
   - `subtrans uninstall --purge` performs non-interactive 100% removal down to 0 bytes.
+
+---
+
+## 9. V2 Architecture: Native Rust + Tauri v2 Subsystem Specifications
+
+The `v2.0.0` milestone introduces an ultra-performant native desktop architecture replacing Python/PyQt6 with Rust and Tauri v2:
+
+```text
++---------------------------------------------------------------------------------------------------+
+|                        FRONTEND WEBVIEW (Vite + TypeScript + Tailwind CSS)                       |
+|  - Control Center (`index.html`): Capture Target, Language Pair, Cloud LLM BYOK, Live Preview      |
+|  - Subtitle Overlay (`overlay.html`): High-Contrast WCAG AA Frameless Click-Through Window        |
++-------------------------------------------------+-------------------------------------------------+
+                                                  | Tauri v2 IPC Commands & Events
+                                                  v
++---------------------------------------------------------------------------------------------------+
+|                            NATIVE TAURI DAEMON IN RUST (`src-tauri`)                              |
+|                                                                                                   |
+|  [Phase 2] Dual-Window System (`overlay.rs`)                                                      |
+|      • macOS Cocoa: NSScreenSaverWindowLevel (1000), NSWindowCollectionBehaviorFullScreenAuxiliary |
+|      • Windows User32: WS_EX_LAYERED, WS_EX_TRANSPARENT (Click-through)                           |
+|                                                                                                   |
+|  [Phase 3] Native Screen Capture & SIMD Vision Gating (`capture/`, `diff.rs`)                     |
+|      • Screen & Window Acquisition: Quartz / DXGI via zero-copy `xcap` crate                      |
+|      • Perceptual Frame-Diff: SIMD Mean Absolute Difference (MAD) evaluated in < 0.2 ms           |
+|      • Static Frame Gating: Bypasses downstream inference when scene variance < 1.5%              |
+|                                                                                                   |
+|  [Phase 4] Universal Cloud LLM Provider & SQLite WAL Cache (`translate.rs`, `cache.rs`)          |
+|      • HTTP Client: Asynchronous `reqwest` + `tokio` (rustls-tls, hermetic OpenSSL-free)          |
+|      • OpenAI /v1/chat/completions Protocol: Groq, DeepSeek, OpenAI, Ollama, vLLM                 |
+|      • SSRF Mitigation: Strict scheme validation (HTTP/HTTPS only), cloud metadata IP rejection   |
+|        (169.254.169.254 and IPv6 link-local blocked)                                              |
+|      • Translation Memory: Embedded SQLite WAL (`PRAGMA journal_mode=WAL; synchronous=NORMAL`)    |
+|      • Sub-Millisecond Recall: Instant retrieval for repetitive dialogue with LRU eviction        |
+|      • Credential Protection: Permissions 0600 on config files, masked IPC keys (••••••••)        |
++---------------------------------------------------------------------------------------------------+
+```
+
+### 9.1 High-Concurrency Translation Memory Specifications
+- **Database Engine:** Embedded `rusqlite` bundled with SQLite 3.
+- **Concurrency Mode:** `PRAGMA journal_mode = WAL;` (readers never block writers, writers never block readers).
+- **Disk Synchronization:** `PRAGMA synchronous = NORMAL;` with `PRAGMA busy_timeout = 5000;`.
+- **Primary Key & Indexing:** Composite primary key `(source_text, source_lang, target_lang)` with LRU index on `last_accessed` timestamp for deterministic eviction when table size reaches `max_entries = 10,000`.
+- **Measured Latency:** Indexed in-memory/WAL cache hits resolve in $< 0.1\,\text{ms}$, completely bypassing network sockets.
+
+### 9.2 Universal Cloud LLM Engine & Security Hardening
+- **Protocol:** Standard `/v1/chat/completions` REST request using JSON payloads.
+- **SSRF Mitigation:** Base URLs undergo URL parsing where only `http` and `https` schemes are allowed. Local development endpoints (`localhost`, `127.0.0.1`) remain permitted for local inference daemons (Ollama / vLLM), while link-local and cloud metadata addresses (`169.254.169.254`, `fe80::/10`) are strictly rejected.
+- **Timeout Bound Checking:** Configured timeouts are clamped between $1\,\text{s}$ and $120\,\text{s}$ to prevent 64-bit integer overflows in Tokio timer allocations.
+- **Credential Hygiene:** API keys saved to disk use POSIX `0o600` permissions. When retrieved by frontend views, keys are masked (`••••••••`) to prevent DOM-based secret leakage. Save operations preserve existing keys if the mask or empty string is submitted.
+

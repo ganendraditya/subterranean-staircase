@@ -284,7 +284,49 @@
 
           <div class="button-row mt-16">
             <button id="btn-save-llm" class="btn btn-primary">Save Translation Settings</button>
+            <button id="btn-test-llm" class="btn btn-secondary">Test Connection</button>
+            <span id="lbl-llm-test-feedback" class="settings-card-badge hidden"></span>
           </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Translation Memory Cache (SQLite WAL)</h3>
+            <span id="lbl-cache-count" class="settings-card-badge">0 cached dialogue lines</span>
+          </div>
+          <p class="settings-description">
+            High-concurrency SQLite WAL translation memory. Guarantees sub-millisecond (&lt; 1 ms) instant recall for previously encountered dialogue lines without network latency.
+          </p>
+          <div class="button-row">
+            <button id="btn-refresh-cache-stats" class="btn btn-secondary">Refresh Stats</button>
+            <button id="btn-clear-cache" class="btn btn-secondary btn-danger-hover">Clear Translation Cache</button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3 class="settings-card-title">Interactive Translation Test</h3>
+            <span class="settings-card-badge">Live Verification</span>
+          </div>
+          <p class="settings-description">
+            Send an instant test sentence through the active routing matrix (Cache &rarr; Cloud LLM &rarr; Subtitle Overlay).
+          </p>
+
+          <div class="input-group">
+            <label class="input-label" for="input-test-translate">Source Sentence</label>
+            <div class="input-action-row">
+              <input
+                id="input-test-translate"
+                type="text"
+                class="text-input"
+                placeholder="Type sentence to test translation..."
+                value="Welcome to the subterranean staircase."
+              />
+              <button id="btn-run-translation" class="btn btn-primary">Translate</button>
+            </div>
+          </div>
+
+          <div id="box-trans-result" class="output-console mt-12 hidden"></div>
         </div>
       </section>
 

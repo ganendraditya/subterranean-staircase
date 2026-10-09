@@ -118,3 +118,22 @@ export function formatDiffStatus(hasChanged: boolean, deltaPercent: number): {
     badgeClass: "badge-locked",
   };
 }
+
+/**
+ * Formats translation cache count into descriptive badge string.
+ */
+export function formatCacheCountLabel(count: number): string {
+  const safeCount = Math.max(0, Math.floor(count || 0));
+  return `${safeCount} cached dialogue line${safeCount === 1 ? "" : "s"}`;
+}
+
+/**
+ * Formats translation latency and cache source indicator.
+ */
+export function formatTranslationMetric(latencyMs: number, fromCache: boolean): string {
+  if (fromCache) {
+    const latStr = latencyMs < 0.1 ? "< 0.1" : latencyMs.toFixed(2);
+    return `${latStr} ms (SQLite Cache Hit)`;
+  }
+  return `${latencyMs.toFixed(1)} ms (Cloud LLM Network)`;
+}
