@@ -546,7 +546,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       const cfg = await invoke<LlmConfig>("get_llm_config");
       if (inputLlmUrl) inputLlmUrl.value = cfg.base_url;
       if (inputLlmModel) inputLlmModel.value = cfg.model_name;
-      if (inputLlmKey && cfg.api_key) inputLlmKey.value = cfg.api_key;
+      if (inputLlmKey) inputLlmKey.value = cfg.api_key || "";
       if (valEngine) valEngine.textContent = cfg.model_name ? "Cloud LLM" : "Local";
       log(`Loaded persistent LLM config: ${cfg.model_name} @ ${cfg.base_url}`);
     } catch (err) {
@@ -694,11 +694,15 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
         log(`Translation Output: ${report.replace(/\n/g, " ")}`);
 
-        // Also emit translated line to floating subtitle overlay
-        await invoke("emit_subtitle", {
-          text: res.translated_text,
-          duration_ms: 5000,
-        });
+        // Also emit translated line to floating subtitle overlay (non-fatal)
+        try {
+          await invoke("emit_subtitle", {
+            text: res.translated_text,
+            duration_ms: 5000,
+          });
+        } catch (overlayErr) {
+          log(`Subtitle overlay notification skipped: ${String(overlayErr)}`);
+        }
         await refreshCacheStats();
       } catch (err) {
         if (boxTransResult) {

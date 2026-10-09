@@ -285,6 +285,17 @@ fn get_overlay_state(state: tauri::State<'_, AppState>) -> Result<OverlayState, 
     Ok(st.clone())
 }
 
+fn inherit_saved_api_key(target: &mut LlmConfig, source: &LlmConfig) {
+    if target
+        .api_key
+        .as_ref()
+        .map(|k| k.trim() == "••••••••" || k.trim().is_empty())
+        .unwrap_or(true)
+    {
+        target.api_key = source.api_key.clone();
+    }
+}
+
 #[tauri::command]
 async fn translate_subtitle(
     state: tauri::State<'_, AppState>,
@@ -292,7 +303,11 @@ async fn translate_subtitle(
     config: Option<LlmConfig>,
 ) -> Result<TranslationResponse, String> {
     let active_config = match config {
-        Some(cfg) => cfg,
+        Some(mut cfg) => {
+            let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+            inherit_saved_api_key(&mut cfg, &guard);
+            cfg
+        }
         None => {
             let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
             guard.clone()
@@ -307,7 +322,11 @@ async fn test_llm_connection(
     config: Option<LlmConfig>,
 ) -> Result<String, String> {
     let active_config = match config {
-        Some(cfg) => cfg,
+        Some(mut cfg) => {
+            let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+            inherit_saved_api_key(&mut cfg, &guard);
+            cfg
+        }
         None => {
             let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
             guard.clone()
@@ -319,14 +338,31 @@ async fn test_llm_connection(
 #[tauri::command]
 fn get_llm_config(state: tauri::State<'_, AppState>) -> Result<LlmConfig, String> {
     let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
-    Ok(guard.clone())
+    let mut safe_cfg = guard.clone();
+    // Never expose raw plaintext secret to webview DOM
+    if safe_cfg
+        .api_key
+        .as_ref()
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        safe_cfg.api_key = Some("••••••••".to_string());
+    } else {
+        safe_cfg.api_key = None;
+    }
+    Ok(safe_cfg)
 }
 
 #[tauri::command]
 fn save_llm_config(
     state: tauri::State<'_, AppState>,
-    config: LlmConfig,
+    mut config: LlmConfig,
 ) -> Result<(), String> {
+    {
+        let guard = state.llm_config.lock().map_err(|e| e.to_string())?;
+        inherit_saved_api_key(&mut config, &guard);
+    }
+    // File I/O outside lock to avoid contention on Tokio threads
     config.save()?;
     let mut guard = state.llm_config.lock().map_err(|e| e.to_string())?;
     *guard = config;

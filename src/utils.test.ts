@@ -140,9 +140,10 @@ describe("formatCacheCountLabel", () => {
 });
 
 describe("formatTranslationMetric", () => {
-  it("indicates SQLite cache hit", () => {
+  it("indicates SQLite cache hit with measured and sub-millisecond values", () => {
     expect(formatTranslationMetric(0.0, true)).toContain("Cache Hit");
     expect(formatTranslationMetric(0.0, true)).toContain("< 0.1 ms");
+    expect(formatTranslationMetric(0.25, true)).toBe("0.25 ms (SQLite Cache Hit)");
   });
 
   it("indicates network latency on cloud dispatch", () => {

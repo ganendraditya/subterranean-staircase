@@ -1,5 +1,6 @@
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -121,18 +122,96 @@ struct ChoiceMessage {
     content: Option<String>,
 }
 
-pub fn normalize_chat_endpoint(base_url: &str) -> String {
-    let url = base_url.trim().trim_end_matches('/');
-    if url.is_empty() {
-        return "https://api.groq.com/openai/v1/chat/completions".to_string();
+pub fn truncate_utf8(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
     }
-    if url.ends_with("/chat/completions") {
-        return url.to_string();
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
     }
-    if url.ends_with("/v1") {
-        format!("{}/chat/completions", url)
+    &s[..end]
+}
+
+pub fn clamp_timeout(secs: Option<u64>, default_secs: u64) -> Duration {
+    let bounded = secs.unwrap_or(default_secs).clamp(1, 120);
+    Duration::from_secs(bounded)
+}
+
+pub fn normalize_chat_endpoint(base_url: &str) -> Result<String, String> {
+    let raw = base_url.trim();
+    if raw.is_empty() {
+        return Ok("https://api.groq.com/openai/v1/chat/completions".to_string());
+    }
+
+    let parsed = reqwest::Url::parse(raw)
+        .map_err(|e| format!("Invalid base URL '{}': {}", raw, e))?;
+
+    // Scheme whitelist: only http and https are allowed
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!(
+            "Unsupported scheme '{}'. Only 'http' and 'https' are allowed.",
+            scheme
+        ));
+    }
+
+    // Disallow query parameters, URL fragments, or embedded user credentials
+    if parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return Err(
+            "Base URL must not contain query parameters, fragments, or embedded credentials."
+                .to_string(),
+        );
+    }
+
+    // SSRF mitigation: block link-local addresses, IPv4-mapped IPv6, and cloud metadata service
+    if let Some(host_str) = parsed.host_str() {
+        let clean_host = host_str.trim_start_matches('[').trim_end_matches(']');
+        if clean_host == "169.254.169.254" {
+            return Err("Access to cloud metadata service (169.254.169.254) is forbidden.".to_string());
+        }
+        if let Ok(ip) = clean_host.parse::<IpAddr>() {
+            match ip {
+                IpAddr::V4(ipv4) => {
+                    if ipv4.is_link_local() {
+                        return Err(format!(
+                            "Access to IPv4 link-local address '{}' is forbidden.",
+                            ipv4
+                        ));
+                    }
+                }
+                IpAddr::V6(ipv6) => {
+                    if let Some(ipv4) = ipv6.to_ipv4_mapped() {
+                        if ipv4.is_link_local() || ipv4.to_string() == "169.254.169.254" {
+                            return Err(format!(
+                                "Access to mapped IPv4 link-local address '{}' is forbidden.",
+                                ipv4
+                            ));
+                        }
+                    }
+                    let segments = ipv6.segments();
+                    if (segments[0] & 0xffc0) == 0xfe80 {
+                        return Err(format!(
+                            "Access to IPv6 link-local address '{}' is forbidden.",
+                            ipv6
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    let url_str = raw.trim_end_matches('/');
+    if url_str.ends_with("/chat/completions") {
+        Ok(url_str.to_string())
+    } else if url_str.ends_with("/v1") {
+        Ok(format!("{}/chat/completions", url_str))
     } else {
-        format!("{}/v1/chat/completions", url)
+        Ok(format!("{}/v1/chat/completions", url_str))
     }
 }
 
@@ -184,7 +263,7 @@ pub struct LlmTranslator {
 impl LlmTranslator {
     pub fn new(cache: Arc<TranslationCache>) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
         Self { client, cache }
@@ -195,6 +274,7 @@ impl LlmTranslator {
         config: &LlmConfig,
         req: &TranslationRequest,
     ) -> Result<TranslationResponse, String> {
+        let start = Instant::now();
         let cleaned_source = req.source_text.trim();
         if cleaned_source.is_empty() {
             return Ok(TranslationResponse {
@@ -212,30 +292,32 @@ impl LlmTranslator {
 
         // 1. Identity Check
         if src_code == tgt_code && src_code != "auto" {
+            let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
             return Ok(TranslationResponse {
                 source_text: req.source_text.clone(),
                 translated_text: cleaned_source.to_string(),
                 source_lang: src_code,
                 target_lang: tgt_code,
                 from_cache: false,
-                latency_ms: 0.0,
+                latency_ms,
             });
         }
 
         // 2. High-concurrency Cache Lookup (< 1 ms instant response)
         if let Some(cached_text) = self.cache.get(cleaned_source, &src_code, &tgt_code) {
+            let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
             return Ok(TranslationResponse {
                 source_text: req.source_text.clone(),
                 translated_text: cached_text,
                 source_lang: src_code,
                 target_lang: tgt_code,
                 from_cache: true,
-                latency_ms: 0.0,
+                latency_ms,
             });
         }
 
         // 3. Remote OpenAI-compatible API Dispatch
-        let endpoint = normalize_chat_endpoint(&config.base_url);
+        let endpoint = normalize_chat_endpoint(&config.base_url)?;
         let src_name = get_language_display_name(&src_code);
         let tgt_name = get_language_display_name(&tgt_code);
 
@@ -295,9 +377,8 @@ impl LlmTranslator {
             }
         }
 
-        let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(10).max(1));
+        let timeout = clamp_timeout(config.timeout_seconds, 10);
 
-        let t0 = Instant::now();
         let resp = self
             .client
             .post(&endpoint)
@@ -314,11 +395,18 @@ impl LlmTranslator {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error response".to_string());
+            let trimmed_body = error_body.trim();
+            let truncated = truncate_utf8(trimmed_body, 250);
+            let sanitized_body = if trimmed_body.len() > truncated.len() {
+                format!("{}...", truncated)
+            } else {
+                truncated.to_string()
+            };
             return Err(format!(
                 "API returned error status {} ({}): {}",
                 status.as_u16(),
                 status.canonical_reason().unwrap_or("Error"),
-                error_body
+                sanitized_body
             ));
         }
 
@@ -335,7 +423,7 @@ impl LlmTranslator {
             .ok_or_else(|| "API response contained no message content".to_string())?;
 
         let translated_text = sanitize_llm_translation(&raw_content);
-        let latency_ms = t0.elapsed().as_secs_f32() * 1000.0;
+        let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
 
         if !translated_text.is_empty() {
             self.cache
@@ -354,7 +442,7 @@ impl LlmTranslator {
 
     pub async fn test_connection(&self, config: &LlmConfig) -> Result<String, String> {
         // Bypass cache check for connectivity probe
-        let endpoint = normalize_chat_endpoint(&config.base_url);
+        let endpoint = normalize_chat_endpoint(&config.base_url)?;
         let payload = ChatCompletionPayload {
             model: if config.model_name.trim().is_empty() {
                 "llama-3.3-70b-versatile"
@@ -385,7 +473,7 @@ impl LlmTranslator {
             }
         }
 
-        let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(8).max(1));
+        let timeout = clamp_timeout(config.timeout_seconds, 8);
         let t0 = Instant::now();
 
         let resp = self
@@ -407,10 +495,17 @@ impl LlmTranslator {
             ))
         } else {
             let body = resp.text().await.unwrap_or_default();
+            let trimmed_body = body.trim();
+            let truncated = truncate_utf8(trimmed_body, 250);
+            let sanitized_body = if trimmed_body.len() > truncated.len() {
+                format!("{}...", truncated)
+            } else {
+                truncated.to_string()
+            };
             Err(format!(
                 "API returned error {}: {}",
                 status.as_u16(),
-                body
+                sanitized_body
             ))
         }
     }
@@ -423,25 +518,55 @@ mod tests {
     #[test]
     fn test_normalize_chat_endpoint() {
         assert_eq!(
-            normalize_chat_endpoint(""),
+            normalize_chat_endpoint("").unwrap(),
             "https://api.groq.com/openai/v1/chat/completions"
         );
         assert_eq!(
-            normalize_chat_endpoint("https://api.openai.com"),
+            normalize_chat_endpoint("https://api.openai.com").unwrap(),
             "https://api.openai.com/v1/chat/completions"
         );
         assert_eq!(
-            normalize_chat_endpoint("https://api.openai.com/v1"),
+            normalize_chat_endpoint("https://api.openai.com/v1").unwrap(),
             "https://api.openai.com/v1/chat/completions"
         );
         assert_eq!(
-            normalize_chat_endpoint("http://localhost:11434/v1/"),
+            normalize_chat_endpoint("http://localhost:11434/v1/").unwrap(),
             "http://localhost:11434/v1/chat/completions"
         );
         assert_eq!(
-            normalize_chat_endpoint("https://custom.provider.com/chat/completions"),
+            normalize_chat_endpoint("https://custom.provider.com/chat/completions").unwrap(),
             "https://custom.provider.com/chat/completions"
         );
+        // SSRF protection: reject cloud metadata & unsupported schemes
+        assert!(normalize_chat_endpoint("http://169.254.169.254/v1").is_err());
+        assert!(normalize_chat_endpoint("http://169.254.1.2/v1").is_err());
+        assert!(normalize_chat_endpoint("http://[fe80::1]/v1").is_err());
+        assert!(normalize_chat_endpoint("ftp://example.com/v1").is_err());
+        assert!(normalize_chat_endpoint("file:///etc/passwd").is_err());
+        // Disallow query params or fragments on base_url
+        assert!(normalize_chat_endpoint("https://api.openai.com/v1?query=1").is_err());
+        assert!(normalize_chat_endpoint("https://api.openai.com/v1#hash").is_err());
+    }
+
+    #[test]
+    fn test_truncate_utf8_multibyte_safety() {
+        let ascii = "abcdefghij";
+        assert_eq!(truncate_utf8(ascii, 5), "abcde");
+        assert_eq!(truncate_utf8(ascii, 20), "abcdefghij");
+
+        // Japanese 3-byte character 'あ' (0xE3, 0x81, 0x82) repeated
+        let japanese = "あああ"; // 9 bytes total (3 bytes each)
+        // Requesting 4 bytes cuts in the middle of second character, should truncate safely to 3 bytes
+        assert_eq!(truncate_utf8(japanese, 4), "あ");
+        assert_eq!(truncate_utf8(japanese, 6), "ああ");
+    }
+
+    #[test]
+    fn test_clamp_timeout() {
+        assert_eq!(clamp_timeout(None, 10), Duration::from_secs(10));
+        assert_eq!(clamp_timeout(Some(0), 10), Duration::from_secs(1));
+        assert_eq!(clamp_timeout(Some(500), 10), Duration::from_secs(120));
+        assert_eq!(clamp_timeout(Some(30), 10), Duration::from_secs(30));
     }
 
     #[test]
@@ -486,7 +611,7 @@ mod tests {
             .expect("translation response");
         assert_eq!(res.translated_text, "Tetap Lapar");
         assert!(res.from_cache);
-        assert_eq!(res.latency_ms, 0.0);
+        assert!(res.latency_ms >= 0.0 && res.latency_ms < 50.0);
     }
 
     #[tokio::test]
@@ -506,6 +631,6 @@ mod tests {
             .expect("translation response");
         assert_eq!(res.translated_text, "Identical Text");
         assert!(!res.from_cache);
-        assert_eq!(res.latency_ms, 0.0);
+        assert!(res.latency_ms >= 0.0 && res.latency_ms < 50.0);
     }
 }

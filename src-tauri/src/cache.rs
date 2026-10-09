@@ -21,7 +21,13 @@ impl TranslationCache {
     pub fn open_default() -> Result<Self, String> {
         let db_path = Self::get_default_db_path();
         if let Some(parent) = db_path.parent() {
-            let _ = create_dir_all(parent);
+            create_dir_all(parent).map_err(|e| {
+                format!(
+                    "Failed to create cache directory '{}': {}",
+                    parent.display(),
+                    e
+                )
+            })?;
         }
         Self::open_path(db_path).map_err(|e| e.to_string())
     }

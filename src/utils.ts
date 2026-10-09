@@ -132,7 +132,8 @@ export function formatCacheCountLabel(count: number): string {
  */
 export function formatTranslationMetric(latencyMs: number, fromCache: boolean): string {
   if (fromCache) {
-    return "< 0.1 ms (SQLite Cache Hit)";
+    const latStr = latencyMs < 0.1 ? "< 0.1" : latencyMs.toFixed(2);
+    return `${latStr} ms (SQLite Cache Hit)`;
   }
   return `${latencyMs.toFixed(1)} ms (Cloud LLM Network)`;
 }
