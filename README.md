@@ -1,8 +1,8 @@
 # Subterranean Staircase
 
-Real-time, on-device screen subtitle translator for macOS and Windows.
+Real-time on-screen subtitle translator for macOS and Windows.
 
-Watch foreign films, anime, livestreams, or video courses without language barriers. The app runs quietly in your menu bar / system tray, reads on-screen hardcoded or soft subtitles directly from your media player (e.g. VLC, MPV, Browser, YouTube), translates them in real-time on-device, and renders a crisp, click-through overlay on top of your video.
+When watching videos, anime, or livestreams with captions in a foreign language you don't understand, Subterranean Staircase reads those on-screen subtitles directly from your media player (e.g. VLC, MPV, YouTube, Browser), translates them in real-time, and displays a new translated subtitle overlay right on top of your video—without needing external subtitle files.
 
 ---
 
