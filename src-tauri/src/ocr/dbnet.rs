@@ -305,7 +305,29 @@ pub fn unclip_polygon(box_pts: &[[f32; 2]; 4], unclip_ratio: f64) -> Vec<[f32; 2
         .collect()
 }
 
-/// Compute fast box average confidence score across probability bitmap.
+/// Checks whether point `p` is inside oriented convex polygon `quad`.
+#[inline]
+pub fn is_point_in_quad(p: [f32; 2], quad: &[[f32; 2]; 4]) -> bool {
+    let mut sign = None;
+    for i in 0..4 {
+        let p1 = quad[i];
+        let p2 = quad[(i + 1) % 4];
+        let cross = (p2[0] - p1[0]) * (p[1] - p1[1]) - (p2[1] - p1[1]) * (p[0] - p1[0]);
+        if cross.abs() > 1e-4 {
+            let curr_sign = cross > 0.0;
+            if let Some(s) = sign {
+                if s != curr_sign {
+                    return false;
+                }
+            } else {
+                sign = Some(curr_sign);
+            }
+        }
+    }
+    true
+}
+
+/// Compute fast box average confidence score across probability bitmap inside oriented quad.
 pub fn box_score_fast(
     prob_slice: &[f32],
     width: u32,
@@ -326,11 +348,15 @@ pub fn box_score_fast(
 
     for y in min_y..=max_y {
         let row_offset = (y * width) as usize;
+        let y_f = y as f32 + 0.5;
         for x in min_x..=max_x {
-            let idx = row_offset + x as usize;
-            if idx < prob_slice.len() {
-                sum += prob_slice[idx];
-                count += 1;
+            let x_f = x as f32 + 0.5;
+            if is_point_in_quad([x_f, y_f], box_pts) {
+                let idx = row_offset + x as usize;
+                if idx < prob_slice.len() {
+                    sum += prob_slice[idx];
+                    count += 1;
+                }
             }
         }
     }

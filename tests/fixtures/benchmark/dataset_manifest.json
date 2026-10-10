@@ -1,0 +1,252 @@
+[
+  {
+    "id": "tier1_01",
+    "tier": 1,
+    "tier_name": "Clean Baseline",
+    "filename": "tier1_01.png",
+    "filepath": "tests/fixtures/benchmark/tier1_01.png",
+    "reference_text": "Stay Hungry Stay Foolish",
+    "lang": "en",
+    "description": "Standard clean white-on-dark centered subtitle"
+  },
+  {
+    "id": "tier1_02",
+    "tier": 1,
+    "tier_name": "Clean Baseline",
+    "filename": "tier1_02.png",
+    "filepath": "tests/fixtures/benchmark/tier1_02.png",
+    "reference_text": "Subtitles are working properly on screen",
+    "lang": "en",
+    "description": "Full sentence dialog"
+  },
+  {
+    "id": "tier1_03",
+    "tier": 1,
+    "tier_name": "Clean Baseline",
+    "filename": "tier1_03.png",
+    "filepath": "tests/fixtures/benchmark/tier1_03.png",
+    "reference_text": "Welcome to the annual conference 2026",
+    "lang": "en",
+    "description": "Alphanumeric sentence with year"
+  },
+  {
+    "id": "tier1_04",
+    "tier": 1,
+    "tier_name": "Clean Baseline",
+    "filename": "tier1_04.png",
+    "filepath": "tests/fixtures/benchmark/tier1_04.png",
+    "reference_text": "Halo selamat datang di Indonesia",
+    "lang": "id",
+    "description": "Indonesian clean title"
+  },
+  {
+    "id": "tier1_05",
+    "tier": 1,
+    "tier_name": "Clean Baseline",
+    "filename": "tier1_05.png",
+    "filepath": "tests/fixtures/benchmark/tier1_05.png",
+    "reference_text": "Connecting the dots looking forward",
+    "lang": "en",
+    "description": "Bold clean typography"
+  },
+  {
+    "id": "tier2_01",
+    "tier": 2,
+    "tier_name": "Multilingual Dense CJK",
+    "filename": "tier2_01.png",
+    "filepath": "tests/fixtures/benchmark/tier2_01.png",
+    "reference_text": "こんにちは世界へようこそ",
+    "lang": "ja",
+    "description": "Japanese Hiragana and Kanji (World)"
+  },
+  {
+    "id": "tier2_02",
+    "tier": 2,
+    "tier_name": "Multilingual Dense CJK",
+    "filename": "tier2_02.png",
+    "filepath": "tests/fixtures/benchmark/tier2_02.png",
+    "reference_text": "東京の夜景は本当に美しいですね",
+    "lang": "ja",
+    "description": "Complex Kanji strokes: 東京, 夜景, 美しい"
+  },
+  {
+    "id": "tier2_03",
+    "tier": 2,
+    "tier_name": "Multilingual Dense CJK",
+    "filename": "tier2_03.png",
+    "filepath": "tests/fixtures/benchmark/tier2_03.png",
+    "reference_text": "欢迎来到人工智能的新时代",
+    "lang": "zh",
+    "description": "Simplified Chinese: 人工智能"
+  },
+  {
+    "id": "tier2_04",
+    "tier": 2,
+    "tier_name": "Multilingual Dense CJK",
+    "filename": "tier2_04.png",
+    "filepath": "tests/fixtures/benchmark/tier2_04.png",
+    "reference_text": "千里之行始于足下",
+    "lang": "zh",
+    "description": "Chinese Idiom (Proverb)"
+  },
+  {
+    "id": "tier2_05",
+    "tier": 2,
+    "tier_name": "Multilingual Dense CJK",
+    "filename": "tier2_05.png",
+    "filepath": "tests/fixtures/benchmark/tier2_05.png",
+    "reference_text": "안녕하세요 여러분 반갑습니다",
+    "lang": "ko",
+    "description": "Korean Hangul broadcast subtitle"
+  },
+  {
+    "id": "tier3_01",
+    "tier": 3,
+    "tier_name": "Burned-In Cinema & Noise",
+    "filename": "tier3_01.png",
+    "filepath": "tests/fixtures/benchmark/tier3_01.png",
+    "reference_text": "Watch out! The bridge is collapsing!",
+    "lang": "en",
+    "description": "Cinema yellow font over dynamic warm explosion scene"
+  },
+  {
+    "id": "tier3_02",
+    "tier": 3,
+    "tier_name": "Burned-In Cinema & Noise",
+    "filename": "tier3_02.png",
+    "filepath": "tests/fixtures/benchmark/tier3_02.png",
+    "reference_text": "She said it was impossible, but we did it anyway!",
+    "lang": "en",
+    "description": "Yellow italicized speaker dialogue"
+  },
+  {
+    "id": "tier3_03",
+    "tier": 3,
+    "tier_name": "Burned-In Cinema & Noise",
+    "filename": "tier3_03.png",
+    "filepath": "tests/fixtures/benchmark/tier3_03.png",
+    "reference_text": "The snowstorm is getting worse every minute",
+    "lang": "en",
+    "description": "White font over high-luminance bright snow background (low contrast test)"
+  },
+  {
+    "id": "tier3_04",
+    "tier": 3,
+    "tier_name": "Burned-In Cinema & Noise",
+    "filename": "tier3_04.png",
+    "filepath": "tests/fixtures/benchmark/tier3_04.png",
+    "reference_text": "Hold on tight, we are entering the tunnel!",
+    "lang": "en",
+    "description": "Yellow cinema font over bright glare background"
+  },
+  {
+    "id": "tier3_05",
+    "tier": 3,
+    "tier_name": "Burned-In Cinema & Noise",
+    "filename": "tier3_05.png",
+    "filepath": "tests/fixtures/benchmark/tier3_05.png",
+    "reference_text": "Kami berhasil menemukan jalan keluar rahasia",
+    "lang": "id",
+    "description": "Indonesian cinema subtitle"
+  },
+  {
+    "id": "tier4_01",
+    "tier": 4,
+    "tier_name": "Descender Torture & Multi-line",
+    "filename": "tier4_01.png",
+    "filepath": "tests/fixtures/benchmark/tier4_01.png",
+    "reference_text": "paying typography equipment, jumping quickly;",
+    "lang": "en",
+    "description": "Torture test with descenders: p, y, g, q, j, comma, semicolon"
+  },
+  {
+    "id": "tier4_02",
+    "tier": 4,
+    "tier_name": "Descender Torture & Multi-line",
+    "filename": "tier4_02.png",
+    "filepath": "tests/fixtures/benchmark/tier4_02.png",
+    "reference_text": "flying puppies gently playing, quietly praying;",
+    "lang": "en",
+    "description": "High density of y, p, g descenders touching boundary"
+  },
+  {
+    "id": "tier4_03",
+    "tier": 4,
+    "tier_name": "Descender Torture & Multi-line",
+    "filename": "tier4_03.png",
+    "filepath": "tests/fixtures/benchmark/tier4_03.png",
+    "reference_text": "Where did everyone go? I think they went into the forest.",
+    "lang": "en",
+    "description": "2-line conversation subtitle stacked vertically"
+  },
+  {
+    "id": "tier4_04",
+    "tier": 4,
+    "tier_name": "Descender Torture & Multi-line",
+    "filename": "tier4_04.png",
+    "filepath": "tests/fixtures/benchmark/tier4_04.png",
+    "reference_text": "Apakah kamu mendengar suara itu? Ya, suara itu datang dari bawah tangga.",
+    "lang": "id",
+    "description": "Indonesian 2-line dialog subtitle"
+  },
+  {
+    "id": "tier4_05",
+    "tier": 4,
+    "tier_name": "Descender Torture & Multi-line",
+    "filename": "tier4_05.png",
+    "filepath": "tests/fixtures/benchmark/tier4_05.png",
+    "reference_text": "東京タワーが見えますか？ ええ、とても綺麗に見えますよ。",
+    "lang": "ja",
+    "description": "Japanese 2-line conversation"
+  },
+  {
+    "id": "tier5_01",
+    "tier": 5,
+    "tier_name": "Adversarial Anomalies",
+    "filename": "tier5_01.png",
+    "filepath": "tests/fixtures/benchmark/tier5_01.png",
+    "reference_text": "This subtitle is semi transparent with 55% opacity",
+    "lang": "en",
+    "description": "Semi-transparent subtitle (55% alpha)"
+  },
+  {
+    "id": "tier5_02",
+    "tier": 5,
+    "tier_name": "Adversarial Anomalies",
+    "filename": "tier5_02.png",
+    "filepath": "tests/fixtures/benchmark/tier5_02.png",
+    "reference_text": "Tilted camera angle subtitle rotation test",
+    "lang": "en",
+    "description": "3.5 degree rotated text (handheld camera tilt)"
+  },
+  {
+    "id": "tier5_03",
+    "tier": 5,
+    "tier_name": "Adversarial Anomalies",
+    "filename": "tier5_03.png",
+    "filepath": "tests/fixtures/benchmark/tier5_03.png",
+    "reference_text": "Small compact caption line at 22px size",
+    "lang": "en",
+    "description": "Low resolution small caption (22px)"
+  },
+  {
+    "id": "tier5_04",
+    "tier": 5,
+    "tier_name": "Adversarial Anomalies",
+    "filename": "tier5_04.png",
+    "filepath": "tests/fixtures/benchmark/tier5_04.png",
+    "reference_text": "[Music] (Laughs) Wait... Did you see that?",
+    "lang": "en",
+    "description": "Closed captions with music cues, brackets and ellipses"
+  },
+  {
+    "id": "tier5_05",
+    "tier": 5,
+    "tier_name": "Adversarial Anomalies",
+    "filename": "tier5_05.png",
+    "filepath": "tests/fixtures/benchmark/tier5_05.png",
+    "reference_text": "Top lyrics and bottom dialogue concurrent split",
+    "lang": "en",
+    "description": "Secondary subtitle in top band (20% screen ratio)"
+  }
+]
