@@ -4,7 +4,11 @@ import {
   formatCacheCountLabel,
   formatDiffStatus,
   formatLanguagePairLabel,
+  formatOcrMetric,
+  formatOcrStatusBadge,
   formatTranslationMetric,
+  OcrResultPayload,
+  OcrStatusPayload,
   OverlayStyle,
   parseCaptureTargetValue,
 } from "./utils";
@@ -122,6 +126,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnPresetJp = document.getElementById("btn-preset-jp");
   const btnClearOverlay = document.getElementById("btn-clear-overlay");
   const btnToggleOverlayVis = document.getElementById("btn-toggle-overlay-vis");
+
+  // DOM Elements - Neural OCR Pipeline
+  const badgeOcrStatus = document.getElementById("badge-ocr-status");
+  const btnTriggerOcr = document.getElementById("btn-trigger-ocr");
+  const btnOcrToTrans = document.getElementById("btn-ocr-to-trans");
+  const boxOcrResult = document.getElementById("box-ocr-result");
 
   // DOM Elements - Overlay Settings
   const btnToggleInteractive = document.getElementById("btn-toggle-interactive");
@@ -366,6 +376,96 @@ window.addEventListener("DOMContentLoaded", async () => {
       } else {
         startPreview();
       }
+    });
+  }
+
+  // 3.5 Neural OCR Pipeline
+  let lastOcrText = "";
+
+  async function refreshOcrStatus() {
+    try {
+      const status = await invoke<OcrStatusPayload>("get_ocr_status");
+      if (badgeOcrStatus) {
+        const badgeInfo = formatOcrStatusBadge(status);
+        badgeOcrStatus.textContent = badgeInfo.label;
+        badgeOcrStatus.className = `settings-card-badge ${badgeInfo.badgeClass}`;
+      }
+      log(`OCR Engine Status: ready=${status.is_ready}, det=${status.det_model_present}, rec=${status.rec_model_present}`);
+    } catch (err) {
+      log(`Error querying OCR status: ${String(err)}`);
+    }
+  }
+
+  void refreshOcrStatus();
+
+  if (btnTriggerOcr) {
+    btnTriggerOcr.addEventListener("click", async () => {
+      btnTriggerOcr.setAttribute("disabled", "true");
+      lastOcrText = "";
+      if (btnOcrToTrans) {
+        btnOcrToTrans.setAttribute("disabled", "true");
+      }
+      if (boxOcrResult) {
+        boxOcrResult.textContent = "Running neural OCR inference (DBNet + SVTR)...";
+        boxOcrResult.classList.remove("hidden");
+      }
+
+      try {
+        const targetVal = selectCaptureTarget?.value || "screen:0";
+        const parsed = parseCaptureTargetValue(targetVal);
+        const winId = parsed.kind === "window" ? parsed.id : null;
+        const monId = parsed.kind === "screen" ? parsed.id : null;
+
+        const res = await invoke<OcrResultPayload>("run_ocr_on_frame", {
+          image_base64: null,
+          window_id: winId,
+          monitor_id: monId,
+          roi: null,
+        });
+
+        lastOcrText = res.consolidated_text;
+        const metric = formatOcrMetric(res.latency_ms, res.detections.length);
+        const report = `[OCR ${metric} | ${res.debounce_status}]\n"${res.consolidated_text || "(No subtitle text detected)"}"`;
+
+        if (boxOcrResult) {
+          boxOcrResult.textContent = report;
+        }
+        log(`OCR Output: ${report.replace(/\n/g, " ")}`);
+
+        if (btnOcrToTrans) {
+          if (res.consolidated_text) {
+            btnOcrToTrans.removeAttribute("disabled");
+          } else {
+            btnOcrToTrans.setAttribute("disabled", "true");
+          }
+        }
+      } catch (err) {
+        lastOcrText = "";
+        if (btnOcrToTrans) {
+          btnOcrToTrans.setAttribute("disabled", "true");
+        }
+        if (boxOcrResult) {
+          boxOcrResult.textContent = `OCR Error: ${String(err)}`;
+        }
+        log(`OCR Error: ${String(err)}`);
+      } finally {
+        btnTriggerOcr.removeAttribute("disabled");
+      }
+    });
+  }
+
+  if (btnOcrToTrans) {
+    btnOcrToTrans.addEventListener("click", () => {
+      if (!lastOcrText) return;
+      if (inputTestTranslate) {
+        inputTestTranslate.value = lastOcrText;
+      }
+      tabButtons.forEach((b) => {
+        if (b.getAttribute("data-tab") === "tab-translation") {
+          b.click();
+        }
+      });
+      log(`Transferred OCR text to Translation Harness: "${lastOcrText}"`);
     });
   }
 

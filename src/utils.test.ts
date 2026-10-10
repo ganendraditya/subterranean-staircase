@@ -4,6 +4,8 @@ import {
   formatCacheCountLabel,
   formatDiffStatus,
   formatLanguagePairLabel,
+  formatOcrMetric,
+  formatOcrStatusBadge,
   formatTranslationMetric,
   generateOverlayCssTokens,
   isHexColor,
@@ -148,5 +150,37 @@ describe("formatTranslationMetric", () => {
 
   it("indicates network latency on cloud dispatch", () => {
     expect(formatTranslationMetric(125.4, false)).toBe("125.4 ms (Cloud LLM Network)");
+  });
+});
+
+describe("formatOcrStatusBadge", () => {
+  it("formats ready state", () => {
+    const res = formatOcrStatusBadge({ is_ready: true, det_model_present: true, rec_model_present: true });
+    expect(res.label).toContain("ACTIVE");
+    expect(res.badgeClass).toBe("badge-unlocked");
+  });
+
+  it("formats partial state", () => {
+    const res = formatOcrStatusBadge({ is_ready: false, det_model_present: true, rec_model_present: false });
+    expect(res.label).toContain("PARTIAL");
+    expect(res.badgeClass).toBe("badge-locked");
+  });
+
+  it("formats standby state", () => {
+    const res = formatOcrStatusBadge({ is_ready: false, det_model_present: false, rec_model_present: false });
+    expect(res.label).toContain("STANDBY");
+    expect(res.badgeClass).toBe("badge-locked");
+  });
+});
+
+describe("formatOcrMetric", () => {
+  it("formats box count and latency", () => {
+    expect(formatOcrMetric(28.3, 1)).toBe("28.3 ms (1 text box)");
+    expect(formatOcrMetric(45.1, 3)).toBe("45.1 ms (3 text boxes)");
+  });
+
+  it("handles NaN and negative values defensively", () => {
+    expect(formatOcrMetric(NaN, -1)).toBe("0.0 ms (0 text boxes)");
+    expect(formatOcrMetric(-15.4, NaN)).toBe("0.0 ms (0 text boxes)");
   });
 });
