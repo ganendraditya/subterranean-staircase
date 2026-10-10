@@ -137,3 +137,55 @@ export function formatTranslationMetric(latencyMs: number, fromCache: boolean): 
   }
   return `${latencyMs.toFixed(1)} ms (Cloud LLM Network)`;
 }
+
+export interface OcrStatusPayload {
+  is_ready: boolean;
+  det_model_present: boolean;
+  rec_model_present: boolean;
+}
+
+export interface OcrResultPayload {
+  detections: Array<{
+    text: string;
+    confidence: number;
+    box_points: { points: [[number, number], [number, number], [number, number], [number, number]] };
+    timestamp: number;
+  }>;
+  consolidated_text: string;
+  latency_ms: number;
+  debounce_status: string;
+}
+
+/**
+ * Formats OCR model availability into badge display status.
+ */
+export function formatOcrStatusBadge(status: OcrStatusPayload): {
+  label: string;
+  badgeClass: string;
+} {
+  if (status.is_ready) {
+    return {
+      label: "ACTIVE (DBNet + PP-OCR)",
+      badgeClass: "badge-unlocked",
+    };
+  }
+  if (status.det_model_present || status.rec_model_present) {
+    return {
+      label: "MODELS PARTIAL",
+      badgeClass: "badge-locked",
+    };
+  }
+  return {
+    label: "STANDBY (Models Absent)",
+    badgeClass: "badge-locked",
+  };
+}
+
+/**
+ * Formats OCR latency and text box count for telemetry display.
+ */
+export function formatOcrMetric(latencyMs: number, count: number): string {
+  const safeLatency = Number.isFinite(latencyMs) && latencyMs >= 0 ? latencyMs : 0;
+  const safeCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  return `${safeLatency.toFixed(1)} ms (${safeCount} text box${safeCount === 1 ? "" : "es"})`;
+}

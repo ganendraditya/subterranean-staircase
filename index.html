@@ -111,6 +111,23 @@
 
         <div class="settings-card">
           <div class="settings-card-header">
+            <h3 class="settings-card-title">Neural OCR Pipeline (ONNX Runtime)</h3>
+            <span id="badge-ocr-status" class="settings-card-badge badge-locked">INITIALIZING</span>
+          </div>
+          <p class="settings-description">
+            On-device neural optical character recognition running via ONNX Runtime in safe Rust. Features DBNet text detection with 2.0 unclip ratio and native CTC decoding.
+          </p>
+
+          <div class="input-action-row">
+            <button id="btn-trigger-ocr" class="btn btn-primary">Run OCR on Active Frame</button>
+            <button id="btn-ocr-to-trans" class="btn btn-secondary" disabled>Translate Extracted Text</button>
+          </div>
+
+          <div id="box-ocr-result" class="test-result-box hidden"></div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
             <h3 class="settings-card-title">Live Overlay Test Harness</h3>
             <span class="settings-card-badge">Instant Verification</span>
           </div>

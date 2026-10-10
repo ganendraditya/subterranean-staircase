@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod capture;
 pub mod diff;
+pub mod ocr;
 pub mod overlay;
 pub mod translate;
 
@@ -10,8 +11,10 @@ use tauri::{Emitter, Manager};
 use cache::TranslationCache;
 use capture::{CaptureEngine, CaptureRoi, CaptureTargets};
 use diff::{DiffResult, FrameDiffDetector};
+use ocr::{OcrDetection, OcrEngine};
 use overlay::{OverlayState, OverlayStyle, SubtitlePayload};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use translate::{LlmConfig, LlmTranslator, TranslationRequest, TranslationResponse};
 
 const OVERLAY_WIDTH: f64 = 800.0;
@@ -40,6 +43,7 @@ pub struct AppState {
     pub cache: Arc<TranslationCache>,
     pub llm_translator: LlmTranslator,
     pub llm_config: Mutex<LlmConfig>,
+    pub ocr_engine: Arc<OcrEngine>,
 }
 
 impl Default for AppState {
@@ -49,12 +53,14 @@ impl Default for AppState {
         }));
         let llm_translator = LlmTranslator::new(cache.clone());
         let llm_config = Mutex::new(LlmConfig::load());
+        let ocr_engine = Arc::new(OcrEngine::new_default());
         Self {
             overlay_state: Mutex::new(OverlayState::default()),
             diff_detector: Mutex::new(FrameDiffDetector::default()),
             cache,
             llm_translator,
             llm_config,
+            ocr_engine,
         }
     }
 }
@@ -379,6 +385,102 @@ fn clear_translation_cache(state: tauri::State<'_, AppState>) -> Result<(), Stri
     state.cache.clear().map_err(|e| e.to_string())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OcrStatusPayload {
+    pub is_ready: bool,
+    pub det_model_present: bool,
+    pub rec_model_present: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OcrResultPayload {
+    pub detections: Vec<OcrDetection>,
+    pub consolidated_text: String,
+    pub latency_ms: f32,
+    pub debounce_status: String,
+}
+
+#[tauri::command]
+fn get_ocr_status(state: tauri::State<'_, AppState>) -> OcrStatusPayload {
+    let is_ready = state.ocr_engine.is_ready();
+    let (det, rec) = OcrEngine::find_default_models();
+    OcrStatusPayload {
+        is_ready,
+        det_model_present: det.is_some(),
+        rec_model_present: rec.is_some(),
+    }
+}
+
+const MAX_BASE64_IMAGE_BYTES: usize = 15 * 1024 * 1024; // 15 MB base64 payload limit
+const MAX_DECODED_IMAGE_PIXELS: u64 = 4096 * 4096; // 16 MegaPixels boundary limit
+
+#[tauri::command]
+async fn run_ocr_on_frame(
+    state: tauri::State<'_, AppState>,
+    image_base64: Option<String>,
+    window_id: Option<u32>,
+    monitor_id: Option<u32>,
+    roi: Option<CaptureRoi>,
+) -> Result<OcrResultPayload, String> {
+    let t0 = Instant::now();
+    let ocr_engine = state.ocr_engine.clone();
+
+    // Move heavy capture, decoding, and neural inference onto Tokio blocking pool
+    tauri::async_runtime::spawn_blocking(move || {
+        let rgba_img = if let Some(b64) = image_base64 {
+            let clean_b64 = if let Some(idx) = b64.find(',') {
+                &b64[idx + 1..]
+            } else {
+                &b64
+            };
+            let trimmed = clean_b64.trim();
+            if trimmed.len() > MAX_BASE64_IMAGE_BYTES {
+                return Err("Base64 image payload exceeds maximum allowed size (15 MB)".to_string());
+            }
+
+            use base64::Engine;
+            let decoded = base64::prelude::BASE64_STANDARD
+                .decode(trimmed)
+                .map_err(|e| format!("Base64 decode error: {e}"))?;
+            let dyn_img = image::load_from_memory(&decoded)
+                .map_err(|e| format!("Image decode error: {e}"))?;
+
+            let (w, h) = (dyn_img.width() as u64, dyn_img.height() as u64);
+            if w * h > MAX_DECODED_IMAGE_PIXELS {
+                return Err(format!(
+                    "Image resolution ({}x{}) exceeds maximum allowed pixels limit",
+                    w, h
+                ));
+            }
+            dyn_img.to_rgba8()
+        } else if let Some(wid) = window_id {
+            CaptureEngine::capture_window(wid, roi.as_ref())?
+        } else {
+            CaptureEngine::capture_screen(monitor_id, roi.as_ref())?
+        };
+
+        let detections = ocr_engine.process_image(&rgba_img)?;
+        let latency_ms = t0.elapsed().as_secs_f32() * 1000.0;
+        let consolidated = OcrEngine::consolidate_detections(&detections);
+        let debounce_status_enum = ocr_engine.debounce_sentence(&consolidated);
+        let debounce_status = match debounce_status_enum {
+            ocr::spatial::DebounceStatus::Debouncing => "Debouncing (streaming)".to_string(),
+            ocr::spatial::DebounceStatus::Ready(_) => "Ready (stabilized)".to_string(),
+            ocr::spatial::DebounceStatus::Unchanged(_) => "Unchanged".to_string(),
+            ocr::spatial::DebounceStatus::Empty => "Empty".to_string(),
+        };
+
+        Ok(OcrResultPayload {
+            detections,
+            consolidated_text: consolidated,
+            latency_ms,
+            debounce_status,
+        })
+    })
+    .await
+    .map_err(|e| format!("OCR execution task joined with error: {e}"))?
+}
+
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .manage(AppState::default())
@@ -421,7 +523,9 @@ pub fn run() -> tauri::Result<()> {
             get_llm_config,
             save_llm_config,
             get_cache_stats,
-            clear_translation_cache
+            clear_translation_cache,
+            get_ocr_status,
+            run_ocr_on_frame
         ])
         .run(tauri::generate_context!())?;
     Ok(())
@@ -454,5 +558,7 @@ mod tests {
         assert!(overlay.is_visible);
         assert!(!overlay.is_interactive);
         assert_eq!(overlay.style.font_size, 24);
+        assert_eq!(state.cache.count(), 0);
+        let _ = state.ocr_engine.is_ready();
     }
 }
