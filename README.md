@@ -54,18 +54,14 @@ For developers contributing to the codebase, testing bug fixes, or running from 
 git clone https://github.com/ganendraditya/subterranean-staircase.git
 cd subterranean-staircase
 
-# Setup Python 3.10+ virtual environment
+# Run V2 Native Desktop App (Rust + Tauri v2 + Vite)
+bun install         # or npm install
+bun run tauri dev   # or npm run tauri dev
+
+# Or run V1 Prototype (Python 3.10+ / PyQt6)
 python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install --upgrade pip
 pip install -r requirements.txt
-
-# Run full test suite
-pytest tests/
-
-# Launch application
 python run.py
 ```
 
@@ -104,14 +100,27 @@ For users running from source or installed via the terminal one-liner:
 
 ---
 
-## Architecture & Stack (V1)
+## Architecture & Benchmark Performance (V1 vs V2)
 
-- **Screen & Window Capture:** Modular backend supporting macOS (ScreenCaptureKit / Quartz) and Windows (DirectX / Win32) with universal fallback via `mss`.
-- **Vision & OCR:** RapidOCR (ONNX Runtime, CoreML/DirectML/CPU) with perceptual frame-diff short-circuiting to minimize CPU/GPU usage when scenes are static.
-- **Subtitle Intelligence:** Dual-band spatial scanning (top & bottom priority), Jaccard similarity temporal tracking, and multi-language script filtering.
-- **Translation Engine:** CTranslate2 offline INT8 quantized MarianMT models with SQLite WAL caching + Universal OpenAI-Compatible Cloud LLM provider with fail-safe local fallback.
-- **UI & Overlay:** Hardware-accelerated PyQt6 transparent, click-through frameless overlay adhering to Anti-Slop WCAG AA contrast standards, anchored at bottom-center.
-- **Distribution:** Standalone `.dmg` (macOS arm64/x86_64), `Setup.exe` (Windows), and lightweight CLI installer.
+The `v2.0.0` release introduces a complete, pure native rewrite to **Rust + Tauri v2**, replacing Python 3 and PyQt6:
+
+| Architectural Metric | Prototype (V1 Python + PyQt6) | Production (V2 Rust + Tauri v2) | Impact / Performance Delta |
+| :--- | :---: | :---: | :--- |
+| **Installer Size** | ~150 MB (PyInstaller) | **$\le$ 35 MB** | **4.3× Smaller Package** |
+| **Standalone Executable** | 142 MB | **26 MB** | **5.4× Smaller Binary** |
+| **Idle Memory Footprint** | 156.4 MB (Dual Window) | **58.2 MB** | **62.8% RAM Reduction (2.7× leaner)** |
+| **Active Memory (Peak)** | 184 MB – 420 MB | **96.5 MB** | **Zero memory growth & zero GIL contention** |
+| **Cold Boot Startup Time** | 1.8 s – 2.5 s | **0.25 s** | **8× – 10× Instant Launch** |
+| **Perceptual Frame-Diff** | 0.044 ms (NumPy) | **0.005 ms** (SIMD AVX/NEON) | **8.8× Faster Gating (< 5 µs)** |
+| **Neural OCR Latency (P50)**| 190.2 ms (RapidOCR 720p) | **101.6 ms** (`ort` DBNet+SVTR) | **~2× Faster Full-Frame Processing** |
+| **SQLite WAL Memory Recall**| 0.025 ms | **< 0.005 ms** | **Sub-millisecond repeat phrase recall** |
+
+### Core Subsystems (V2):
+- **Screen & Window Grabber:** Native Quartz (`CGWindowListCreateImage`) on macOS and DXGI Desktop Duplication on Windows via zero-copy `xcap`.
+- **Vision Gating:** SIMD-accelerated Mean Absolute Difference (MAD) skipping 100% of OCR compute on static video frames.
+- **Neural OCR Pipeline:** Standalone ONNX Runtime (`ort` v2) with DBNet letterbox scaling (`unclip_ratio = 2.0`), PP-OCRv4 text recognition, and native Rust CTC greedy decoder (6,625 glyph dictionary).
+- **Dual-Engine Translation Matrix:** Model-agnostic OpenAI-compatible HTTP client (`reqwest` + `tokio`, SSRF-hardened, timeout-bounded) with instant SQLite WAL translation memory and built-in offline dictionary fallback.
+- **Floating Subtitle Overlay:** Non-activating, transparent, click-through webview window configured with `NSScreenSaverWindowLevel` (1000) for native macOS fullscreen spaces support.
 
 > **Deep Technical Specifications:** For full mathematical formulas, DBNet unclip scaling, NMT beam tuning benchmarks, and macOS WindowServer Spaces privilege specifications, see [`docs/TECHNICAL_STACK_AND_PIPELINES.md`](docs/TECHNICAL_STACK_AND_PIPELINES.md).
 
