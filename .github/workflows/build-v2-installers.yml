@@ -119,6 +119,16 @@ jobs:
           test -n "$msi_files"
           echo "Found Windows installer artifacts:"
           echo "$msi_files"
+          for f in $msi_files; do
+            if [ -f "$f" ]; then
+              size_mb=$(du -m "$f" | cut -f1)
+              echo "Artifact: $f -> ${size_mb} MB (Target: <= 35 MB)"
+              if [ "$size_mb" -gt 35 ]; then
+                echo "Error: Installer exceeds 35 MB footprint limit"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4

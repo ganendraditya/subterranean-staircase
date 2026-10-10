@@ -457,6 +457,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       try {
         const config = getActivePipelineConfig();
         await invoke("start_pipeline", { config });
+        pipelineConfigSyncPromise = Promise.resolve();
+        if (boxPipeTelemetry) {
+          boxPipeTelemetry.textContent = "";
+          boxPipeTelemetry.classList.add("hidden");
+        }
         updatePipelineControls("Running");
         log(`Started background translation pipeline on ${config.target_type}:${config.target_id} (${config.source_lang} -> ${config.target_lang}).`);
       } catch (err) {
@@ -495,6 +500,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       isPipelineActionBusy = true;
       try {
         await invoke("stop_pipeline");
+        pipelineConfigSyncPromise = Promise.resolve();
+        if (boxPipeTelemetry) {
+          boxPipeTelemetry.textContent = "";
+          boxPipeTelemetry.classList.add("hidden");
+        }
         updatePipelineControls("Stopped");
         log("Stopped background translation pipeline.");
       } catch (err) {
@@ -510,10 +520,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     await listen<PipelineMetrics>("pipeline_metrics", (event) => {
       const m = event.payload;
       updatePipelineControls(m.status);
-      if (valPipeFps) valPipeFps.textContent = `${m.fps.toFixed(1)} FPS`;
-      if (valPipeFrames) valPipeFrames.textContent = `${m.total_frames}`;
-      if (valPipeSavings) valPipeSavings.textContent = formatIdleSavings(m.total_frames, m.skipped_frames);
-      if (valPipeTrans) valPipeTrans.textContent = `${m.translations_count}`;
+      const fps = typeof m.fps === "number" && Number.isFinite(m.fps) ? m.fps : 0;
+      const totalFrames = typeof m.total_frames === "number" && Number.isFinite(m.total_frames) ? m.total_frames : 0;
+      const skippedFrames = typeof m.skipped_frames === "number" && Number.isFinite(m.skipped_frames) ? m.skipped_frames : 0;
+      const translations = typeof m.translations_count === "number" && Number.isFinite(m.translations_count) ? m.translations_count : 0;
+
+      if (valPipeFps) valPipeFps.textContent = `${fps.toFixed(1)} FPS`;
+      if (valPipeFrames) valPipeFrames.textContent = `${totalFrames}`;
+      if (valPipeSavings) valPipeSavings.textContent = formatIdleSavings(totalFrames, skippedFrames);
+      if (valPipeTrans) valPipeTrans.textContent = `${translations}`;
 
       if (boxPipeTelemetry && (m.last_detected_text || m.last_translated_text)) {
         const fallbackTag = m.is_fallback ? " [Offline Fallback]" : "";

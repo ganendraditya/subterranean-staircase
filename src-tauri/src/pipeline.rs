@@ -210,9 +210,11 @@ impl PipelineController {
         }
 
         // Reap any existing completed handle before spawning replacement
-        let mut handle_guard = self.worker_handle.lock().map_err(|e| e.to_string())?;
-        if let Some(old_handle) = handle_guard.take() {
-            let _ = old_handle.join();
+        {
+            let mut handle_guard = self.worker_handle.lock().map_err(|e| e.to_string())?;
+            if let Some(old_handle) = handle_guard.take() {
+                let _ = old_handle.join();
+            }
         }
 
         self.stop_signal.store(false, Ordering::SeqCst);
@@ -324,7 +326,14 @@ impl PipelineController {
 
                     let detections = match ocr_res {
                         Ok(d) => d,
-                        Err(_) => Vec::new(),
+                        Err(e) => {
+                            eprintln!("[PIPELINE-OCR-ERR] OCR inference error: {e}");
+                            let elapsed = loop_start.elapsed();
+                            if elapsed < target_interval {
+                                std::thread::sleep(target_interval - elapsed);
+                            }
+                            continue;
+                        }
                     };
 
                     if detections.is_empty() {
@@ -398,6 +407,10 @@ impl PipelineController {
                 }
 
                 is_running_arc.store(false, Ordering::SeqCst);
+                if let Ok(mut m) = metrics_arc.lock() {
+                    m.status = PipelineStatus::Stopped;
+                    let _ = app.emit("pipeline_metrics", &*m);
+                }
             });
 
         match spawn_res {
