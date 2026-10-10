@@ -1,16 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   clampNumber,
   formatCacheCountLabel,
   formatDiffStatus,
+  formatIdleSavings,
   formatLanguagePairLabel,
   formatOcrMetric,
   formatOcrStatusBadge,
+  formatPipelineStatusBadge,
   formatTranslationMetric,
   OcrResultPayload,
   OcrStatusPayload,
   OverlayStyle,
   parseCaptureTargetValue,
+  PipelineConfig,
+  PipelineMetrics,
+  PipelineStatus,
 } from "./utils";
 
 export interface SystemInfo {
@@ -104,6 +110,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements - Tabs
   const tabButtons = document.querySelectorAll<HTMLButtonElement>(".tab-btn");
   const tabPanes = document.querySelectorAll<HTMLElement>(".tab-pane");
+
+  // DOM Elements - Background Pipeline Orchestrator
+  const badgePipelineStatus = document.getElementById("badge-pipeline-status");
+  const btnStartPipeline = document.getElementById("btn-start-pipeline");
+  const btnPausePipeline = document.getElementById("btn-pause-pipeline");
+  const btnStopPipeline = document.getElementById("btn-stop-pipeline");
+  const valPipeFps = document.getElementById("val-pipe-fps");
+  const valPipeFrames = document.getElementById("val-pipe-frames");
+  const valPipeSavings = document.getElementById("val-pipe-savings");
+  const valPipeTrans = document.getElementById("val-pipe-trans");
+  const boxPipeTelemetry = document.getElementById("box-pipe-telemetry");
 
   // DOM Elements - Screen Capture & Preview
   const selectCaptureTarget = document.getElementById("select-capture-target") as HTMLSelectElement | null;
@@ -378,6 +395,152 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+
+  // 3.4 Background Translation Pipeline Orchestrator
+  let pipelineRunning = false;
+  let pipelinePaused = false;
+
+  function updatePipelineControls(status: PipelineStatus) {
+    if (badgePipelineStatus) {
+      const b = formatPipelineStatusBadge(status);
+      badgePipelineStatus.textContent = b.label;
+      badgePipelineStatus.className = `settings-card-badge ${b.badgeClass}`;
+    }
+
+    if (status === "Running") {
+      pipelineRunning = true;
+      pipelinePaused = false;
+      btnStartPipeline?.setAttribute("disabled", "true");
+      btnPausePipeline?.removeAttribute("disabled");
+      if (btnPausePipeline) btnPausePipeline.textContent = "Pause";
+      btnStopPipeline?.removeAttribute("disabled");
+    } else if (status === "Paused") {
+      pipelineRunning = true;
+      pipelinePaused = true;
+      btnStartPipeline?.setAttribute("disabled", "true");
+      btnPausePipeline?.removeAttribute("disabled");
+      if (btnPausePipeline) btnPausePipeline.textContent = "Resume";
+      btnStopPipeline?.removeAttribute("disabled");
+    } else {
+      pipelineRunning = false;
+      pipelinePaused = false;
+      btnStartPipeline?.removeAttribute("disabled");
+      btnPausePipeline?.setAttribute("disabled", "true");
+      if (btnPausePipeline) btnPausePipeline.textContent = "Pause";
+      btnStopPipeline?.setAttribute("disabled", "true");
+    }
+  }
+
+  function getActivePipelineConfig(): PipelineConfig {
+    const targetVal = selectCaptureTarget?.value || "screen:0";
+    const parsed = parseCaptureTargetValue(targetVal);
+    const srcLang = selectSourceLang?.value || "auto";
+    const tgtLang = selectTargetLang?.value || "en";
+
+    return {
+      target_type: parsed.kind,
+      target_id: parsed.id,
+      roi: null,
+      fps_limit: 10,
+      frame_diff_threshold: 0.015,
+      source_lang: srcLang,
+      target_lang: tgtLang,
+    };
+  }
+
+  let isPipelineActionBusy = false;
+
+  if (btnStartPipeline) {
+    btnStartPipeline.addEventListener("click", async () => {
+      if (isPipelineActionBusy) return;
+      isPipelineActionBusy = true;
+      try {
+        const config = getActivePipelineConfig();
+        await invoke("start_pipeline", { config });
+        updatePipelineControls("Running");
+        log(`Started background translation pipeline on ${config.target_type}:${config.target_id} (${config.source_lang} -> ${config.target_lang}).`);
+      } catch (err) {
+        log(`Failed to start pipeline: ${String(err)}`);
+      } finally {
+        isPipelineActionBusy = false;
+      }
+    });
+  }
+
+  if (btnPausePipeline) {
+    btnPausePipeline.addEventListener("click", async () => {
+      if (isPipelineActionBusy) return;
+      isPipelineActionBusy = true;
+      try {
+        if (pipelinePaused) {
+          await invoke("resume_pipeline");
+          updatePipelineControls("Running");
+          log("Resumed background translation pipeline.");
+        } else {
+          await invoke("pause_pipeline");
+          updatePipelineControls("Paused");
+          log("Paused background translation pipeline.");
+        }
+      } catch (err) {
+        log(`Pipeline pause/resume error: ${String(err)}`);
+      } finally {
+        isPipelineActionBusy = false;
+      }
+    });
+  }
+
+  if (btnStopPipeline) {
+    btnStopPipeline.addEventListener("click", async () => {
+      if (isPipelineActionBusy) return;
+      isPipelineActionBusy = true;
+      try {
+        await invoke("stop_pipeline");
+        updatePipelineControls("Stopped");
+        log("Stopped background translation pipeline.");
+      } catch (err) {
+        log(`Failed to stop pipeline: ${String(err)}`);
+      } finally {
+        isPipelineActionBusy = false;
+      }
+    });
+  }
+
+  // Listen to live pipeline telemetry metrics
+  try {
+    await listen<PipelineMetrics>("pipeline_metrics", (event) => {
+      const m = event.payload;
+      updatePipelineControls(m.status);
+      if (valPipeFps) valPipeFps.textContent = `${m.fps.toFixed(1)} FPS`;
+      if (valPipeFrames) valPipeFrames.textContent = `${m.total_frames}`;
+      if (valPipeSavings) valPipeSavings.textContent = formatIdleSavings(m.total_frames, m.skipped_frames);
+      if (valPipeTrans) valPipeTrans.textContent = `${m.translations_count}`;
+
+      if (boxPipeTelemetry && (m.last_detected_text || m.last_translated_text)) {
+        const fallbackTag = m.is_fallback ? " [Offline Fallback]" : "";
+        boxPipeTelemetry.textContent = `[Live Subtitle${fallbackTag}]\nSource: "${m.last_detected_text}"\nTranslated: "${m.last_translated_text}"`;
+        boxPipeTelemetry.classList.remove("hidden");
+      }
+    });
+  } catch (err) {
+    log(`Note subscribing to pipeline telemetry: ${String(err)}`);
+  }
+
+  // Update pipeline configuration live when target or language selections change (serialized)
+  let pipelineConfigSyncPromise: Promise<unknown> = Promise.resolve();
+  function syncPipelineConfig() {
+    if (pipelineRunning) {
+      const config = getActivePipelineConfig();
+      pipelineConfigSyncPromise = pipelineConfigSyncPromise
+        .then(() => invoke("update_pipeline_config", { config }))
+        .catch((e) => {
+          log(`Failed to sync pipeline config: ${String(e)}`);
+        });
+    }
+  }
+
+  selectCaptureTarget?.addEventListener("change", syncPipelineConfig);
+  selectSourceLang?.addEventListener("change", syncPipelineConfig);
+  selectTargetLang?.addEventListener("change", syncPipelineConfig);
 
   // 3.5 Neural OCR Pipeline
   let lastOcrText = "";

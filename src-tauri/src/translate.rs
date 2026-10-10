@@ -91,6 +91,175 @@ pub struct TranslationResponse {
     pub target_lang: String,
     pub from_cache: bool,
     pub latency_ms: f32,
+    #[serde(default)]
+    pub is_fallback: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OfflineTranslator;
+
+impl OfflineTranslator {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Translates text using local dictionary and linguistic heuristics for common Big 5 subtitle dialogue.
+    pub fn translate(&self, source_text: &str, src_lang: &str, tgt_lang: &str) -> String {
+        let cleaned = source_text.trim();
+        if cleaned.is_empty() {
+            return String::new();
+        }
+
+        let s_lower = cleaned.to_lowercase();
+        let s_clean = s_lower.trim_matches(|c: char| c.is_ascii_punctuation() || c.is_whitespace());
+
+        let src = src_lang.trim().to_lowercase();
+        let tgt = tgt_lang.trim().to_lowercase();
+
+        if let Some(trans) = Self::lookup_phrase(s_clean, &src, &tgt) {
+            return trans.to_string();
+        }
+
+        // Return original text if not found in curated dictionary
+        cleaned.to_string()
+    }
+
+    fn lookup_phrase(phrase: &str, src: &str, tgt: &str) -> Option<&'static str> {
+        match (src, tgt) {
+            ("en", "id") => match phrase {
+                "hello" | "hi" => Some("Halo"),
+                "thank you" | "thanks" => Some("Terima kasih"),
+                "yes" | "yeah" | "yep" => Some("Ya"),
+                "no" | "nope" => Some("Tidak"),
+                "wait" | "wait a minute" | "hold on" => Some("Tunggu"),
+                "what" | "what?" => Some("Apa?"),
+                "who" | "who?" => Some("Siapa?"),
+                "where" | "where?" => Some("Di mana?"),
+                "why" | "why?" => Some("Kenapa?"),
+                "how" | "how?" => Some("Bagaimana?"),
+                "stop" => Some("Berhenti"),
+                "let's go" | "lets go" => Some("Ayo pergi"),
+                "help" | "help me" => Some("Tolong"),
+                "please" => Some("Tolong"),
+                "sorry" | "i'm sorry" => Some("Maaf"),
+                "excuse me" => Some("Permisi"),
+                "okay" | "ok" | "alright" => Some("Baiklah"),
+                "goodbye" | "bye" => Some("Selamat tinggal"),
+                "i see" | "i understand" => Some("Begitu rupanya"),
+                "of course" => Some("Tentu saja"),
+                "really" | "really?" => Some("Benarkah?"),
+                "never" => Some("Tidak pernah"),
+                "always" => Some("Selalu"),
+                "stay hungry stay foolish" => Some("Tetap lapar, tetap bodoh"),
+                _ => None,
+            },
+            ("id", "en") => match phrase {
+                "halo" => Some("Hello"),
+                "terima kasih" | "makasih" => Some("Thank you"),
+                "ya" => Some("Yes"),
+                "tidak" | "nggak" | "enggak" => Some("No"),
+                "tunggu" | "tunggu sebentar" => Some("Wait"),
+                "apa" | "apa?" => Some("What?"),
+                "siapa" | "siapa?" => Some("Who?"),
+                "di mana" | "dimana" => Some("Where?"),
+                "kenapa" | "mengapa" => Some("Why?"),
+                "tolong" | "bantu aku" => Some("Help"),
+                "maaf" => Some("Sorry"),
+                "permisi" => Some("Excuse me"),
+                "baiklah" | "oke" => Some("Okay"),
+                "ayo" | "ayo pergi" => Some("Let's go"),
+                "selamat tinggal" | "sampai jumpa" => Some("Goodbye"),
+                _ => None,
+            },
+            ("ja", "en") | ("auto", "en") => match phrase {
+                "こんにちは" | "こんにちわ" => Some("Hello"),
+                "ありがとう" | "ありがとうございます" => Some("Thank you"),
+                "はい" => Some("Yes"),
+                "いいえ" => Some("No"),
+                "待って" | "ちょっと待って" => Some("Wait"),
+                "何" | "なに" => Some("What?"),
+                "誰" | "だれ" => Some("Who?"),
+                "どこ" => Some("Where?"),
+                "なぜ" | "どうして" => Some("Why?"),
+                "助けて" => Some("Help!"),
+                "行こう" => Some("Let's go"),
+                "止まれ" | "やめて" => Some("Stop!"),
+                "すみません" => Some("Excuse me"),
+                "ごめんなさい" => Some("I'm sorry"),
+                "大丈夫" | "だいじょうぶ" => Some("It's okay"),
+                "さようなら" => Some("Goodbye"),
+                "なるほど" => Some("I see"),
+                _ => None,
+            },
+            ("ja", "id") | ("auto", "id") => match phrase {
+                "こんにちは" | "こんにちわ" => Some("Halo"),
+                "ありがとう" | "ありがとうございます" => Some("Terima kasih"),
+                "はい" => Some("Ya"),
+                "いいえ" => Some("Tidak"),
+                "待って" | "ちょっと待って" => Some("Tunggu"),
+                "何" | "なに" => Some("Apa?"),
+                "誰" | "だれ" => Some("Siapa?"),
+                "どこ" => Some("Di mana?"),
+                "助けて" => Some("Tolong!"),
+                "行こう" => Some("Ayo pergi"),
+                "やめて" | "止まれ" => Some("Hentikan!"),
+                "すみません" => Some("Permisi"),
+                "ごめんなさい" => Some("Maafkan aku"),
+                "大丈夫" | "だいじょうぶ" => Some("Tidak apa-apa"),
+                "さようなら" => Some("Selamat tinggal"),
+                _ => None,
+            },
+            ("zh", "en") => match phrase {
+                "你好" => Some("Hello"),
+                "谢谢" => Some("Thank you"),
+                "是的" | "对" => Some("Yes"),
+                "不是" | "不" => Some("No"),
+                "等等" => Some("Wait"),
+                "什么" => Some("What?"),
+                "救命" => Some("Help!"),
+                "走吧" => Some("Let's go"),
+                "再见" => Some("Goodbye"),
+                _ => None,
+            },
+            ("zh", "id") => match phrase {
+                "你好" => Some("Halo"),
+                "谢谢" => Some("Terima kasih"),
+                "是的" | "对" => Some("Ya"),
+                "不是" | "不" => Some("Tidak"),
+                "等等" => Some("Tunggu"),
+                "什么" => Some("Apa?"),
+                "救命" => Some("Tolong!"),
+                "走吧" => Some("Ayo pergi"),
+                "再见" => Some("Sampai jumpa"),
+                _ => None,
+            },
+            ("ko", "en") => match phrase {
+                "안녕하세요" => Some("Hello"),
+                "감사합니다" | "고마워" => Some("Thank you"),
+                "네" | "예" => Some("Yes"),
+                "아니요" | "아니" => Some("No"),
+                "잠깐만" | "기다려" => Some("Wait"),
+                "뭐야" | "뭐" => Some("What?"),
+                "도와줘" | "살려줘" => Some("Help!"),
+                "가자" => Some("Let's go"),
+                "안녕" => Some("Goodbye"),
+                _ => None,
+            },
+            ("ko", "id") => match phrase {
+                "안녕하세요" => Some("Halo"),
+                "감사합니다" | "고마워" => Some("Terima kasih"),
+                "네" | "예" => Some("Ya"),
+                "아니요" | "아니" => Some("Tidak"),
+                "잠깐만" | "기다려" => Some("Tunggu sebentar"),
+                "뭐야" | "뭐" => Some("Apa?"),
+                "도와줘" | "살려줘" => Some("Tolong!"),
+                "가자" => Some("Ayo"),
+                "안녕" => Some("Sampai jumpa"),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -258,6 +427,7 @@ pub fn sanitize_llm_translation(raw: &str) -> String {
 pub struct LlmTranslator {
     client: reqwest::Client,
     cache: Arc<TranslationCache>,
+    pub offline_translator: OfflineTranslator,
 }
 
 impl LlmTranslator {
@@ -266,7 +436,49 @@ impl LlmTranslator {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
-        Self { client, cache }
+        Self {
+            client,
+            cache,
+            offline_translator: OfflineTranslator::new(),
+        }
+    }
+
+    pub fn translate_blocking(
+        &self,
+        config: &LlmConfig,
+        req: &TranslationRequest,
+    ) -> Result<TranslationResponse, String> {
+        let cleaned_source = req.source_text.trim();
+        let src_code = req.source_lang.trim().to_lowercase();
+        let tgt_code = req.target_lang.trim().to_lowercase();
+
+        // 1. Identity Check
+        if src_code == tgt_code && src_code != "auto" {
+            return Ok(TranslationResponse {
+                source_text: req.source_text.clone(),
+                translated_text: cleaned_source.to_string(),
+                source_lang: src_code,
+                target_lang: tgt_code,
+                from_cache: false,
+                latency_ms: 0.0,
+                is_fallback: false,
+            });
+        }
+
+        // 2. High-concurrency Cache Lookup (< 1 ms instant response)
+        if let Some(cached_text) = self.cache.get(cleaned_source, &src_code, &tgt_code) {
+            return Ok(TranslationResponse {
+                source_text: req.source_text.clone(),
+                translated_text: cached_text,
+                source_lang: src_code,
+                target_lang: tgt_code,
+                from_cache: true,
+                latency_ms: 0.0,
+                is_fallback: false,
+            });
+        }
+
+        tauri::async_runtime::block_on(self.translate(config, req))
     }
 
     pub async fn translate(
@@ -284,6 +496,7 @@ impl LlmTranslator {
                 target_lang: req.target_lang.clone(),
                 from_cache: false,
                 latency_ms: 0.0,
+                is_fallback: false,
             });
         }
 
@@ -300,6 +513,7 @@ impl LlmTranslator {
                 target_lang: tgt_code,
                 from_cache: false,
                 latency_ms,
+                is_fallback: false,
             });
         }
 
@@ -313,11 +527,30 @@ impl LlmTranslator {
                 target_lang: tgt_code,
                 from_cache: true,
                 latency_ms,
+                is_fallback: false,
             });
         }
 
         // 3. Remote OpenAI-compatible API Dispatch
-        let endpoint = normalize_chat_endpoint(&config.base_url)?;
+        let endpoint_res = normalize_chat_endpoint(&config.base_url);
+        let endpoint = match endpoint_res {
+            Ok(ep) => ep,
+            Err(_) => {
+                // Fallback directly to offline translation on invalid endpoint without poisoning persistent cache
+                let fallback = self.offline_translator.translate(cleaned_source, &src_code, &tgt_code);
+                let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
+                return Ok(TranslationResponse {
+                    source_text: req.source_text.clone(),
+                    translated_text: fallback,
+                    source_lang: src_code,
+                    target_lang: tgt_code,
+                    from_cache: false,
+                    latency_ms,
+                    is_fallback: true,
+                });
+            }
+        };
+
         let src_name = get_language_display_name(&src_code);
         let tgt_name = get_language_display_name(&tgt_code);
 
@@ -379,65 +612,86 @@ impl LlmTranslator {
 
         let timeout = clamp_timeout(config.timeout_seconds, 10);
 
-        let resp = self
-            .client
-            .post(&endpoint)
-            .headers(headers)
-            .json(&payload)
-            .timeout(timeout)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request to '{}' failed: {}", endpoint, e))?;
-
-        let status = resp.status();
-        if !status.is_success() {
-            let error_body = resp
-                .text()
+        let remote_call = async {
+            let resp = self
+                .client
+                .post(&endpoint)
+                .headers(headers)
+                .json(&payload)
+                .timeout(timeout)
+                .send()
                 .await
-                .unwrap_or_else(|_| "Unknown error response".to_string());
-            let trimmed_body = error_body.trim();
-            let truncated = truncate_utf8(trimmed_body, 250);
-            let sanitized_body = if trimmed_body.len() > truncated.len() {
-                format!("{}...", truncated)
-            } else {
-                truncated.to_string()
-            };
-            return Err(format!(
-                "API returned error status {} ({}): {}",
-                status.as_u16(),
-                status.canonical_reason().unwrap_or("Error"),
-                sanitized_body
-            ));
+                .map_err(|e| format!("HTTP request to '{}' failed: {}", endpoint, e))?;
+
+            let status = resp.status();
+            if !status.is_success() {
+                let error_body = resp
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unknown error response".to_string());
+                let trimmed_body = error_body.trim();
+                let truncated = truncate_utf8(trimmed_body, 250);
+                let sanitized_body = if trimmed_body.len() > truncated.len() {
+                    format!("{}...", truncated)
+                } else {
+                    truncated.to_string()
+                };
+                return Err(format!(
+                    "API returned error status {} ({}): {}",
+                    status.as_u16(),
+                    status.canonical_reason().unwrap_or("Error"),
+                    sanitized_body
+                ));
+            }
+
+            let completion: ChatCompletionResponse = resp
+                .json()
+                .await
+                .map_err(|e| format!("Failed to parse response JSON: {}", e))?;
+
+            let raw_content = completion
+                .choices
+                .and_then(|c| c.into_iter().next())
+                .and_then(|c| c.message)
+                .and_then(|m| m.content)
+                .ok_or_else(|| "API response contained no message content".to_string())?;
+
+            Ok(sanitize_llm_translation(&raw_content))
+        };
+
+        match remote_call.await {
+            Ok(translated_text) => {
+                let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
+                if !translated_text.is_empty() {
+                    self.cache
+                        .set(cleaned_source, &src_code, &tgt_code, &translated_text);
+                }
+                Ok(TranslationResponse {
+                    source_text: req.source_text.clone(),
+                    translated_text,
+                    source_lang: src_code,
+                    target_lang: tgt_code,
+                    from_cache: false,
+                    latency_ms,
+                    is_fallback: false,
+                })
+            }
+            Err(err) => {
+                // Automatic graceful fallback to offline translation engine without poisoning persistent cache
+                eprintln!("[LLM-FALLBACK] Remote translation unavailable ({err}), falling back to offline engine");
+                let fallback = self.offline_translator.translate(cleaned_source, &src_code, &tgt_code);
+                let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
+                Ok(TranslationResponse {
+                    source_text: req.source_text.clone(),
+                    translated_text: fallback,
+                    source_lang: src_code,
+                    target_lang: tgt_code,
+                    from_cache: false,
+                    latency_ms,
+                    is_fallback: true,
+                })
+            }
         }
-
-        let completion: ChatCompletionResponse = resp
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response JSON: {}", e))?;
-
-        let raw_content = completion
-            .choices
-            .and_then(|c| c.into_iter().next())
-            .and_then(|c| c.message)
-            .and_then(|m| m.content)
-            .ok_or_else(|| "API response contained no message content".to_string())?;
-
-        let translated_text = sanitize_llm_translation(&raw_content);
-        let latency_ms = start.elapsed().as_secs_f32() * 1000.0;
-
-        if !translated_text.is_empty() {
-            self.cache
-                .set(cleaned_source, &src_code, &tgt_code, &translated_text);
-        }
-
-        Ok(TranslationResponse {
-            source_text: req.source_text.clone(),
-            translated_text,
-            source_lang: src_code,
-            target_lang: tgt_code,
-            from_cache: false,
-            latency_ms,
-        })
     }
 
     pub async fn test_connection(&self, config: &LlmConfig) -> Result<String, String> {
@@ -632,5 +886,44 @@ mod tests {
         assert_eq!(res.translated_text, "Identical Text");
         assert!(!res.from_cache);
         assert!(res.latency_ms >= 0.0 && res.latency_ms < 50.0);
+    }
+
+    #[test]
+    fn test_offline_translator_dictionary() {
+        let offline = OfflineTranslator::new();
+        assert_eq!(offline.translate("Hello", "en", "id"), "Halo");
+        assert_eq!(offline.translate("Thank you!", "en", "id"), "Terima kasih");
+        assert_eq!(offline.translate("ありがとう", "ja", "en"), "Thank you");
+        assert_eq!(offline.translate("こんにちは", "ja", "id"), "Halo");
+        assert_eq!(offline.translate("你好", "zh", "en"), "Hello");
+        assert_eq!(offline.translate("안녕하세요", "ko", "id"), "Halo");
+        // Unknown phrase fallback keeps original cleanly
+        assert_eq!(offline.translate("Random Unseen Line", "en", "id"), "Random Unseen Line");
+    }
+
+    #[tokio::test]
+    async fn test_offline_fallback_on_network_failure() {
+        let cache = Arc::new(TranslationCache::open_in_memory().expect("open memory cache"));
+        let translator = LlmTranslator::new(cache);
+        // Invalid/unreachable local port to simulate network failure
+        let config = LlmConfig {
+            base_url: "http://127.0.0.1:54321/v1".to_string(),
+            model_name: "test-model".to_string(),
+            api_key: None,
+            timeout_seconds: Some(1),
+        };
+        let req = TranslationRequest {
+            source_text: "Thank you".to_string(),
+            source_lang: "en".to_string(),
+            target_lang: "id".to_string(),
+        };
+
+        let res = translator
+            .translate(&config, &req)
+            .await
+            .expect("fallback response");
+        assert_eq!(res.translated_text, "Terima kasih");
+        assert!(res.is_fallback);
+        assert!(!res.from_cache);
     }
 }

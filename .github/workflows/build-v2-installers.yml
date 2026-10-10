@@ -1,0 +1,132 @@
+name: Build V2 Standalone Native Installers (Tauri v2)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v2*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.target }} - .dmg)
+    runs-on: macos-14
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+
+      - name: Build Standalone macOS DMG
+        run: |
+          cargo tauri build --target ${{ matrix.target }}
+
+      - name: Verify DMG Artifact Footprint (<= 35 MB)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg_files=$(find src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name "*.dmg" 2>/dev/null || true)
+          if [ -z "$dmg_files" ]; then
+            dmg_files=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" 2>/dev/null || true)
+          fi
+          test -n "$dmg_files"
+          echo "Found DMG: $dmg_files"
+          for f in $dmg_files; do
+            size_mb=$(du -m "$f" | cut -f1)
+            echo "Artifact size: ${size_mb} MB (Target: <= 35 MB)"
+            if [ "$size_mb" -gt 35 ]; then
+              echo "Error: Installer exceeds 35 MB footprint limit"
+              exit 1
+            fi
+            hdiutil verify "$f"
+          done
+
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Subterranean-Staircase-v2-macos-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (x64 - .msi & .exe)
+    runs-on: windows-2022
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+
+      - name: Build Windows Installer
+        run: |
+          cargo tauri build --target x86_64-pc-windows-msvc
+
+      - name: Verify Windows Artifact Footprint (<= 35 MB)
+        shell: bash
+        run: |
+          set -euo pipefail
+          msi_files=$(find src-tauri/target -name "*.msi" -o -name "*.exe" 2>/dev/null | grep -v "/deps/" | grep -v "/build/" || true)
+          test -n "$msi_files"
+          echo "Found Windows installer artifacts:"
+          echo "$msi_files"
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Subterranean-Staircase-v2-windows-x64
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

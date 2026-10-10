@@ -3,6 +3,7 @@ pub mod capture;
 pub mod diff;
 pub mod ocr;
 pub mod overlay;
+pub mod pipeline;
 pub mod translate;
 
 use std::sync::{Arc, Mutex};
@@ -13,6 +14,7 @@ use capture::{CaptureEngine, CaptureRoi, CaptureTargets};
 use diff::{DiffResult, FrameDiffDetector};
 use ocr::{OcrDetection, OcrEngine};
 use overlay::{OverlayState, OverlayStyle, SubtitlePayload};
+use pipeline::{PipelineConfig, PipelineController, PipelineMetrics, PipelineStatus};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use translate::{LlmConfig, LlmTranslator, TranslationRequest, TranslationResponse};
@@ -41,9 +43,10 @@ pub struct AppState {
     pub overlay_state: Mutex<OverlayState>,
     pub diff_detector: Mutex<FrameDiffDetector>,
     pub cache: Arc<TranslationCache>,
-    pub llm_translator: LlmTranslator,
-    pub llm_config: Mutex<LlmConfig>,
+    pub llm_translator: Arc<LlmTranslator>,
+    pub llm_config: Arc<Mutex<LlmConfig>>,
     pub ocr_engine: Arc<OcrEngine>,
+    pub pipeline: Arc<PipelineController>,
 }
 
 impl Default for AppState {
@@ -51,9 +54,10 @@ impl Default for AppState {
         let cache = Arc::new(TranslationCache::open_default().unwrap_or_else(|_| {
             TranslationCache::open_in_memory().expect("open fallback memory cache")
         }));
-        let llm_translator = LlmTranslator::new(cache.clone());
-        let llm_config = Mutex::new(LlmConfig::load());
+        let llm_translator = Arc::new(LlmTranslator::new(cache.clone()));
+        let llm_config = Arc::new(Mutex::new(LlmConfig::load()));
         let ocr_engine = Arc::new(OcrEngine::new_default());
+        let pipeline = Arc::new(PipelineController::new());
         Self {
             overlay_state: Mutex::new(OverlayState::default()),
             diff_detector: Mutex::new(FrameDiffDetector::default()),
@@ -61,6 +65,7 @@ impl Default for AppState {
             llm_translator,
             llm_config,
             ocr_engine,
+            pipeline,
         }
     }
 }
@@ -481,6 +486,54 @@ async fn run_ocr_on_frame(
     .map_err(|e| format!("OCR execution task joined with error: {e}"))?
 }
 
+#[tauri::command]
+fn start_pipeline(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    config: Option<PipelineConfig>,
+) -> Result<(), String> {
+    state.pipeline.start(
+        app,
+        Arc::clone(&state.ocr_engine),
+        Arc::clone(&state.llm_translator),
+        Arc::clone(&state.llm_config),
+        config,
+    )
+}
+
+#[tauri::command]
+fn pause_pipeline(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.pipeline.pause()
+}
+
+#[tauri::command]
+fn resume_pipeline(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.pipeline.resume()
+}
+
+#[tauri::command]
+fn stop_pipeline(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.pipeline.stop()
+}
+
+#[tauri::command]
+fn get_pipeline_status(state: tauri::State<'_, AppState>) -> PipelineStatus {
+    state.pipeline.get_status()
+}
+
+#[tauri::command]
+fn get_pipeline_metrics(state: tauri::State<'_, AppState>) -> PipelineMetrics {
+    state.pipeline.get_metrics()
+}
+
+#[tauri::command]
+fn update_pipeline_config(
+    state: tauri::State<'_, AppState>,
+    config: PipelineConfig,
+) -> Result<(), String> {
+    state.pipeline.update_config(config)
+}
+
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .manage(AppState::default())
@@ -525,7 +578,14 @@ pub fn run() -> tauri::Result<()> {
             get_cache_stats,
             clear_translation_cache,
             get_ocr_status,
-            run_ocr_on_frame
+            run_ocr_on_frame,
+            start_pipeline,
+            pause_pipeline,
+            resume_pipeline,
+            stop_pipeline,
+            get_pipeline_status,
+            get_pipeline_metrics,
+            update_pipeline_config
         ])
         .run(tauri::generate_context!())?;
     Ok(())

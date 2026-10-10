@@ -3,9 +3,11 @@ import {
   clampNumber,
   formatCacheCountLabel,
   formatDiffStatus,
+  formatIdleSavings,
   formatLanguagePairLabel,
   formatOcrMetric,
   formatOcrStatusBadge,
+  formatPipelineStatusBadge,
   formatTranslationMetric,
   generateOverlayCssTokens,
   isHexColor,
@@ -182,5 +184,45 @@ describe("formatOcrMetric", () => {
   it("handles NaN and negative values defensively", () => {
     expect(formatOcrMetric(NaN, -1)).toBe("0.0 ms (0 text boxes)");
     expect(formatOcrMetric(-15.4, NaN)).toBe("0.0 ms (0 text boxes)");
+  });
+});
+
+describe("formatPipelineStatusBadge", () => {
+  it("formats running state", () => {
+    const res = formatPipelineStatusBadge("Running");
+    expect(res.label).toContain("RUNNING");
+    expect(res.badgeClass).toBe("badge-unlocked");
+  });
+
+  it("formats paused state", () => {
+    const res = formatPipelineStatusBadge("Paused");
+    expect(res.label).toBe("PAUSED");
+    expect(res.badgeClass).toBe("badge-locked");
+  });
+
+  it("formats stopped state", () => {
+    const res = formatPipelineStatusBadge("Stopped");
+    expect(res.label).toBe("STOPPED");
+    expect(res.badgeClass).toBe("badge-locked");
+  });
+});
+
+describe("formatIdleSavings", () => {
+  it("calculates percentage correctly", () => {
+    expect(formatIdleSavings(100, 85)).toBe("85.0% idle compute saved");
+    expect(formatIdleSavings(200, 190)).toBe("95.0% idle compute saved");
+  });
+
+  it("handles zero frames safely", () => {
+    expect(formatIdleSavings(0, 0)).toBe("0.0% idle saved");
+  });
+
+  it("handles boundary values safely (negative, skipped > total, NaN, Infinity)", () => {
+    expect(formatIdleSavings(100, 150)).toBe("100.0% idle compute saved");
+    expect(formatIdleSavings(-10, 5)).toBe("0.0% idle saved");
+    expect(formatIdleSavings(100, -5)).toBe("0.0% idle compute saved");
+    expect(formatIdleSavings(NaN, 10)).toBe("0.0% idle saved");
+    expect(formatIdleSavings(100, NaN)).toBe("0.0% idle compute saved");
+    expect(formatIdleSavings(Infinity, 10)).toBe("0.0% idle saved");
   });
 });
