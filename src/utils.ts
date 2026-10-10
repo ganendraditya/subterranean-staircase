@@ -189,3 +189,70 @@ export function formatOcrMetric(latencyMs: number, count: number): string {
   const safeCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   return `${safeLatency.toFixed(1)} ms (${safeCount} text box${safeCount === 1 ? "" : "es"})`;
 }
+
+export type PipelineStatus = "Stopped" | "Running" | "Paused";
+
+export interface PipelineConfig {
+  target_type: "screen" | "window";
+  target_id: number;
+  roi: { x: number; y: number; width: number; height: number } | null;
+  fps_limit: number;
+  frame_diff_threshold: number;
+  source_lang: string;
+  target_lang: string;
+}
+
+export interface PipelineMetrics {
+  status: PipelineStatus;
+  fps: number;
+  total_frames: number;
+  skipped_frames: number;
+  ocr_invocations: number;
+  translations_count: number;
+  last_diff_delta: number;
+  last_ocr_latency_ms: number;
+  last_trans_latency_ms: number;
+  last_detected_text: string;
+  last_translated_text: string;
+  is_fallback: boolean;
+}
+
+/**
+ * Formats pipeline status into descriptive UI badge.
+ */
+export function formatPipelineStatusBadge(status: PipelineStatus): {
+  label: string;
+  badgeClass: string;
+} {
+  switch (status) {
+    case "Running":
+      return {
+        label: "RUNNING (Active)",
+        badgeClass: "badge-unlocked",
+      };
+    case "Paused":
+      return {
+        label: "PAUSED",
+        badgeClass: "badge-locked",
+      };
+    case "Stopped":
+    default:
+      return {
+        label: "STOPPED",
+        badgeClass: "badge-locked",
+      };
+  }
+}
+
+/**
+ * Calculates and formats idle frame skip compute savings percentage.
+ */
+export function formatIdleSavings(total: number, skipped: number): string {
+  const safeTotal = Number.isFinite(total) ? Math.max(0, total) : 0;
+  const safeSkipped = Number.isFinite(skipped) ? Math.min(safeTotal, Math.max(0, skipped)) : 0;
+  if (safeTotal === 0) {
+    return "0.0% idle saved";
+  }
+  const pct = (safeSkipped / safeTotal) * 100.0;
+  return `${pct.toFixed(1)}% idle compute saved`;
+}

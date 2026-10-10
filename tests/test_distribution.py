@@ -364,6 +364,40 @@ def test_v2_phase4_llm_and_cache_modules() -> None:
     assert "normalize_chat_endpoint" in translate_code
 
 
+def test_v2_phase5_ocr_modules() -> None:
+    root = _root()
+    ocr_dir = root / "src-tauri" / "src" / "ocr"
+    assert (ocr_dir / "mod.rs").is_file()
+    assert (ocr_dir / "dbnet.rs").is_file()
+    assert (ocr_dir / "rec.rs").is_file()
+    assert (ocr_dir / "ctc.rs").is_file()
+    assert (ocr_dir / "spatial.rs").is_file()
+
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+    content = cargo_toml.read_text(encoding="utf-8")
+    assert "ort = " in content
+    assert "clipper2-rust = " in content
+    assert "imageproc = " in content
+
+
+def test_v2_phase6_orchestration_and_packaging() -> None:
+    root = _root()
+    pipeline_rs = root / "src-tauri" / "src" / "pipeline.rs"
+    assert pipeline_rs.is_file(), "src-tauri/src/pipeline.rs must exist"
+    pipeline_code = pipeline_rs.read_text(encoding="utf-8")
+    assert "pub struct PipelineController" in pipeline_code
+    assert "pub enum PipelineStatus" in pipeline_code
+    assert "pub struct PipelineMetrics" in pipeline_code
+
+    v2_ci = root / ".github" / "workflows" / "build-v2-installers.yml"
+    assert v2_ci.is_file(), ".github/workflows/build-v2-installers.yml must exist"
+    v2_ci_content = v2_ci.read_text(encoding="utf-8")
+    assert "cargo tauri build" in v2_ci_content
+    assert "build-macos" in v2_ci_content
+    assert "build-windows" in v2_ci_content
+
+
+
 
 
 

@@ -63,6 +63,43 @@
 
         <div class="settings-card">
           <div class="settings-card-header">
+            <h3 class="settings-card-title">Background Pipeline Orchestrator</h3>
+            <span id="badge-pipeline-status" class="settings-card-badge badge-locked">STOPPED</span>
+          </div>
+          <p class="settings-description">
+            Continuous real-time translation loop coordinating native Screen Capture &rarr; SIMD Vision Gating &rarr; Neural OCR &rarr; Translation Router &rarr; Floating Overlay.
+          </p>
+
+          <div class="input-action-row">
+            <button id="btn-start-pipeline" class="btn btn-primary">Start Live Pipeline</button>
+            <button id="btn-pause-pipeline" class="btn btn-secondary" disabled>Pause</button>
+            <button id="btn-stop-pipeline" class="btn btn-secondary btn-danger-hover" disabled>Stop</button>
+          </div>
+
+          <div class="preview-stats-bar">
+            <div class="preview-stat-item">
+              <span>Pipeline FPS:</span>
+              <span id="val-pipe-fps" class="preview-stat-val">0.0 FPS</span>
+            </div>
+            <div class="preview-stat-item">
+              <span>Processed Frames:</span>
+              <span id="val-pipe-frames" class="preview-stat-val">0</span>
+            </div>
+            <div class="preview-stat-item">
+              <span>Idle Compute Saved:</span>
+              <span id="val-pipe-savings" class="preview-stat-val">0.0% idle saved</span>
+            </div>
+            <div class="preview-stat-item">
+              <span>Translations:</span>
+              <span id="val-pipe-trans" class="preview-stat-val">0</span>
+            </div>
+          </div>
+
+          <div id="box-pipe-telemetry" class="test-result-box hidden"></div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-header">
             <h3 class="settings-card-title">Screen Capture &amp; SIMD Vision Gating</h3>
             <span id="badge-gate-status" class="settings-card-badge badge-locked">STATIC (Gated)</span>
           </div>

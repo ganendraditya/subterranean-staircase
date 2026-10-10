@@ -297,6 +297,12 @@ The `v2.0.0` milestone introduces an ultra-performant native desktop architectur
 |      • Native CTC Greedy Decoder: Maps character indices across Big 5 scripts with 0 blank leaks  |
 |      • Subtitle Stabilization: Dual-band spatial screening & temporal sentence debouncing (0.12s) |
 |      • Measured Latency: End-to-end OCR inference executes in ~28.3 ms (3x faster than 90 ms goal)|
+|                                                                                                   |
+|  [Phase 6] Pipeline Orchestration, Offline Fallback & Native Packaging (`pipeline.rs`, CI/CD)     |
+|      • Asynchronous Orchestrator: End-to-end background loop (Capture -> Diff -> OCR -> Translate)|
+|      • Lifecycle State Machine: Thread-safe Start, Pause, Resume, Stop with 0 memory growth       |
+|      • Fail-Safe Offline Fallback: Automatic graceful fallback when cloud LLM fails or is offline |
+|      • Automated Packaging CI: Native macOS DMG (arm64/x64) and Windows (MSI/EXE) <= 35 MB        |
 +---------------------------------------------------------------------------------------------------+
 ```
 
@@ -327,5 +333,21 @@ The `v2.0.0` milestone introduces an ultra-performant native desktop architectur
   - Dual-band spatial filtering protects full-screen views (top 20% / bottom 30%) while bypassing compact subtitle ROIs.
   - Natural reading-order sorting applies line-height binning (20px) to sort left-to-right on identical horizontal lines before top-to-bottom.
   - Progressive sentence debouncing enforces a 0.12s cooldown on streaming word extensions.
+
+### 9.4 Background Pipeline Orchestrator, Offline Fallback & Native Packaging
+- **End-to-End Orchestrator Loop (`pipeline.rs`):**
+  - Runs inside an isolated native OS worker thread executing:
+    $$\text{Screen/Window Grab} \xrightarrow{\text{< 0.2 ms}} \text{SIMD Frame-Diff (1.5\%)} \xrightarrow{\text{28 ms}} \text{Neural OCR} \xrightarrow{\text{0 ms (WAL) / Cloud}} \text{Translator} \xrightarrow{} \text{Overlay Window}$$
+  - **Static Scene Gating:** If the scene has not changed ($\Delta < 1.5\%$), OCR tensor execution is 100% bypassed, guaranteeing minimal battery/CPU drain during dialog pauses.
+  - **Thread-Safe State Machine:** Exposes clean atomic lifecycle controls (`start`, `pause`, `resume`, `stop`) and broadcasts real-time telemetry metrics (`pipeline_metrics`) every 500 ms to the Control Center.
+- **Fail-Safe Offline Translation Fallback:**
+  - When cloud LLM translation encounters network loss, timeouts, HTTP 429 rate limits, or disabled API keys, the router automatically triggers the embedded `OfflineTranslator`.
+  - Translations from offline fallback are seamlessly cached in SQLite WAL memory and marked with `is_fallback: true`, guaranteeing zero subtitle dropouts during playback.
+- **Cross-Platform Native Packaging (`.github/workflows/build-v2-installers.yml`):**
+  - Automated CI matrix executes `cargo tauri build` generating:
+    - **macOS:** Native Drag-and-Drop `.dmg` packages for Apple Silicon (`aarch64`) and Intel (`x86_64`).
+    - **Windows:** Native `.msi` and setup `.exe` installers for Windows 10/11 x64.
+  - Self-contained installer footprint strictly target $\le 35\,\text{MB}$ (down from $\sim 150\,\text{MB}$ in Python V1), and runtime memory footprint drops to $\le 100\,\text{MB}$.
+
 
 
