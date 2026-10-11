@@ -297,4 +297,20 @@ mod tests {
         );
         println!("OCR End-to-end Latency: {:.2} ms | Text: '{}'", elapsed_ms, recognized_text);
     }
+
+    #[test]
+    fn test_benchmark_dataset_manifest_integrity() {
+        let manifest_path = if Path::new("tests/fixtures/benchmark/dataset_manifest.json").exists() {
+            PathBuf::from("tests/fixtures/benchmark/dataset_manifest.json")
+        } else if Path::new("../tests/fixtures/benchmark/dataset_manifest.json").exists() {
+            PathBuf::from("../tests/fixtures/benchmark/dataset_manifest.json")
+        } else {
+            return;
+        };
+
+        let content = std::fs::read_to_string(&manifest_path).expect("read manifest");
+        let parsed: serde_json::Value = serde_json::from_str(&content).expect("parse json");
+        let list = parsed.as_array().expect("array");
+        assert_eq!(list.len(), 25, "Expected 25 benchmark scenarios");
+    }
 }
