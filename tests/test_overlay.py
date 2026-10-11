@@ -67,7 +67,7 @@ def test_overlay_fade_out_behavior(qapp) -> None:
     assert overlay._current_text == "Temporary Subtitle"
 
     # Simulate passage of time beyond fade-out threshold
-    overlay._last_update_time = time.time() - 0.2
+    overlay._last_update_time = time.monotonic() - 0.2
     overlay._check_fade_out()
 
     assert overlay._current_text == ""

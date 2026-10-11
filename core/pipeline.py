@@ -259,7 +259,6 @@ class TranslationPipelineWorker(QThread):
 
         self._pending_sentence = raw_sentence
         self._pending_sentence_time = now
-        self._last_translated_sentence = raw_sentence
         logger.info("[AUDIT-STABLE] Sentence stabilized: %r", raw_sentence)
 
         # 7. Translation Request
@@ -277,6 +276,7 @@ class TranslationPipelineWorker(QThread):
             result = engine.translate(req)
             t_trans_ms = (time.perf_counter() - t_trans0) * 1000.0
             if result.translated_text:
+                self._last_translated_sentence = raw_sentence
                 e2e_ms = max(0.0, (time.time() - frame.timestamp) * 1000.0) if frame.timestamp > 0 else (t_ocr_ms + t_trans_ms)
                 logger.info("[AUDIT-TRANS] (OCR: %.1fms | Trans: %.1fms | Total E2E: %.1fms) %r ➔ %r", t_ocr_ms, t_trans_ms, e2e_ms, raw_sentence, result.translated_text)
                 self.signals.subtitle_ready.emit(result.translated_text)

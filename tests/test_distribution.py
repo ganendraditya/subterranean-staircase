@@ -1,5 +1,6 @@
 """Unit tests verifying installer script syntax and presence."""
 
+import json
 from pathlib import Path
 
 
@@ -264,6 +265,139 @@ def test_readme_contains_direct_download_links() -> None:
     assert "Subterranean-Staircase-windows-x64-Setup.exe" in readme
     assert "Subterranean-Staircase-windows-x64-portable.zip" in readme
     assert "TECHNICAL_STACK_AND_PIPELINES.md" in readme
+
+
+def test_v2_tauri_scaffolding_manifests() -> None:
+    root = _root()
+    package_json = root / "package.json"
+    tauri_conf = root / "src-tauri" / "tauri.conf.json"
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+
+    assert package_json.is_file(), "package.json must exist at repository root"
+    assert tauri_conf.is_file(), "src-tauri/tauri.conf.json must exist"
+    assert cargo_toml.is_file(), "src-tauri/Cargo.toml must exist"
+
+    pkg_data = json.loads(package_json.read_text(encoding="utf-8"))
+    assert pkg_data["name"] == "subterranean-staircase"
+    assert "2.0.0" in pkg_data["version"]
+
+    tauri_data = json.loads(tauri_conf.read_text(encoding="utf-8"))
+    assert tauri_data["productName"] == "Subterranean Staircase"
+    assert tauri_data["identifier"] == "com.ganendraditya.subterranean-staircase"
+
+    cargo_content = cargo_toml.read_text(encoding="utf-8")
+    assert 'name = "subterranean_staircase"' in cargo_content
+    assert "tauri = " in cargo_content
+
+
+def test_v2_dual_window_configuration() -> None:
+    root = _root()
+    overlay_html = root / "overlay.html"
+    overlay_ts = root / "src" / "overlay.ts"
+    overlay_css = root / "src" / "overlay.css"
+    tauri_conf = root / "src-tauri" / "tauri.conf.json"
+
+    assert overlay_html.is_file(), "overlay.html must exist for multi-window Vite build"
+    assert overlay_ts.is_file(), "src/overlay.ts must exist"
+    assert overlay_css.is_file(), "src/overlay.css must exist"
+
+    tauri_data = json.loads(tauri_conf.read_text(encoding="utf-8"))
+    windows = tauri_data["app"]["windows"]
+    labels = [w["label"] for w in windows]
+
+    assert "main" in labels, "main control center window must be defined"
+    assert "overlay" in labels, "overlay window must be defined"
+
+    overlay_win = next(w for w in windows if w["label"] == "overlay")
+    assert overlay_win["transparent"] is True, "Overlay window must be transparent"
+    assert overlay_win["decorations"] is False, "Overlay window must be frameless"
+    assert overlay_win["alwaysOnTop"] is True, "Overlay window must stay topmost"
+    assert overlay_win["width"] == 800
+    assert overlay_win["height"] == 160
+
+
+def test_v2_phase3_capture_and_diff_modules() -> None:
+    root = _root()
+    capture_rs = root / "src-tauri" / "src" / "capture.rs"
+    diff_rs = root / "src-tauri" / "src" / "diff.rs"
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+
+    assert capture_rs.is_file(), "src-tauri/src/capture.rs must exist"
+    assert diff_rs.is_file(), "src-tauri/src/diff.rs must exist"
+
+    cargo_content = cargo_toml.read_text(encoding="utf-8")
+    assert "xcap = " in cargo_content, "xcap native capture driver must be declared"
+    assert "image = " in cargo_content, "image processing crate must be declared"
+
+    capture_code = capture_rs.read_text(encoding="utf-8")
+    assert "pub struct CaptureEngine;" in capture_code
+    assert "pub fn capture_screen" in capture_code
+    assert "pub fn capture_window" in capture_code
+
+    diff_code = diff_rs.read_text(encoding="utf-8")
+    assert "pub struct FrameDiffDetector" in diff_code
+    assert "pub fn compare" in diff_code
+
+
+def test_v2_phase4_llm_and_cache_modules() -> None:
+    root = _root()
+    cache_rs = root / "src-tauri" / "src" / "cache.rs"
+    translate_rs = root / "src-tauri" / "src" / "translate.rs"
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+
+    assert cache_rs.is_file(), "src-tauri/src/cache.rs must exist"
+    assert translate_rs.is_file(), "src-tauri/src/translate.rs must exist"
+
+    cargo_content = cargo_toml.read_text(encoding="utf-8")
+    assert "rusqlite = " in cargo_content, "rusqlite SQLite driver must be declared"
+    assert "reqwest = " in cargo_content, "reqwest HTTP client must be declared"
+
+    cache_code = cache_rs.read_text(encoding="utf-8")
+    assert "pub struct TranslationCache" in cache_code
+    assert "PRAGMA journal_mode = WAL;" in cache_code
+    assert "pub fn get" in cache_code
+    assert "pub fn set" in cache_code
+
+    translate_code = translate_rs.read_text(encoding="utf-8")
+    assert "pub struct LlmTranslator" in translate_code
+    assert "pub async fn translate" in translate_code
+    assert "normalize_chat_endpoint" in translate_code
+
+
+def test_v2_phase5_ocr_modules() -> None:
+    root = _root()
+    ocr_dir = root / "src-tauri" / "src" / "ocr"
+    assert (ocr_dir / "mod.rs").is_file()
+    assert (ocr_dir / "dbnet.rs").is_file()
+    assert (ocr_dir / "rec.rs").is_file()
+    assert (ocr_dir / "ctc.rs").is_file()
+    assert (ocr_dir / "spatial.rs").is_file()
+
+    cargo_toml = root / "src-tauri" / "Cargo.toml"
+    content = cargo_toml.read_text(encoding="utf-8")
+    assert "ort = " in content
+    assert "clipper2-rust = " in content
+    assert "imageproc = " in content
+
+
+def test_v2_phase6_orchestration_and_packaging() -> None:
+    root = _root()
+    pipeline_rs = root / "src-tauri" / "src" / "pipeline.rs"
+    assert pipeline_rs.is_file(), "src-tauri/src/pipeline.rs must exist"
+    pipeline_code = pipeline_rs.read_text(encoding="utf-8")
+    assert "pub struct PipelineController" in pipeline_code
+    assert "pub enum PipelineStatus" in pipeline_code
+    assert "pub struct PipelineMetrics" in pipeline_code
+
+    v2_ci = root / ".github" / "workflows" / "build-v2-installers.yml"
+    assert v2_ci.is_file(), ".github/workflows/build-v2-installers.yml must exist"
+    v2_ci_content = v2_ci.read_text(encoding="utf-8")
+    assert "cargo tauri build" in v2_ci_content
+    assert "build-macos" in v2_ci_content
+    assert "build-windows" in v2_ci_content
+
+
+
 
 
 

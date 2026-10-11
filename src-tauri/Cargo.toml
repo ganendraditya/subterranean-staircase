@@ -1,0 +1,39 @@
+[package]
+name = "subterranean_staircase"
+version = "2.0.0-alpha.1"
+description = "Subterranean Staircase: Real-time on-device screen subtitle translator"
+authors = ["Ganendra Aditya <ganendraditya@gmail.com>"]
+edition = "2021"
+license = "MIT"
+rust-version = "1.77"
+
+[lib]
+name = "subterranean_staircase_lib"
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2" }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+base64 = "0.22"
+xcap = "0.9.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+dirs = "6.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
+ort = { version = "2.0.0-rc.9", features = ["download-binaries"] }
+ndarray = "0.17"
+imageproc = { version = "0.25", default-features = false }
+clipper2-rust = "1.2.0"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

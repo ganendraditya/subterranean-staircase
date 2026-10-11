@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Subterranean Staircase",
+  "version": "2.0.0-alpha.1",
+  "identifier": "com.ganendraditya.subterranean-staircase",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Subterranean Staircase Control Center",
+        "width": 820,
+        "height": 640,
+        "resizable": true,
+        "decorations": true,
+        "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Subterranean Staircase Subtitle Overlay",
+        "url": "overlay.html",
+        "width": 800,
+        "height": 160,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

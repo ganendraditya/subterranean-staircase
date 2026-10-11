@@ -36,7 +36,11 @@ class ModelDownloadWorker(QThread):
         def _cb(curr: int, total: int, msg: str) -> None:
             self.progress_updated.emit(curr, total, msg)
 
-        success, message = self.model_manager.download_model(self.pair_id, progress_cb=_cb)
+        try:
+            success, message = self.model_manager.download_model(self.pair_id, progress_cb=_cb)
+        except Exception as exc:
+            logger.exception("Model download failed for %s", self.pair_id)
+            success, message = False, f"Download failed: {exc}"
         self.download_finished.emit(success, message)
 
 

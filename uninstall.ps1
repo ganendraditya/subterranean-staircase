@@ -19,10 +19,14 @@ if ($allArgs) {
 $ErrorActionPreference = "Stop"
 
 $LocalAppData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData) }
+if (-not [IO.Path]::IsPathRooted($LocalAppData)) { throw "LOCALAPPDATA must be an absolute path: $LocalAppData" }
 $InstallDir = Join-Path $LocalAppData "SubtitleTranslator"
 $BinDir = Join-Path (Join-Path $LocalAppData "Programs") "SubtitleTranslator"
 
 $UserHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { [Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile) }
+if (-not [IO.Path]::IsPathRooted($UserHome)) { throw "USERPROFILE must be an absolute path: $UserHome" }
+if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME) -and -not [IO.Path]::IsPathRooted($env:XDG_CONFIG_HOME)) { throw "XDG_CONFIG_HOME must be an absolute path" }
+if (-not [string]::IsNullOrWhiteSpace($env:XDG_CACHE_HOME) -and -not [IO.Path]::IsPathRooted($env:XDG_CACHE_HOME)) { throw "XDG_CACHE_HOME must be an absolute path" }
 $ConfigDir = if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) { Join-Path $env:XDG_CONFIG_HOME "subtitle-translator" } else { Join-Path (Join-Path $UserHome ".config") "subtitle-translator" }
 $CacheDir = if (-not [string]::IsNullOrWhiteSpace($env:XDG_CACHE_HOME)) { Join-Path $env:XDG_CACHE_HOME "subtitle-translator" } else { Join-Path (Join-Path $UserHome ".cache") "subtitle-translator" }
 

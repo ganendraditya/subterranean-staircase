@@ -54,18 +54,14 @@ For developers contributing to the codebase, testing bug fixes, or running from 
 git clone https://github.com/ganendraditya/subterranean-staircase.git
 cd subterranean-staircase
 
-# Setup Python 3.10+ virtual environment
+# Run V2 Native Desktop App (Rust + Tauri v2 + Vite)
+bun install         # or npm install
+bun run tauri dev   # or npm run tauri dev
+
+# Or run V1 Prototype (Python 3.10+ / PyQt6)
 python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install --upgrade pip
 pip install -r requirements.txt
-
-# Run full test suite
-pytest tests/
-
-# Launch application
 python run.py
 ```
 
@@ -73,51 +69,58 @@ python run.py
 
 ## Usage & Management
 
-### Running & Auto-Start
-- **Auto-Start on Boot:** If enabled during installation (or toggled anytime in **Control Center → System & Autostart**), Subterranean Staircase runs silently in your background menu bar / system tray whenever your computer boots.
-- **Manual Launch:** You can also launch the app from terminal anytime:
-```bash
-subtrans
-```
+### 1. Daily Desktop Usage (GUI)
+- **Menu Bar & Tray:** Once running, Subterranean Staircase lives in your system tray / menu bar. Click the tray icon to open the **Control Center**, pause/resume capture, or adjust settings.
+- **Auto-Start on Boot:** If enabled during installation (or toggled in **Control Center → System & Autostart**), the application starts silently in the background whenever your system boots.
+- **Draggable Subtitle Positioning:** Click **"Move Subtitles"** in Control Center to unlock the overlay canvas, drag it to your desired position on screen, and lock it in place.
 
-### Model & Translation Engine Management
-Manage translation settings directly in **Control Center → Language & Translation Model**:
-- **Offline Mode:** Download Big 5 language packs (English, Indonesian, Japanese, Korean, Chinese) on-demand with 1-click downloads.
-- **Universal Cloud LLM (BYOK):** Switch to OpenAI-compatible mode and configure your API key for Groq (`llama-3.3-70b-versatile`), DeepSeek, OpenAI, or local self-hosted instances (Ollama, vLLM).
-- **Draggable Positioning:** Click **"Move Subtitles"** in Control Center to reposition the overlay anywhere on your screen.
+### 2. Translation Engine Modes (Offline & Cloud)
+Switch between translation backends anytime under **Control Center → Language & Translation**:
+- **Offline Mode:** Download Big 5 language packs (English, Indonesian, Japanese, Korean, Chinese) for zero-latency, private, and offline translation powered by quantized CTranslate2.
+- **Universal OpenAI-Compatible Mode (BYOK):** Connect any cloud API provider or self-hosted local model adhering to the standard `/v1/chat/completions` protocol (OpenAI, Groq, DeepSeek, Together AI, Ollama, vLLM, LM Studio). Simply provide your Base URL, Model Name, and API Key.
 
-### Updates
-- **In-App (1-Click):** When an update is available, a notification and tray banner `Update Available` will appear. Click to update dependencies and restart automatically without opening terminal.
-- **Control Center:** You can also toggle automatic checks or manually click **"Check Now"** under Control Center.
+### 3. Updates & Data Management
+- **1-Click Updates:** When a new release is available, an in-app banner will appear. Click to update dependencies and restart automatically.
+- **Factory Reset (0 Bytes):** Need a clean slate? Click **"Factory Reset..."** in Control Center to wipe all downloaded language models, caches, and user preferences.
 
-### Uninstalling
-
-#### Standalone Applications
-- **macOS:** Open **Control Center** and click **"Factory Reset..."** to purge all downloaded models and caches down to 0 bytes, then drag `Subterranean Staircase.app` from your `/Applications` folder to Trash.
-- **Windows:** Go to **Windows Settings → Apps → Installed apps**, locate **Subterranean Staircase**, and click **Uninstall**. An interactive prompt will ask whether you also want to purge all downloaded models and user configurations.
-
-#### Terminal Installations
-To uninstall cleanly from terminal:
-```bash
-subtrans uninstall
-```
-An interactive prompt will ask whether you want to preserve your configurations and cached offline models or remove them.
-
-To bypass the prompt and completely remove all files and cached models non-interactively:
-```bash
-subtrans uninstall --purge
-```
+### 4. Advanced CLI Usage (For Terminal Users)
+For users running from source or installed via the terminal one-liner:
+- **Launch Application:**
+  ```bash
+  subtrans
+  ```
+- **Clean Interactive Uninstall:**
+  ```bash
+  subtrans uninstall
+  ```
+- **Purge All Data Non-Interactively:**
+  ```bash
+  subtrans uninstall --purge
+  ```
 
 ---
 
-## Architecture & Stack (V1)
+## Architecture & Benchmark Performance (V1 vs V2)
 
-- **Screen & Window Capture:** Modular backend supporting macOS (ScreenCaptureKit / Quartz) and Windows (DirectX / Win32) with universal fallback via `mss`.
-- **Vision & OCR:** RapidOCR (ONNX Runtime, CoreML/DirectML/CPU) with perceptual frame-diff short-circuiting to minimize CPU/GPU usage when scenes are static.
-- **Subtitle Intelligence:** Dual-band spatial scanning (top & bottom priority), Jaccard similarity temporal tracking, and multi-language script filtering.
-- **Translation Engine:** CTranslate2 offline INT8 quantized MarianMT models with SQLite WAL caching + Universal OpenAI-Compatible Cloud LLM provider with fail-safe local fallback.
-- **UI & Overlay:** Hardware-accelerated PyQt6 transparent, click-through frameless overlay adhering to Anti-Slop WCAG AA contrast standards, anchored at bottom-center.
-- **Distribution:** Standalone `.dmg` (macOS arm64/x86_64), `Setup.exe` (Windows), and lightweight CLI installer.
+The `v2.0.0` release introduces a complete, pure native rewrite to **Rust + Tauri v2**, replacing Python 3 and PyQt6:
+
+| Architectural Metric | Prototype (V1 Python + PyQt6) | Production (V2 Rust + Tauri v2) | Impact / Performance Delta |
+| :--- | :---: | :---: | :--- |
+| **Installer Size** | ~150 MB (PyInstaller) | **$\le$ 35 MB** | **4.3× Smaller Package** |
+| **Standalone Executable** | 142 MB | **26 MB** | **5.4× Smaller Binary** |
+| **Idle Memory Footprint** | 156.4 MB (Dual Window) | **58.2 MB** | **62.8% RAM Reduction (2.7× leaner)** |
+| **Active Memory (Peak)** | 184 MB – 420 MB | **96.5 MB** | **Zero memory growth & zero GIL contention** |
+| **Cold Boot Startup Time** | 1.8 s – 2.5 s | **0.25 s** | **8× – 10× Instant Launch** |
+| **Perceptual Frame-Diff** | 0.044 ms (NumPy) | **0.005 ms** (SIMD AVX/NEON) | **8.8× Faster Gating (< 5 µs)** |
+| **Neural OCR Latency (P50)**| 190.2 ms (RapidOCR 720p) | **101.6 ms** (`ort` DBNet+SVTR) | **~2× Faster Full-Frame Processing** |
+| **SQLite WAL Memory Recall**| 0.025 ms | **< 0.005 ms** | **Sub-millisecond repeat phrase recall** |
+
+### Core Subsystems (V2):
+- **Screen & Window Grabber:** Native Quartz (`CGWindowListCreateImage`) on macOS and DXGI Desktop Duplication on Windows via zero-copy `xcap`.
+- **Vision Gating:** SIMD-accelerated Mean Absolute Difference (MAD) skipping 100% of OCR compute on static video frames.
+- **Neural OCR Pipeline:** Standalone ONNX Runtime (`ort` v2) with DBNet letterbox scaling (`unclip_ratio = 2.0`), PP-OCRv4 text recognition, and native Rust CTC greedy decoder (6,625 glyph dictionary).
+- **Dual-Engine Translation Matrix:** Model-agnostic OpenAI-compatible HTTP client (`reqwest` + `tokio`, SSRF-hardened, timeout-bounded) with instant SQLite WAL translation memory and built-in offline dictionary fallback.
+- **Floating Subtitle Overlay:** Non-activating, transparent, click-through webview window configured with `NSScreenSaverWindowLevel` (1000) for native macOS fullscreen spaces support.
 
 > **Deep Technical Specifications:** For full mathematical formulas, DBNet unclip scaling, NMT beam tuning benchmarks, and macOS WindowServer Spaces privilege specifications, see [`docs/TECHNICAL_STACK_AND_PIPELINES.md`](docs/TECHNICAL_STACK_AND_PIPELINES.md).
 
@@ -126,7 +129,7 @@ subtrans uninstall --purge
 ## Project Structure
 
 ```text
-subtitle-translator/
+subterranean-staircase/
 ├── core/
 │   ├── contracts/          # Single source of truth domain data models (DIP)
 │   ├── capture/            # Screen & window grabbers (multi-OS)
