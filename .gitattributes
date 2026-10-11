@@ -1,0 +1,3 @@
+# GitHub Linguist configuration
+# Mark standalone benchmark utility scripts as vendored tooling
+scripts/** linguist-vendored

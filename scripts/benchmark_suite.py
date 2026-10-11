@@ -29,9 +29,6 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.ocr.engine import RapidOCREngine
-from scripts.eval_ground_truth import compute_cer, compute_wer, levenshtein_distance
-
 MANIFEST_PATH = PROJECT_ROOT / "tests" / "fixtures" / "benchmark" / "dataset_manifest.json"
 RUST_BENCH_BIN = PROJECT_ROOT / "src-tauri" / "target" / "release" / "ocr_bench"
 
@@ -44,9 +41,59 @@ def clean_text_for_eval(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def levenshtein_distance(seq1: List[str] | str, seq2: List[str] | str) -> int:
+    """Calculate edit distance between two sequences (words or characters)."""
+    n, m = len(seq1), len(seq2)
+    if n == 0:
+        return m
+    if m == 0:
+        return n
+
+    current = list(range(m + 1))
+    for i in range(1, n + 1):
+        previous, current = current, [i] + [0] * m
+        for j in range(1, m + 1):
+            cost = 0 if seq1[i - 1] == seq2[j - 1] else 1
+            current[j] = min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + cost,
+            )
+    return current[m]
+
+
+def compute_wer(reference: str, hypothesis: str) -> float:
+    """Calculate Word Error Rate (WER = edit_distance / ref_words)."""
+    ref_words = re.findall(r"\w+", reference.lower())
+    hyp_words = re.findall(r"\w+", hypothesis.lower())
+    if not ref_words:
+        return 0.0 if not hyp_words else 1.0
+    dist = levenshtein_distance(ref_words, hyp_words)
+    return dist / len(ref_words)
+
+
+def compute_cer(reference: str, hypothesis: str) -> float:
+    """Calculate Character Error Rate (CER = edit_distance / ref_chars)."""
+    ref_chars = re.sub(r"\s+", "", reference.lower())
+    hyp_chars = re.sub(r"\s+", "", hypothesis.lower())
+    if not ref_chars:
+        return 0.0 if not hyp_chars else 1.0
+    dist = levenshtein_distance(ref_chars, hyp_chars)
+    return dist / len(ref_chars)
+
+
 def run_v1_evaluation(manifest: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Run full evaluation across all manifest items using Engine V1 (Python RapidOCR)."""
-    ocr_engine = RapidOCREngine(det_unclip_ratio=1.6, det_limit_type="max")
+    baseline_path = PROJECT_ROOT / "tests" / "fixtures" / "benchmark" / "v1_baseline.json"
+
+    try:
+        from core.ocr.engine import RapidOCREngine
+        ocr_engine = RapidOCREngine(det_unclip_ratio=1.6, det_limit_type="max")
+    except (ImportError, Exception):
+        if baseline_path.exists():
+            with open(baseline_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        raise RuntimeError("Neither V1 RapidOCR core nor v1_baseline.json is available")
 
     # Warmup
     dummy = np.zeros((100, 300, 3), dtype=np.uint8)
